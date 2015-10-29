@@ -1,0 +1,19 @@
+User
+  name Username
+  Primary name
+  passwordHash PasswordHash
+  email Email
+  phone Phone Maybe
+
+UserInstance
+  user Username
+  Foreign User fkUser user
+  instanceId Text
+
+Token
+  token B64Token
+  Primary token
+  user Username
+  Foreign User fkUser user
+  created UTCTime
+  expires UTCTime
