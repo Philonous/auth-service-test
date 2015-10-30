@@ -32,7 +32,7 @@ hashPassword (Password pwd) = liftIO $
     fmap PasswordHash <$>
       BCrypt.hashPasswordUsingPolicy policy (Text.encodeUtf8 pwd)
 
-createUser :: CreateUser -> API (Maybe ())
+createUser :: AddUser -> API (Maybe ())
 createUser usr = do
     mbHash <- hashPassword $ usr ^. password
     case mbHash of

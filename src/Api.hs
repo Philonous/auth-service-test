@@ -14,11 +14,11 @@ type LoginAPI = "login"
               :> ReqBody '[JSON] Login
               :> Post '[JSON] B64Token
 
-serveLogin :: ConnectionPool -> Server LoginAPI
-serveLogin pool loginReq = loginHandler
+serveLogin :: ConnectionPool -> Config -> Server LoginAPI
+serveLogin pool conf loginReq = loginHandler
   where
     loginHandler = do
-        mbToken <- lift . runAPI pool $ login loginReq
+        mbToken <- lift . runAPI pool conf $ login loginReq
         case mbToken of
          Just tok -> return tok
          Nothing -> left err403
@@ -27,11 +27,11 @@ type CheckTokenAPI = "checkToken"
                   :>  Capture "token" B64Token
                   :> Get '[JSON] (Headers '[Header "user" Username] ())
 
-serveCheckToken :: ConnectionPool -> Server CheckTokenAPI
-serveCheckToken pool token = checkTokenHandler
+serveCheckToken :: ConnectionPool -> Config -> Server CheckTokenAPI
+serveCheckToken pool conf token = checkTokenHandler
   where
     checkTokenHandler = do
-        res <- lift . runAPI pool $ checkToken token
+        res <- lift . runAPI pool conf $ checkToken token
         case res of
          Nothing -> left err403
          Just usr -> return $ addHeader usr ()
@@ -39,6 +39,6 @@ serveCheckToken pool token = checkTokenHandler
 apiPrx :: Proxy (LoginAPI :<|> CheckTokenAPI)
 apiPrx = Proxy
 
-serveAPI :: ConnectionPool -> Application
-serveAPI pool = serve apiPrx $ serveLogin pool
-                              :<|> serveCheckToken pool
+serveAPI :: ConnectionPool -> Config -> Application
+serveAPI pool conf = serve apiPrx $ serveLogin pool conf
+                               :<|> serveCheckToken pool conf

@@ -11,21 +11,21 @@
 
 module Types where
 
-import Control.Lens
-import Control.Monad.Catch
-import Control.Monad.Reader
-import Data.Aeson
-import Data.Aeson.TH
-import Data.ByteString (ByteString)
-import Data.ByteString.Conversion
-import Data.Data
-import Data.String
-import Data.Text (Text)
-import Database.Persist.Sql
-import Servant
-import Web.PathPieces
+import           Control.Lens
+import           Control.Monad.Catch
+import           Control.Monad.Reader
+import           Data.Aeson
+import           Data.Aeson.TH
+import           Data.ByteString (ByteString)
+import           Data.ByteString.Conversion
+import           Data.Data
+import           Data.String
+import           Data.Text (Text)
+import           Database.Persist.Sql
+import           Servant
+import           Web.PathPieces
 
-import Helpers
+import           Helpers
 
 newtype Username = Username{ unUsername :: Text}
                    deriving ( Show, Read, Eq, Ord, Typeable, Data, PathPiece
@@ -33,16 +33,22 @@ newtype Username = Username{ unUsername :: Text}
                             , IsString, ToByteString
                             )
 
+makePrisms ''Username
+
 newtype Password = Password{ unPassword :: Text}
                    deriving ( Show, Read, Eq, Ord, Typeable, Data
                             , PersistField, PersistFieldSql, ToJSON, FromJSON
                             , IsString
                             )
 
+makePrisms ''Password
+
 newtype PasswordHash = PasswordHash{ unPasswordHash :: ByteString}
                    deriving ( Show, Eq, Ord, Typeable, Data
                             , PersistField, PersistFieldSql
                             )
+
+makePrisms ''PasswordHash
 
 newtype Email = Email{ unEmail :: Text}
                    deriving ( Show, Eq, Ord, Typeable, Data
@@ -51,11 +57,15 @@ newtype Email = Email{ unEmail :: Text}
                             , IsString
                             )
 
+makePrisms ''Email
+
 newtype Phone = Phone { unPhone :: Text}
                    deriving ( Show, Eq, Ord, Typeable, Data
                             , PersistField, PersistFieldSql, ToJSON, FromJSON
                             , IsString
                             )
+
+makePrisms ''Phone
 
 newtype B64Token = B64Token { unB64Token :: Text }
                    deriving ( Show, Read, Eq, Ord, Typeable, Data, PathPiece
@@ -63,16 +73,18 @@ newtype B64Token = B64Token { unB64Token :: Text }
                             , FromText
                             )
 
+makePrisms ''B64Token
+
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "unB64"} ''B64Token
 
-data CreateUser = CreateUser { createUserName     :: !Username
-                             , createUserPassword :: !Password
-                             , createUserEmail    :: !Email
-                             , createUserPhone    :: !(Maybe Phone)
-                             } deriving (Show)
+data AddUser = AddUser { addUserName     :: !Username
+                       , addUserPassword :: !Password
+                       , addUserEmail    :: !Email
+                       , addUserPhone    :: !(Maybe Phone)
+                       } deriving (Show)
 
-deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "createUser"} ''CreateUser
-makeLensesWith camelCaseFields ''CreateUser
+deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "addUser"} ''AddUser
+makeLensesWith camelCaseFields ''AddUser
 
 data Login = Login { loginUser     :: !Username
                    , loginPassword :: !Password
@@ -84,10 +96,20 @@ deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "login"} ''Login
 makeLensesWith camelCaseFields ''Login
 
 --------------------------------------------------------------------------------
+-- Config ----------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+data Config = Config { configTimeout :: !Integer -- token timeout in seconds
+                     , configDBString :: !ByteString
+                     }
+
+--------------------------------------------------------------------------------
 -- Monad -----------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-data ApiState = ApiState { apiStateSqlCon :: SqlBackend }
+data ApiState = ApiState { apiStateSqlCon :: SqlBackend
+                         , apiStateConfig :: Config
+                         }
 
 makeLensesWith camelCaseFields ''ApiState
 
@@ -100,7 +122,9 @@ runDB m = do
     con <- API $ view sqlCon
     liftIO $ runReaderT m con
 
-runAPI :: ConnectionPool -> API a -> IO a
-runAPI pool (API m) = flip runSqlPool pool . ReaderT $ \con ->
-    let state = ApiState { apiStateSqlCon = con }
+runAPI :: ConnectionPool -> Config -> API a -> IO a
+runAPI pool conf (API m) = flip runSqlPool pool . ReaderT $ \con ->
+    let state = ApiState { apiStateSqlCon = con
+                         , apiStateConfig = conf
+                         }
     in runReaderT m state
