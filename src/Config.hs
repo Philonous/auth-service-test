@@ -85,12 +85,12 @@ loadConf = liftIO $ do
 
 getDBString :: (MonadLogger m, MonadIO m) => Conf.Config -> m ByteString
 getDBString conf = do
-    host <- getConf "AUTH_SERVICE_DB_HOST" "db.host" (Right "database") conf
-    usr <- getConf "AUTH_SERVICE_DB_USER" "db.user" (Right "auth_service") conf
-    db   <- getConf "AUTH_SERVICE_DB_DATABASE" "db.database" (Right "auth_service")
+    host <- getConf "AUTH_SERVICE_DB_HOST" "db.host" (Right "") conf
+    usr <- getConf "AUTH_SERVICE_DB_USER" "db.user" (Right "") conf
+    db   <- getConf "AUTH_SERVICE_DB_DATABASE" "db.database" (Right "auth-service")
                     conf
     pwd <- getConf "AUTH_SERVICE_DB_PASSWORD" "db.password"
-                        (Left "database password") conf
+                        (Right "") conf
     return . BS.intercalate " "
         $ [ "host"     .= host
           , "user"     .= usr
@@ -98,6 +98,7 @@ getDBString conf = do
           , "password" .= pwd
           ]
   where
+    k .= "" = ""
     k .= v = k <> "=" <> (Text.encodeUtf8 v)
 
 getAuthServiceConfig :: (MonadIO m, MonadLogger m) =>
@@ -108,5 +109,5 @@ getAuthServiceConfig conf = do
                  (Right 3600) {- 1 hour -} conf
     dbString <- getDBString conf
     return Config{ configTimeout = timeout
-                 , configDBString = dbString
+                 , configDbString = dbString
                  }

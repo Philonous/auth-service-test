@@ -21,13 +21,11 @@ import           Persist.Schema
 import           Types
 import           User
 
-connectionString :: ConnectionString
-connectionString = ""
-
 main :: IO ()
 main = runStderrLoggingT $ do
     confFile <- loadConf
     conf <- getAuthServiceConfig confFile
+    let connectionString = conf ^. dbString
     withPostgresqlPool connectionString 5 $ \pool -> do
         let run = liftIO . runAPI pool conf
         liftIO $ runSqlPool (runMigration migrateAll) pool

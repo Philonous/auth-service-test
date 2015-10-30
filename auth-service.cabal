@@ -9,7 +9,7 @@ maintainer:
 copyright:           2015
 category:
 build-type:          Simple
-cabal-version:       >=1.8
+cabal-version:       >=1.10
 extra-source-files:  source/schema
 
 executable auth-service
@@ -36,7 +36,6 @@ executable auth-service
                    , mtl >= 2.2
                    , path-pieces
                    , persistent >= 2.2
-                   , persistent-postgresql
                    , persistent-postgresql >= 2.2
                    , persistent-template >= 2.1
                    , servant-server >= 0.4.4

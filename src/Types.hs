@@ -100,8 +100,10 @@ makeLensesWith camelCaseFields ''Login
 --------------------------------------------------------------------------------
 
 data Config = Config { configTimeout :: !Integer -- token timeout in seconds
-                     , configDBString :: !ByteString
+                     , configDbString :: !ByteString
                      }
+
+makeLensesWith camelCaseFields ''Config
 
 --------------------------------------------------------------------------------
 -- Monad -----------------------------------------------------------------------

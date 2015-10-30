@@ -73,7 +73,7 @@ login Login{ loginUser = username
         _ <- runDB . P.insert $ DB.Token { DB.tokenToken = token
                                          , DB.tokenUser = username
                                          , DB.tokenCreated = now
-                                         , DB.tokenExpires = now -- @TODO
+                                         , DB.tokenExpires = Nothing
                                          }
         return token
     b64Token = B64Token . Text.decodeUtf8 . B64.encode
@@ -86,7 +86,7 @@ login Login{ loginUser = username
 checkToken :: B64Token -> API (Maybe Username)
 checkToken tokenId = do
     now <- liftIO $ getCurrentTime
-    runDB $ deleteWhere [DB.TokenExpires P.<=. now]
+    runDB $ deleteWhere [DB.TokenExpires P.<=. Just now]
     mbToken <- runDB $ P.get (DB.TokenKey tokenId)
     case mbToken of
      Nothing -> return Nothing

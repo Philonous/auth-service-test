@@ -24,7 +24,7 @@ serveLogin pool conf loginReq = loginHandler
          Nothing -> left err403
 
 type CheckTokenAPI = "checkToken"
-                  :>  Capture "token" B64Token
+                  :> Capture "token" B64Token
                   :> Get '[JSON] (Headers '[Header "user" Username] ())
 
 serveCheckToken :: ConnectionPool -> Config -> Server CheckTokenAPI

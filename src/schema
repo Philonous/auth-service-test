@@ -16,4 +16,4 @@ Token
   user Username
   Foreign User fkUser user
   created UTCTime
-  expires UTCTime
+  expires UTCTime Maybe
