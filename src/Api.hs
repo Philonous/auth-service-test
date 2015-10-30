@@ -20,8 +20,8 @@ serveLogin pool conf loginReq = loginHandler
     loginHandler = do
         mbToken <- lift . runAPI pool conf $ login loginReq
         case mbToken of
-         Just tok -> return tok
-         Nothing -> left err403
+         Right tok -> return tok
+         Left _e -> left err403
 
 type LogoutAPI = "logout"
                :> Capture "token" B64Token

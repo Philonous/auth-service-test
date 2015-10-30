@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 -- Copyright (c) 2015 Lambdatrade AB
 -- All rights reserved
 
@@ -11,11 +12,14 @@ import           Control.Monad
 import           Control.Monad.Reader
 import qualified Crypto.BCrypt as BCrypt
 import qualified Data.ByteString.Base64 as B64
+import           Data.Monoid
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import           Data.Time.Clock
 import qualified Database.Persist as P
 import           Database.Persist.Sql
 import           System.Entropy
+import           System.Random
 
 import qualified Persist.Schema as DB
 import           Types
@@ -46,20 +50,57 @@ createUser usr = do
        _ <- runDB $ P.insert dbUser
        return $ Just ()
 
-login :: Login -> API (Maybe B64Token)
+otpIDChars :: [Char]
+otpIDChars = "CDFGHJKLMNPQRSTVWXYZ2345679"
+
+mkRandomOTP ::  API Password
+mkRandomOTP = do
+    len <- getConfig oTPLength
+    liftIO $ Password . Text.pack <$> replicateM len (selectOne otpIDChars)
+  where
+    selectOne xs = do
+        i <- randomRIO (0, length xs - 1)
+        return $ xs !! i
+
+sendOTP :: Phone -> Password -> API ()
+sendOTP p otp = liftIO . putStrLn $ "Sending OTP: " <> show p <> " " <> show otp
+
+login :: Login -> API (Either LoginError B64Token)
 login Login{ loginUser = username
            , loginPassword = pwd
+           , loginOTP      = mbOtp
            } = do
     mbUser <- runDB $ P.get (DB.UserKey username)
     case mbUser of
-     Nothing -> return Nothing
+     Nothing -> return $ Left LoginErrorFailed
      Just usr -> do
          let hash = usr ^. DB.passwordHash
          case checkPassword hash pwd of
            True -> do
                unless (hashUsesPolicy hash) rehash
-               Just <$> createToken
-           False -> return Nothing
+               case mbOtp of
+                Nothing -> case usr ^. phone of
+                            -- No phone number for two-factor auth
+                            Nothing -> Right <$> createToken
+                            Just p  -> do
+                                createOTP p
+                                return $ Left LoginErrorOTPRequired
+                Just otp -> do
+                    otpTime <- fromIntegral . negate <$> getConfig oTPTimeoutSeconds
+                    now <- liftIO getCurrentTime
+                    let cutoff = otpTime `addUTCTime` now
+                    runDB $ deleteWhere [DB.UserOtpCreated P.<=. cutoff]
+                    checkOTP <- runDB $ selectList [ DB.UserOtpUser P.==. username
+                                                   , DB.UserOtpPassword P.==. otp
+                                                   ] []
+                    case checkOTP of
+                     (_:_) -> do
+                         runDB $ deleteWhere [ DB.UserOtpUser P.==. username
+                                             , DB.UserOtpPassword P.==. otp
+                                             ]
+                         Right <$> createToken
+                     [] -> return $ Left LoginErrorFailed
+           False -> return $ Left LoginErrorFailed
   where
     rehash = do
         mbNewHash <- hashPassword pwd
@@ -81,7 +122,15 @@ login Login{ loginUser = username
         BCrypt.validatePassword hash (Text.encodeUtf8 pwd')
     hashUsesPolicy (PasswordHash hash) =
         BCrypt.hashUsesPolicy policy hash
-
+    createOTP p = do
+        otp <- mkRandomOTP
+        now <- liftIO getCurrentTime
+        _ <- runDB $ insert DB.UserOtp { DB.userOtpUser = username
+                                       , DB.userOtpPassword = otp
+                                       , DB.userOtpCreated = now
+                                       }
+        sendOTP p otp
+        return ()
 
 checkToken :: B64Token -> API (Maybe Username)
 checkToken tokenId = do
@@ -90,7 +139,8 @@ checkToken tokenId = do
     mbToken <- runDB $ P.get (DB.TokenKey tokenId)
     case mbToken of
      Nothing -> return Nothing
-     Just token -> return . Just $ DB.tokenUser token
+     Just token -> do
+         return . Just $ DB.tokenUser token
 
 logOut :: B64Token -> API ()
 logOut token = do

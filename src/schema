@@ -5,6 +5,12 @@ User
   email Email
   phone Phone Maybe
 
+UserOtp
+  user Username
+  Foreign User fkUSer user
+  password Password
+  created UTCTime
+
 UserInstance
   user Username
   Foreign User fkUser user

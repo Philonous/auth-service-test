@@ -108,6 +108,12 @@ getAuthServiceConfig conf = do
     timeout <- getConf' "AUTH_SERVICE_TOKEN_TIMEOUT" "token.timeout"
                  (Right 3600) {- 1 hour -} conf
     dbString <- getDBString conf
+    otpl <- getConf' "AUTH_SERVICE_OTP_LENGTH" "otp.length"
+                 (Right 8) conf
+    otpt <- getConf' "AUTH_SERVICE_OTP_TIMEOUT" "otp.timeout"
+                 (Right 300) conf
     return Config{ configTimeout = timeout
                  , configDbString = dbString
+                 , configOTPLength = otpl
+                 , configOTPTimeoutSeconds = otpt
                  }

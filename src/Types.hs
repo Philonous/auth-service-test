@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 -- Copyright (c) 2015 Lambdatrade AB
 -- All rights reserved
 
@@ -88,6 +89,7 @@ makeLensesWith camelCaseFields ''AddUser
 
 data Login = Login { loginUser     :: !Username
                    , loginPassword :: !Password
+                   , loginOTP      :: !(Maybe Password)
                    } deriving ( Show, Read, Eq, Ord, Typeable, Data )
 
 
@@ -96,11 +98,24 @@ deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "login"} ''Login
 makeLensesWith camelCaseFields ''Login
 
 --------------------------------------------------------------------------------
+-- Error -----------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+data LoginError = LoginErrorFailed -- Username not found, password wrong or OTP
+                                   -- wrong
+                | LoginErrorOTPRequired
+                  deriving (Show, Eq)
+
+makePrisms ''LoginError
+
+--------------------------------------------------------------------------------
 -- Config ----------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
 data Config = Config { configTimeout :: !Integer -- token timeout in seconds
                      , configDbString :: !ByteString
+                     , configOTPLength :: !Int
+                     , configOTPTimeoutSeconds :: !Integer
                      }
 
 makeLensesWith camelCaseFields ''Config
@@ -123,6 +138,9 @@ runDB :: ReaderT SqlBackend IO a -> API a
 runDB m = do
     con <- API $ view sqlCon
     liftIO $ runReaderT m con
+
+getConfig ::  Lens' Config a -> API a
+getConfig g = API . view $ config . g
 
 runAPI :: ConnectionPool -> Config -> API a -> IO a
 runAPI pool conf (API m) = flip runSqlPool pool . ReaderT $ \con ->
