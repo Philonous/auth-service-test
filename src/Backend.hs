@@ -92,4 +92,8 @@ checkToken tokenId = do
      Nothing -> return Nothing
      Just token -> return . Just $ DB.tokenUser token
 
+logOut :: B64Token -> API ()
+logOut token = do
+    runDB $ delete (DB.TokenKey token)
+
 -- addUser name password email mbPhone = do

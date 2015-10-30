@@ -23,6 +23,16 @@ serveLogin pool conf loginReq = loginHandler
          Just tok -> return tok
          Nothing -> left err403
 
+type LogoutAPI = "logout"
+               :> Capture "token" B64Token
+               :> Post '[JSON] ()
+
+serveLogout :: ConnectionPool -> Config -> Server LogoutAPI
+serveLogout pool conf token = logoutHandler
+  where
+    logoutHandler = do
+        lift . runAPI pool conf $ logOut token
+
 type CheckTokenAPI = "checkToken"
                   :> Capture "token" B64Token
                   :> Get '[JSON] (Headers '[Header "user" Username] ())
@@ -36,9 +46,10 @@ serveCheckToken pool conf token = checkTokenHandler
          Nothing -> left err403
          Just usr -> return $ addHeader usr ()
 
-apiPrx :: Proxy (LoginAPI :<|> CheckTokenAPI)
+apiPrx :: Proxy (LoginAPI :<|> CheckTokenAPI :<|> LogoutAPI)
 apiPrx = Proxy
 
 serveAPI :: ConnectionPool -> Config -> Application
 serveAPI pool conf = serve apiPrx $ serveLogin pool conf
                                :<|> serveCheckToken pool conf
+                               :<|> serveLogout pool conf
