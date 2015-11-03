@@ -12,26 +12,28 @@
 
 module Types where
 
-import           Control.Lens
-import           Control.Monad.Catch
-import           Control.Monad.Reader
-import           Data.Aeson
-import           Data.Aeson.TH
-import           Data.ByteString (ByteString)
-import           Data.ByteString.Conversion
-import           Data.Data
-import           Data.String
-import           Data.Text (Text)
-import           Database.Persist.Sql
-import           Servant
-import           Web.PathPieces
+import Control.Lens
+import Control.Monad.Catch
+import Control.Monad.Reader
+import Data.Aeson
+import Data.Aeson.TH
+import Data.ByteString (ByteString)
+import Data.ByteString.Conversion
+import Data.Data
+import Data.String
+import Data.Text (Text)
+import Database.Persist.Sql
+import Servant
+import Web.HttpApiData
+import Web.PathPieces
 
-import           Helpers
+import Helpers
 
 newtype Username = Username{ unUsername :: Text}
                    deriving ( Show, Read, Eq, Ord, Typeable, Data, PathPiece
                             , PersistField, PersistFieldSql, ToJSON, FromJSON
                             , IsString, ToByteString
+                            , ToHttpApiData, FromHttpApiData
                             )
 
 makePrisms ''Username
@@ -40,6 +42,7 @@ newtype Password = Password{ unPassword :: Text}
                    deriving ( Show, Read, Eq, Ord, Typeable, Data
                             , PersistField, PersistFieldSql, ToJSON, FromJSON
                             , IsString
+                            , ToHttpApiData, FromHttpApiData
                             )
 
 makePrisms ''Password
@@ -56,6 +59,7 @@ newtype Email = Email{ unEmail :: Text}
                             , PersistField, PersistFieldSql
                             , ToJSON, FromJSON
                             , IsString
+                            , ToHttpApiData, FromHttpApiData
                             )
 
 makePrisms ''Email
@@ -64,6 +68,7 @@ newtype Phone = Phone { unPhone :: Text}
                    deriving ( Show, Eq, Ord, Typeable, Data
                             , PersistField, PersistFieldSql, ToJSON, FromJSON
                             , IsString
+                            , ToHttpApiData, FromHttpApiData
                             )
 
 makePrisms ''Phone
@@ -71,7 +76,8 @@ makePrisms ''Phone
 newtype B64Token = B64Token { unB64Token :: Text }
                    deriving ( Show, Read, Eq, Ord, Typeable, Data, PathPiece
                             , PersistField, PersistFieldSql
-                            , FromText
+                            , FromText, ToByteString
+                            , ToHttpApiData, FromHttpApiData
                             )
 
 makePrisms ''B64Token
@@ -89,7 +95,7 @@ makeLensesWith camelCaseFields ''AddUser
 
 data Login = Login { loginUser     :: !Username
                    , loginPassword :: !Password
-                   , loginOTP      :: !(Maybe Password)
+                   , loginOtp      :: !(Maybe Password)
                    } deriving ( Show, Read, Eq, Ord, Typeable, Data )
 
 

@@ -26,6 +26,7 @@ main = runStderrLoggingT $ do
     confFile <- loadConf
     conf <- getAuthServiceConfig confFile
     let connectionString = conf ^. dbString
+    liftIO . putStrLn $ "Connecting to DB " ++ show connectionString
     withPostgresqlPool connectionString 5 $ \pool -> do
         let run = liftIO . runAPI pool conf
         liftIO $ runSqlPool (runMigration migrateAll) pool

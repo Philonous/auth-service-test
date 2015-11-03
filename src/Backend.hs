@@ -53,22 +53,33 @@ createUser usr = do
 otpIDChars :: [Char]
 otpIDChars = "CDFGHJKLMNPQRSTVWXYZ2345679"
 
-mkRandomOTP ::  API Password
-mkRandomOTP = do
-    len <- getConfig oTPLength
-    liftIO $ Password . Text.pack <$> replicateM len (selectOne otpIDChars)
+mkRandomString chars len =
+    liftIO $ Text.pack <$> replicateM len (selectOne chars)
   where
     selectOne xs = do
         i <- randomRIO (0, length xs - 1)
         return $ xs !! i
 
+mkRandomOTP ::  API Password
+mkRandomOTP = do
+    len <- getConfig oTPLength
+    Password <$> mkRandomString otpIDChars len
+
+
 sendOTP :: Phone -> Password -> API ()
 sendOTP p otp = liftIO . putStrLn $ "Sending OTP: " <> show p <> " " <> show otp
+
+tokenChars :: [Char]
+tokenChars = concat [ ['a' .. 'z']
+                    , ['A' .. 'Z']
+                    , ['0' .. '9']
+                    ] -- Roughly 6 bit per char
+
 
 login :: Login -> API (Either LoginError B64Token)
 login Login{ loginUser = username
            , loginPassword = pwd
-           , loginOTP      = mbOtp
+           , loginOtp      = mbOtp
            } = do
     mbUser <- runDB $ P.get (DB.UserKey username)
     case mbUser of
@@ -110,7 +121,8 @@ login Login{ loginUser = username
                                           [DB.UserPasswordHash P.=. newHash]
     createToken = do
         now <- liftIO $ getCurrentTime
-        token <- liftIO $ b64Token <$> getEntropy 16 -- 128 bits
+        -- token <- liftIO $ b64Token <$> getEntropy 16 -- 128 bits
+        token <- B64Token <$> mkRandomString tokenChars 22 -- > 128 bit
         _ <- runDB . P.insert $ DB.Token { DB.tokenToken = token
                                          , DB.tokenUser = username
                                          , DB.tokenCreated = now

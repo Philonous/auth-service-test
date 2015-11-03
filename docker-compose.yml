@@ -1,0 +1,20 @@
+database:
+  image: postgres:9.5
+
+
+auth_service:
+  build: .
+  ports:
+    - 3000:3000
+  links:
+    - database
+
+nginx:
+  image: nginx:latest
+  volumes:
+    - ./index.htm:/www/index.htm
+    - ./nginx.conf:/etc/nginx/nginx.conf
+  ports:
+    - 8000:8000
+  links:
+    - auth_service

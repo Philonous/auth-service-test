@@ -1,18 +1,21 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
 module Api where
 
-import Backend
-import Control.Monad.Trans
-import Database.Persist.Sql
-import Servant
-import Types
-import Control.Monad.Trans.Either
-import Network.Wai
+import           Backend
+import           Control.Monad.Trans
+import           Control.Monad.Trans.Either
+import           Data.Text (Text)
+import qualified Data.Text as Text
+import           Database.Persist.Sql
+import           Network.Wai
+import           Servant
+import           Types
 
 type LoginAPI = "login"
               :> ReqBody '[JSON] Login
-              :> Post '[JSON] B64Token
+              :> Post '[JSON] (Headers '[Header "X-Token" B64Token] B64Token)
 
 serveLogin :: ConnectionPool -> Config -> Server LoginAPI
 serveLogin pool conf loginReq = loginHandler
@@ -20,7 +23,7 @@ serveLogin pool conf loginReq = loginHandler
     loginHandler = do
         mbToken <- lift . runAPI pool conf $ login loginReq
         case mbToken of
-         Right tok -> return tok
+         Right tok -> return $ addHeader tok tok
          Left _e -> left err403
 
 type LogoutAPI = "logout"
@@ -34,22 +37,36 @@ serveLogout pool conf token = logoutHandler
         lift . runAPI pool conf $ logOut token
 
 type CheckTokenAPI = "checkToken"
-                  :> Capture "token" B64Token
-                  :> Get '[JSON] (Headers '[Header "user" Username] ())
+                  :> Capture "Token" B64Token
+                  :> Get '[JSON] (Headers '[Header "X-User" Username] Username)
 
 serveCheckToken :: ConnectionPool -> Config -> Server CheckTokenAPI
 serveCheckToken pool conf token = checkTokenHandler
   where
     checkTokenHandler = do
-        res <- lift . runAPI pool conf $ checkToken token
-        case res of
+        liftIO . putStrLn $ "Checking token " ++ show token
+        case Just token of -- @TODO
          Nothing -> left err403
-         Just usr -> return $ addHeader usr ()
+         Just token -> do
+             res <- lift . runAPI pool conf $ checkToken token
+             case res of
+              Nothing -> left err403
+              Just usr -> return $ addHeader usr usr
 
-apiPrx :: Proxy (LoginAPI :<|> CheckTokenAPI :<|> LogoutAPI)
+type UserMirrorAPI = "showUser"
+                   :> Header "X-User" Text
+                   :> Get '[JSON] Text
+
+serveUserMirror mbUser =
+    case mbUser of
+     Nothing -> return "None"
+     Just user -> return user
+
+apiPrx :: Proxy (LoginAPI :<|> CheckTokenAPI :<|> LogoutAPI :<|> UserMirrorAPI)
 apiPrx = Proxy
 
 serveAPI :: ConnectionPool -> Config -> Application
 serveAPI pool conf = serve apiPrx $ serveLogin pool conf
                                :<|> serveCheckToken pool conf
                                :<|> serveLogout pool conf
+                               :<|> serveUserMirror
