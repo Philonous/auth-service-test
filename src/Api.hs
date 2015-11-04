@@ -15,7 +15,7 @@ import           Types
 
 type LoginAPI = "login"
               :> ReqBody '[JSON] Login
-              :> Post '[JSON] (Headers '[Header "X-Token" B64Token] B64Token)
+              :> Post '[JSON] (Headers B64Token)
 
 serveLogin :: ConnectionPool -> Config -> Server LoginAPI
 serveLogin pool conf loginReq = loginHandler
@@ -23,7 +23,7 @@ serveLogin pool conf loginReq = loginHandler
     loginHandler = do
         mbToken <- lift . runAPI pool conf $ login loginReq
         case mbToken of
-         Right tok -> return $ addHeader tok tok
+         Right tok -> return tok
          Left _e -> left err403
 
 type LogoutAPI = "logout"
@@ -38,7 +38,7 @@ serveLogout pool conf token = logoutHandler
 
 type CheckTokenAPI = "checkToken"
                   :> Capture "Token" B64Token
-                  :> Get '[JSON] (Headers '[Header "X-User" Username] Username)
+                  :> Get '[JSON] ReturnUser
 
 serveCheckToken :: ConnectionPool -> Config -> Server CheckTokenAPI
 serveCheckToken pool conf token = checkTokenHandler
@@ -51,13 +51,13 @@ serveCheckToken pool conf token = checkTokenHandler
              res <- lift . runAPI pool conf $ checkToken token
              case res of
               Nothing -> left err403
-              Just usr -> return $ addHeader usr usr
+              Just usr -> return $ ReturnUser usr
 
 type UserMirrorAPI = "showUser"
                    :> Header "X-User" Text
                    :> Get '[JSON] Text
 
-serveUserMirror mbUser =
+serveUserMirror mbUser = do
     case mbUser of
      Nothing -> return "None"
      Just user -> return user

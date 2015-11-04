@@ -93,6 +93,12 @@ data AddUser = AddUser { addUserName     :: !Username
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "addUser"} ''AddUser
 makeLensesWith camelCaseFields ''AddUser
 
+data ReturnUser = ReturnUser { returnUserUser :: !Username }
+
+deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "returnUser"}
+    ''ReturnUser
+makeLensesWith camelCaseFields ''ReturnUser
+
 data Login = Login { loginUser     :: !Username
                    , loginPassword :: !Password
                    , loginOtp      :: !(Maybe Password)
