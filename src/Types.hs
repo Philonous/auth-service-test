@@ -28,6 +28,7 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
 import           Database.Persist.Sql
 import           Servant
+import           Twilio.Types as Twilio
 import           Web.HttpApiData
 import           Web.PathPieces
 
@@ -176,11 +177,20 @@ makePrisms ''LoginError
 -- Config ----------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
+
+data TwilioConfig = TwilioConfig { twilioConfigAccount :: !Twilio.AccountSID
+                                 , twilioConfigAuthToken :: !Twilio.AuthToken
+                                 , twilioConfigSourceNumber :: !Text
+                                 } deriving Show
+
+makeLensesWith camelCaseFields ''TwilioConfig
+
 data Config = Config { configTimeout :: !Integer -- token timeout in seconds
                      , configDbString :: !ByteString
                      , configOTPLength :: !Int
                      , configOTPTimeoutSeconds :: !Integer
-                     }
+                     , configTwilio :: !TwilioConfig
+                     } deriving Show
 
 makeLensesWith camelCaseFields ''Config
 

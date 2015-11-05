@@ -1,7 +1,9 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE OverloadedStrings #-}
 -- Copyright (c) 2015 Lambdatrade AB
 -- All Rights Reserved
+
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 
 module Config where
 
@@ -18,7 +20,9 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import           System.Environment
 import qualified System.Exit as Exit
+import qualified Twilio.Types as Twilio
 
+import           Helpers
 import           Types
 
 --------------------------------------------------------------------------------
@@ -75,9 +79,11 @@ getConf = getConfGeneric (Just . Text.pack)
 loadConf :: MonadIO m => m Conf.Config
 loadConf = liftIO $ do
     mbConfPath <- lookupEnv "AUTH_SERVICE_CONF_PATH"
-    Conf.load $ catMaybes [ Just $ Conf.Optional "/data/auth_service.conf"
-                          , Conf.Required <$> mbConfPath
-                          ]
+    let confFiles =  catMaybes [ Just $ Conf.Optional "/data/auth_service.conf"
+                               , Conf.Required <$> mbConfPath
+                               ]
+    debug $ "Loading conf files " <> showText confFiles
+    Conf.load confFiles
 
 --------------------------------------------------------------------------------
 -- Configuration ---------------------------------------------------------------
@@ -98,8 +104,34 @@ getDBString conf = do
           , "password" .= pwd
           ]
   where
-    k .= "" = ""
+    _ .= "" = ""
     k .= v = k <> "=" <> (Text.encodeUtf8 v)
+
+instance Conf.Configured Twilio.AccountSID where
+    convert (Conf.String txt) = Twilio.parseSID txt
+    convert _ = Nothing
+
+instance Conf.Configured Twilio.AuthToken where
+    convert (Conf.String txt) = Twilio.parseAuthToken txt
+    convert _ = Nothing
+
+getTwilioConfig :: (MonadIO m, MonadLogger m) =>
+                   Conf.Config
+                -> m TwilioConfig
+getTwilioConfig conf = do
+    account <- getConfGeneric (Twilio.parseSID . Text.pack)
+                 "AUTH_SERVICE_TWILIO_ACCOUNT" "twilio.account"
+                 (Left "twilio account sid") conf
+    authToken <- getConfGeneric (Twilio.parseAuthToken . Text.pack)
+                   "AUTH_SERVICE_TWILIO_TOKEN" "twilio.token"
+                   (Left "twilio auth token") conf
+    sourceNumber <- getConf "AUTH_SERICE_TWILIO_SOURCE" "twilio.source"
+                    (Left "twilio source number") conf
+    return TwilioConfig { twilioConfigAccount = account
+                        , twilioConfigAuthToken = authToken
+                        , twilioConfigSourceNumber = sourceNumber
+                        }
+
 
 getAuthServiceConfig :: (MonadIO m, MonadLogger m) =>
                         Conf.Config
@@ -112,8 +144,10 @@ getAuthServiceConfig conf = do
                  (Right 8) conf
     otpt <- getConf' "AUTH_SERVICE_OTP_TIMEOUT" "otp.timeout"
                  (Right 300) conf
+    twilioConf <- getTwilioConfig conf
     return Config{ configTimeout = timeout
                  , configDbString = dbString
                  , configOTPLength = otpl
                  , configOTPTimeoutSeconds = otpt
+                 , configTwilio = twilioConf
                  }

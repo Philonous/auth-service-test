@@ -25,3 +25,8 @@ Token
   Foreign User fkUser user
   created UTCTime
   expires UTCTime Maybe
+
+Log
+  time UTCTime
+  message Text
+  details Value sqltype=jsonb

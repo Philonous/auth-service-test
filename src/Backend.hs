@@ -13,18 +13,28 @@ import           Control.Monad.Reader
 import qualified Crypto.BCrypt as BCrypt
 import qualified Data.ByteString.Base64 as B64
 import           Data.Monoid
+import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import qualified Data.Text.IO as Text
 import           Data.Time.Clock
 import qualified Data.UUID.V4 as UUID
 import qualified Database.Persist as P
 import           Database.Persist.Sql
 import           System.Entropy
+import           System.IO
 import           System.Random
+import qualified Twilio
+import qualified Twilio.Messages as Twilio
 
 import qualified Persist.Schema as DB
 import           Types
 
+
+debug t = liftIO $ Text.hPutStrLn stderr t
+
+showText :: Show a => a -> Text
+showText = Text.pack . show
 
 policy :: BCrypt.HashingPolicy
 policy = BCrypt.fastBcryptHashingPolicy { BCrypt.preferredHashCost = 10 }
@@ -69,8 +79,24 @@ mkRandomOTP = do
     Password <$> mkRandomString otpIDChars len
 
 
-sendOTP :: Phone -> Password -> API ()
-sendOTP p otp = liftIO . putStrLn $ "Sending OTP: " <> show p <> " " <> show otp
+sendOTP :: Username -> Phone -> Password -> API ()
+sendOTP (Username user) (Phone p) (Password otp) = do
+    debug $ mconcat [ "Sending OTP for user " , user
+                    , "(", p , ")"
+                    , ": " <> otp
+                    ]
+    twilioConf<- getConfig twilio
+    message <- liftIO . Twilio.runTwilio ( twilioConf ^. account
+                                         , twilioConf ^. authToken
+                                         ) $ do
+      let body = Twilio.PostMessage{ Twilio.sendTo = p
+                                   , Twilio.sendFrom = twilioConf ^. sourceNumber
+                                   , Twilio.sendBody = otp
+                                   }
+
+      Twilio.post body
+    debug $ "Twilio message created : " <> showText message
+
 
 tokenChars :: [Char]
 tokenChars = concat [ ['a' .. 'z']
@@ -94,7 +120,7 @@ login Login{ loginUser = username
            True -> do
                unless (hashUsesPolicy hash) $ rehash userId
                case mbOtp of
-                Nothing -> case usr ^. phone of
+                Nothing -> case DB.userPhone usr of
                             -- No phone number for two-factor auth
                             Nothing -> Right <$> createToken userId
                             Just p  -> do
@@ -145,7 +171,7 @@ login Login{ loginUser = username
                                        , DB.userOtpPassword = otp
                                        , DB.userOtpCreated = now
                                        }
-        sendOTP p otp
+        sendOTP username p otp
         return ()
 
 checkToken :: B64Token -> API (Maybe UserID)

@@ -20,6 +20,7 @@ executable auth-service
                    , Backend
                    , Helpers
                    , Persist.Schema
+                   , Persist.Stage
                    , Types
                    , User
   build-depends:     aeson

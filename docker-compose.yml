@@ -2,10 +2,8 @@ database:
   image: postgres:9.5
 
 
-auth_service:
+authservice:
   build: .
-  ports:
-    - 3000:3000
   links:
     - database
 
@@ -17,4 +15,4 @@ nginx:
   ports:
     - 8000:8000
   links:
-    - auth_service
+    - authservice

@@ -45,13 +45,10 @@ serveCheckToken pool conf token = checkTokenHandler
   where
     checkTokenHandler = do
         liftIO . putStrLn $ "Checking token " ++ show token
-        case Just token of -- @TODO
+        res <- lift . runAPI pool conf $ checkToken token
+        case res of
          Nothing -> left err403
-         Just token -> do
-             res <- lift . runAPI pool conf $ checkToken token
-             case res of
-              Nothing -> left err403
-              Just usr -> return $ (addHeader usr $ ReturnUser usr)
+         Just usr -> return $ (addHeader usr $ ReturnUser usr)
 
 type UserMirrorAPI = "showUser"
                    :> Header "X-User" Text
