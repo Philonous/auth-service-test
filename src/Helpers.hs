@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 -- Copyright 2015 Lambdatrade AB
 -- All rights reserved
 

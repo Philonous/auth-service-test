@@ -12,22 +12,74 @@
 
 module Types where
 
-import Control.Lens
-import Control.Monad.Catch
-import Control.Monad.Reader
-import Data.Aeson
-import Data.Aeson.TH
-import Data.ByteString (ByteString)
-import Data.ByteString.Conversion
-import Data.Data
-import Data.String
-import Data.Text (Text)
-import Database.Persist.Sql
-import Servant
-import Web.HttpApiData
-import Web.PathPieces
+import           Control.Lens
+import           Control.Monad.Catch
+import           Control.Monad.Reader
+import           Data.Aeson
+import           Data.Aeson.TH
+import           Data.ByteString (ByteString)
+import           Data.ByteString.Conversion
+import           Data.Data
+import           Data.Monoid
+import           Data.String
+import           Data.Text (Text)
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.UUID as UUID
+import           Database.Persist.Sql
+import           Servant
+import           Web.HttpApiData
+import           Web.PathPieces
 
-import Helpers
+import           Helpers
+
+newtype UserID = UserID { unUserID :: UUID.UUID }
+                 deriving ( Show, Read, Eq, Ord, Typeable, Data
+                          )
+
+makePrisms ''UserID
+
+instance PersistField UserID where
+    toPersistValue = toPersistValue . UUID.toString . unUserID
+    fromPersistValue = \x -> case x of
+        PersistDbSpecific bs ->
+            case UUID.fromASCIIBytes bs of
+             Nothing -> Left $ "Invalid UUID: " <> (Text.pack $ show bs)
+             Just u -> Right $ UserID u
+        PersistText txt ->
+            case UUID.fromString $ Text.unpack txt of
+             Nothing -> Left $ "Invalid UUID: " <> (Text.pack $ show txt)
+             Just u -> Right $ UserID u
+        e -> Left $ "Can not convert to uuid: " <> (Text.pack $ show e)
+
+instance PersistFieldSql UserID where
+    sqlType _ = SqlOther "uuid"
+
+instance PathPiece UserID where
+    fromPathPiece = fmap UserID . UUID.fromText
+    toPathPiece = Text.pack . UUID.toString . unUserID
+
+instance ToHttpApiData UserID where
+    toUrlPiece = toPathPiece
+
+instance FromHttpApiData UserID where
+    parseUrlPiece txt =
+        case fromPathPiece txt of
+         Nothing -> Left $ "Could not parse user id " <> txt
+         Just uuid -> Right uuid
+
+instance ToJSON UserID where
+    toJSON (UserID uid) = toJSON $ UUID.toText uid
+
+instance FromJSON UserID where
+    parseJSON v = do
+        txt <- parseJSON v
+        case UUID.fromText txt of
+         Nothing -> fail $ "Can't parse UUID " <> (Text.unpack txt)
+         Just uuid -> return $ UserID uuid
+
+instance ToByteString UserID where
+    builder = builder . Text.encodeUtf8 . UUID.toText . unUserID
 
 newtype Username = Username{ unUsername :: Text}
                    deriving ( Show, Read, Eq, Ord, Typeable, Data, PathPiece
@@ -93,7 +145,7 @@ data AddUser = AddUser { addUserName     :: !Username
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "addUser"} ''AddUser
 makeLensesWith camelCaseFields ''AddUser
 
-data ReturnUser = ReturnUser { returnUserUser :: !Username }
+data ReturnUser = ReturnUser { returnUserUser :: !UserID }
 
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "returnUser"}
     ''ReturnUser

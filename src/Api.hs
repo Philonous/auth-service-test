@@ -38,7 +38,7 @@ serveLogout pool conf token = logoutHandler
 
 type CheckTokenAPI = "checkToken"
                   :> Capture "token" B64Token
-                  :> Get '[JSON] (Headers '[Header "X-User" Username] ReturnUser)
+                  :> Get '[JSON] (Headers '[Header "X-User" UserID] ReturnUser)
 
 serveCheckToken :: ConnectionPool -> Config -> Server CheckTokenAPI
 serveCheckToken pool conf token = checkTokenHandler

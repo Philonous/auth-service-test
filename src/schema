@@ -1,25 +1,27 @@
 User
+  uuid UserID
+  Primary uuid
   name Username
-  Primary name
+  UniqueUsername name
   passwordHash PasswordHash
   email Email
   phone Phone Maybe
 
 UserOtp
-  user Username
+  user UserID
   Foreign User fkUSer user
   password Password
   created UTCTime
 
 UserInstance
-  user Username
+  user UserID
   Foreign User fkUser user
   instanceId Text
 
 Token
   token B64Token
   Primary token
-  user Username
+  user UserID
   Foreign User fkUser user
   created UTCTime
   expires UTCTime Maybe

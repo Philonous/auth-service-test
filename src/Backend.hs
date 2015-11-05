@@ -16,6 +16,7 @@ import           Data.Monoid
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import           Data.Time.Clock
+import qualified Data.UUID.V4 as UUID
 import qualified Database.Persist as P
 import           Database.Persist.Sql
 import           System.Entropy
@@ -38,11 +39,13 @@ hashPassword (Password pwd) = liftIO $
 
 createUser :: AddUser -> API (Maybe ())
 createUser usr = do
+    uid <- UserID <$> liftIO UUID.nextRandom
     mbHash <- hashPassword $ usr ^. password
     case mbHash of
      Nothing -> return Nothing
      Just hash -> do
-       let dbUser = DB.User { DB.userName = usr ^. name
+       let dbUser = DB.User { DB.userUuid = uid
+                            , DB.userName = usr ^. name
                             , DB.userPasswordHash = hash
                             , DB.userEmail = usr ^. email
                             , DB.userPhone = usr ^. phone
@@ -81,50 +84,51 @@ login Login{ loginUser = username
            , loginPassword = pwd
            , loginOtp      = mbOtp
            } = do
-    mbUser <- runDB $ P.get (DB.UserKey username)
+    mbUser <- runDB $ P.getBy (DB.UniqueUsername username)
     case mbUser of
      Nothing -> return $ Left LoginErrorFailed
-     Just usr -> do
+     Just (Entity _ usr) -> do
          let hash = usr ^. DB.passwordHash
+             userId = usr ^. DB.uuid
          case checkPassword hash pwd of
            True -> do
-               unless (hashUsesPolicy hash) rehash
+               unless (hashUsesPolicy hash) $ rehash userId
                case mbOtp of
                 Nothing -> case usr ^. phone of
                             -- No phone number for two-factor auth
-                            Nothing -> Right <$> createToken
+                            Nothing -> Right <$> createToken userId
                             Just p  -> do
-                                createOTP p
+                                createOTP p userId
                                 return $ Left LoginErrorOTPRequired
                 Just otp -> do
                     otpTime <- fromIntegral . negate <$> getConfig oTPTimeoutSeconds
                     now <- liftIO getCurrentTime
                     let cutoff = otpTime `addUTCTime` now
                     runDB $ deleteWhere [DB.UserOtpCreated P.<=. cutoff]
-                    checkOTP <- runDB $ selectList [ DB.UserOtpUser P.==. username
+                    checkOTP <- runDB $ selectList [ DB.UserOtpUser P.==. userId
                                                    , DB.UserOtpPassword P.==. otp
                                                    ] []
                     case checkOTP of
                      (_:_) -> do
-                         runDB $ deleteWhere [ DB.UserOtpUser P.==. username
+                         runDB $ deleteWhere [ DB.UserOtpUser P.==. userId
                                              , DB.UserOtpPassword P.==. otp
                                              ]
-                         Right <$> createToken
+                         Right <$> createToken userId
                      [] -> return $ Left LoginErrorFailed
            False -> return $ Left LoginErrorFailed
   where
-    rehash = do
+    rehash userId = do
         mbNewHash <- hashPassword pwd
         case mbNewHash of
          Nothing -> return () -- TODO: log error
-         Just newHash -> runDB $ P.update (DB.UserKey username)
+         Just newHash -> runDB $ P.update (DB.UserKey userId)
                                           [DB.UserPasswordHash P.=. newHash]
-    createToken = do
+    createToken userId = do
         now <- liftIO $ getCurrentTime
         -- token <- liftIO $ b64Token <$> getEntropy 16 -- 128 bits
         token <- B64Token <$> mkRandomString tokenChars 22 -- > 128 bit
         _ <- runDB . P.insert $ DB.Token { DB.tokenToken = token
-                                         , DB.tokenUser = username
+                                         , DB.tokenUser = userId
                                          , DB.tokenCreated = now
                                          , DB.tokenExpires = Nothing
                                          }
@@ -134,17 +138,17 @@ login Login{ loginUser = username
         BCrypt.validatePassword hash (Text.encodeUtf8 pwd')
     hashUsesPolicy (PasswordHash hash) =
         BCrypt.hashUsesPolicy policy hash
-    createOTP p = do
+    createOTP p userId = do
         otp <- mkRandomOTP
         now <- liftIO getCurrentTime
-        _ <- runDB $ insert DB.UserOtp { DB.userOtpUser = username
+        _ <- runDB $ insert DB.UserOtp { DB.userOtpUser = userId
                                        , DB.userOtpPassword = otp
                                        , DB.userOtpCreated = now
                                        }
         sendOTP p otp
         return ()
 
-checkToken :: B64Token -> API (Maybe Username)
+checkToken :: B64Token -> API (Maybe UserID)
 checkToken tokenId = do
     now <- liftIO $ getCurrentTime
     runDB $ deleteWhere [DB.TokenExpires P.<=. Just now]
