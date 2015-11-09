@@ -19,6 +19,7 @@ executable auth-service
   other-modules:     Api
                    , Backend
                    , Helpers
+                   , Logging
                    , Persist.Schema
                    , Persist.Stage
                    , Twilio

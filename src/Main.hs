@@ -14,9 +14,11 @@ import           Database.Persist.Postgresql
 import qualified Network.Wai.Handler.Warp as Warp
 import           System.Environment
 import           System.Exit
+import           System.IO
 
 import           Api
 import           Config
+import           Logging
 import           Persist.Schema
 import           Types
 import           User
@@ -36,10 +38,10 @@ main = runStderrLoggingT $ do
              res <- run $ addUser (args' ^.. each . packed)
              case res of
               Nothing -> liftIO $ do
-                  putStrLn "Could not add user"
+                  hPutStrLn stderr "Could not add user"
                   exitFailure
               Just () -> return ()
          ["run"] -> liftIO $ Warp.run 3000 (serveAPI pool conf)
          _ -> liftIO $ do
-             putStrLn "Usage: auth-service [adduser|run] [options]"
+             hPutStrLn stderr "Usage: auth-service [adduser|run] [options]"
              exitFailure

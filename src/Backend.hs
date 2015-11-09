@@ -1,8 +1,8 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings #-}
 -- Copyright (c) 2015 Lambdatrade AB
 -- All rights reserved
 
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 module Backend
   (module Backend
@@ -30,9 +30,7 @@ import qualified Twilio
 
 import qualified Persist.Schema as DB
 import           Types
-
-
-debug t = liftIO $ Text.hPutStrLn stderr t
+import Logging
 
 showText :: Show a => a -> Text
 showText = Text.pack . show
@@ -82,21 +80,16 @@ mkRandomOTP = do
 
 sendOTP :: Username -> Phone -> Password -> API ()
 sendOTP (Username user) (Phone p) (Password otp) = do
-    debug $ mconcat [ "Sending OTP for user " , user
-                    , "(", p , ")"
-                    , ": " <> otp
-                    ]
+    logInfo $ mconcat [ "Sending OTP for user " , user
+                       , "(", p , ")"
+                       , ": " <> otp
+                       ]
     twilioConf <- getConfig twilio
-    result <- liftIO $ Twilio.sendMessage (twilioConf ^. account)
-                                          (twilioConf ^. authToken)
-                                          (twilioConf ^. sourceNumber)
-                                          p
-                                          otp
-    case result of
-     Left r -> do
-         debug $ "Twilio threw an error : " <> showText r
-         return ()
-     Right () -> return ()
+    Twilio.sendMessage (twilioConf ^. account)
+                       (twilioConf ^. authToken)
+                       (twilioConf ^. sourceNumber)
+                       p
+                       otp
 
 tokenChars :: [Char]
 tokenChars = concat [ ['a' .. 'z']

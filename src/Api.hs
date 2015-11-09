@@ -1,3 +1,6 @@
+-- Copyright (c) 2015 Lambdatrade AB
+-- All rights reserved
+
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
@@ -6,12 +9,15 @@ module Api where
 import           Backend
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Either
+import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Database.Persist.Sql
 import           Network.Wai
 import           Servant
 import           Types
+
+import           Logging
 
 type LoginAPI = "login"
               :> ReqBody '[JSON] Login
@@ -44,8 +50,9 @@ serveCheckToken :: ConnectionPool -> Config -> Server CheckTokenAPI
 serveCheckToken pool conf token = checkTokenHandler
   where
     checkTokenHandler = do
-        liftIO . putStrLn $ "Checking token " ++ show token
-        res <- lift . runAPI pool conf $ checkToken token
+        res <- lift . runAPI pool conf $ do
+            logDebug $ "Checking token " <> showText token
+            checkToken token
         case res of
          Nothing -> left err403
          Just usr -> return $ (addHeader usr $ ReturnUser usr)
