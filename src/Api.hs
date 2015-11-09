@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
+
 module Api where
 
 import           Backend
@@ -30,6 +31,13 @@ serveLogin pool conf loginReq = loginHandler
         mbToken <- lift . runAPI pool conf $ login loginReq
         case mbToken of
          Right tok -> return (addHeader tok tok)
+         Left LoginErrorOTPRequired ->
+             left ServantErr{ errHTTPCode = 499
+                            , errReasonPhrase = "OTP required"
+                            , errBody =
+                              "{\"error\":\"One time password required\"}"
+                            , errHeaders = []
+                            }
          Left _e -> left err403
 
 type LogoutAPI = "logout"
