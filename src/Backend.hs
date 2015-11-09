@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 -- Copyright (c) 2015 Lambdatrade AB
 -- All rights reserved
@@ -9,6 +10,7 @@ module Backend
 
 import           Control.Lens
 import           Control.Monad
+import qualified Control.Monad.Catch as Ex
 import           Control.Monad.Reader
 import qualified Crypto.BCrypt as BCrypt
 import qualified Data.ByteString.Base64 as B64
@@ -25,7 +27,6 @@ import           System.Entropy
 import           System.IO
 import           System.Random
 import qualified Twilio
-import qualified Twilio.Messages as Twilio
 
 import qualified Persist.Schema as DB
 import           Types
@@ -85,18 +86,17 @@ sendOTP (Username user) (Phone p) (Password otp) = do
                     , "(", p , ")"
                     , ": " <> otp
                     ]
-    twilioConf<- getConfig twilio
-    message <- liftIO . Twilio.runTwilio ( twilioConf ^. account
-                                         , twilioConf ^. authToken
-                                         ) $ do
-      let body = Twilio.PostMessage{ Twilio.sendTo = p
-                                   , Twilio.sendFrom = twilioConf ^. sourceNumber
-                                   , Twilio.sendBody = otp
-                                   }
-
-      Twilio.post body
-    debug $ "Twilio message created : " <> showText message
-
+    twilioConf <- getConfig twilio
+    result <- liftIO $ Twilio.sendMessage (twilioConf ^. account)
+                                          (twilioConf ^. authToken)
+                                          (twilioConf ^. sourceNumber)
+                                          p
+                                          otp
+    case result of
+     Left r -> do
+         debug $ "Twilio threw an error : " <> showText r
+         return ()
+     Right () -> return ()
 
 tokenChars :: [Char]
 tokenChars = concat [ ['a' .. 'z']
@@ -159,7 +159,6 @@ login Login{ loginUser = username
                                          , DB.tokenExpires = Nothing
                                          }
         return token
-    b64Token = B64Token . Text.decodeUtf8 . B64.encode
     checkPassword (PasswordHash hash) (Password pwd') =
         BCrypt.validatePassword hash (Text.encodeUtf8 pwd')
     hashUsesPolicy (PasswordHash hash) =

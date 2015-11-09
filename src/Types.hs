@@ -28,7 +28,6 @@ import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
 import           Database.Persist.Sql
 import           Servant
-import           Twilio.Types as Twilio
 import           Web.HttpApiData
 import           Web.PathPieces
 
@@ -178,8 +177,8 @@ makePrisms ''LoginError
 --------------------------------------------------------------------------------
 
 
-data TwilioConfig = TwilioConfig { twilioConfigAccount :: !Twilio.AccountSID
-                                 , twilioConfigAuthToken :: !Twilio.AuthToken
+data TwilioConfig = TwilioConfig { twilioConfigAccount :: !Text
+                                 , twilioConfigAuthToken :: !Text
                                  , twilioConfigSourceNumber :: !Text
                                  } deriving Show
 

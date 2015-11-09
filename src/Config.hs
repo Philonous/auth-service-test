@@ -20,7 +20,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import           System.Environment
 import qualified System.Exit as Exit
-import qualified Twilio.Types as Twilio
 
 import           Helpers
 import           Types
@@ -107,24 +106,14 @@ getDBString conf = do
     _ .= "" = ""
     k .= v = k <> "=" <> (Text.encodeUtf8 v)
 
-instance Conf.Configured Twilio.AccountSID where
-    convert (Conf.String txt) = Twilio.parseSID txt
-    convert _ = Nothing
-
-instance Conf.Configured Twilio.AuthToken where
-    convert (Conf.String txt) = Twilio.parseAuthToken txt
-    convert _ = Nothing
-
 getTwilioConfig :: (MonadIO m, MonadLogger m) =>
                    Conf.Config
                 -> m TwilioConfig
 getTwilioConfig conf = do
-    account <- getConfGeneric (Twilio.parseSID . Text.pack)
-                 "AUTH_SERVICE_TWILIO_ACCOUNT" "twilio.account"
-                 (Left "twilio account sid") conf
-    authToken <- getConfGeneric (Twilio.parseAuthToken . Text.pack)
-                   "AUTH_SERVICE_TWILIO_TOKEN" "twilio.token"
-                   (Left "twilio auth token") conf
+    account <- getConf "AUTH_SERVICE_TWILIO_ACCOUNT" "twilio.account"
+                       (Left "twilio account sid") conf
+    authToken <- getConf "AUTH_SERVICE_TWILIO_TOKEN" "twilio.token"
+                         (Left "twilio auth token") conf
     sourceNumber <- getConf "AUTH_SERICE_TWILIO_SOURCE" "twilio.source"
                     (Left "twilio source number") conf
     return TwilioConfig { twilioConfigAccount = account
