@@ -17,6 +17,7 @@ UserInstance
   user UserID
   Foreign User fkUser user
   instanceId Text
+  Primary user instanceId
 
 Token
   token B64Token

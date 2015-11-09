@@ -128,9 +128,14 @@ logout site token = do
 -- Returns Nothing of the token is invalied
 --
 -- Returns (Just UserID) if the token is valid
-checkToken :: String -> B64Token -> IO (Maybe ReturnUser)
-checkToken site token = do
-    res <- call' "GET" site ["checkToken", toPathPiece token] (Nothing :: Maybe ())
+checkToken :: String -- ^ Address of the auth service
+           -> Text -- ^ Instance to verify
+           -> B64Token -- ^ Token to verify
+           -> IO (Maybe ReturnUser)
+checkToken site inst token = do
+    res <- call' "GET" site ["checkToken"
+                            , inst
+                            , toPathPiece token] (Nothing :: Maybe ())
     case res of
      Right r -> decodeJSON r
      Left response | statusCode (responseStatus response) == 403 -> return Nothing

@@ -30,7 +30,7 @@ import qualified Twilio
 
 import qualified Persist.Schema as DB
 import           Types
-import Logging
+import           Logging
 
 showText :: Show a => a -> Text
 showText = Text.pack . show
@@ -166,15 +166,18 @@ login Login{ loginUser = username
         sendOTP username p otp
         return ()
 
-checkToken :: B64Token -> API (Maybe UserID)
-checkToken tokenId = do
+checkToken :: Text -> B64Token -> API (Maybe UserID)
+checkToken inst tokenId = do
     now <- liftIO $ getCurrentTime
     runDB $ deleteWhere [DB.TokenExpires P.<=. Just now]
     mbToken <- runDB $ P.get (DB.TokenKey tokenId)
     case mbToken of
      Nothing -> return Nothing
      Just token -> do
-         return . Just $ DB.tokenUser token
+         mbInst <- runDB $ P.get (DB.UserInstanceKey (DB.tokenUser token) inst)
+         case mbInst of
+          Nothing -> return Nothing
+          Just _ -> return . Just $ DB.tokenUser token
 
 logOut :: B64Token -> API ()
 logOut token = do

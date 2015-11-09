@@ -51,16 +51,18 @@ serveLogout pool conf token = logoutHandler
         lift . runAPI pool conf $ logOut token
 
 type CheckTokenAPI = "checkToken"
+                  :> Capture "instance" Text
                   :> Capture "token" B64Token
                   :> Get '[JSON] (Headers '[Header "X-User" UserID] ReturnUser)
 
 serveCheckToken :: ConnectionPool -> Config -> Server CheckTokenAPI
-serveCheckToken pool conf token = checkTokenHandler
+serveCheckToken pool conf inst token = checkTokenHandler
   where
     checkTokenHandler = do
         res <- lift . runAPI pool conf $ do
             logDebug $ "Checking token " <> showText token
-            checkToken token
+                       <> " for instance " <> inst
+            checkToken inst token
         case res of
          Nothing -> left err403
          Just usr -> return $ (addHeader usr $ ReturnUser usr)
