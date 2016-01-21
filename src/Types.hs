@@ -38,6 +38,7 @@ deriving instance FromText B64Token
 data LoginError = LoginErrorFailed -- Username not found, password wrong or OTP
                                    -- wrong
                 | LoginErrorOTPRequired
+                | LoginTwilioNotConfigured
                   deriving (Show, Eq)
 
 makePrisms ''LoginError
@@ -58,7 +59,7 @@ data Config = Config { configTimeout :: !Integer -- token timeout in seconds
                      , configDbString :: !ByteString
                      , configOTPLength :: !Int
                      , configOTPTimeoutSeconds :: !Integer
-                     , configTwilio :: !TwilioConfig
+                     , configTwilio :: !(Maybe TwilioConfig)
                      } deriving Show
 
 makeLensesWith camelCaseFields ''Config

@@ -40,7 +40,15 @@ getConfGenericMaybe fromString env confName conf = do
      Just v -> return $ Just v
      Nothing -> do
        mbVal <- liftIO $ lookupEnv env
-       return $ fromString =<< mbVal
+       case mbVal of
+        Nothing -> return Nothing
+        Just v -> case fromString v of
+                   Nothing -> do
+                       $logError . Text.pack $
+                            "Error reading environment variable \""
+                            ++ env ++ "\": could not parse value " ++ show v
+                       liftIO Exit.exitFailure
+                   Just val -> return $ Just val
 
 getConfGeneric :: (MonadLogger m, MonadIO m, Conf.Configured a) =>
                   (String -> Maybe a)
@@ -70,6 +78,20 @@ safeRead str = case reads str of
 getConf' :: (Conf.Configured a, MonadLogger m, MonadIO m, Read a) =>
            String -> Conf.Name -> Either Text a -> Conf.Config -> m a
 getConf' = getConfGeneric safeRead
+
+getConfMaybe :: (MonadIO m, MonadLogger m) =>
+                String
+             -> Conf.Name
+             -> Conf.Config
+             -> m (Maybe Text)
+getConfMaybe = getConfGenericMaybe (Just . Text.pack)
+
+getConfMaybe' :: (Read a, MonadIO m, MonadLogger m, Conf.Configured a) =>
+                 String
+              -> Conf.Name
+              -> Conf.Config
+              -> m (Maybe a)
+getConfMaybe' = getConfGenericMaybe safeRead
 
 getConf :: (MonadLogger m, MonadIO m) =>
             String -> Conf.Name -> Either Text Text -> Conf.Config -> m Text
@@ -108,18 +130,21 @@ getDBString conf = do
 
 getTwilioConfig :: (MonadIO m, MonadLogger m) =>
                    Conf.Config
-                -> m TwilioConfig
+                -> m (Maybe TwilioConfig)
 getTwilioConfig conf = do
-    account <- getConf "AUTH_SERVICE_TWILIO_ACCOUNT" "twilio.account"
-                       (Left "twilio account sid") conf
-    authToken <- getConf "AUTH_SERVICE_TWILIO_TOKEN" "twilio.token"
-                         (Left "twilio auth token") conf
-    sourceNumber <- getConf "AUTH_SERICE_TWILIO_SOURCE" "twilio.source"
-                    (Left "twilio source number") conf
-    return TwilioConfig { twilioConfigAccount = account
-                        , twilioConfigAuthToken = authToken
-                        , twilioConfigSourceNumber = sourceNumber
-                        }
+    mbAccount <- getConfMaybe "AUTH_SERVICE_TWILIO_ACCOUNT" "twilio.account" conf
+    mbAuthToken <- getConfMaybe "AUTH_SERVICE_TWILIO_TOKEN" "twilio.token" conf
+    mbSourceNumber <- getConfMaybe "AUTH_SERICE_TWILIO_SOURCE" "twilio.source" conf
+    case (mbAccount, mbAuthToken, mbSourceNumber) of
+        (Nothing, Nothing, Nothing) -> return Nothing
+        (Just account, Just authToken, Just sourceNumber) ->
+            return $ Just TwilioConfig { twilioConfigAccount = account
+                                       , twilioConfigAuthToken = authToken
+                                       , twilioConfigSourceNumber = sourceNumber
+                                       }
+        _ -> do
+            $logError "Twilio config is incomplete"
+            liftIO Exit.exitFailure
 
 
 getAuthServiceConfig :: (MonadIO m, MonadLogger m) =>

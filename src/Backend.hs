@@ -80,16 +80,23 @@ mkRandomOTP = do
 
 sendOTP :: Username -> Phone -> Password -> API ()
 sendOTP (Username user) (Phone p) (Password otp) = do
-    logInfo $ mconcat [ "Sending OTP for user " , user
-                       , "(", p , ")"
-                       , ": " <> otp
-                       ]
-    twilioConf <- getConfig twilio
-    Twilio.sendMessage (twilioConf ^. account)
-                       (twilioConf ^. authToken)
-                       (twilioConf ^. sourceNumber)
-                       p
-                       otp
+    mbTwilioConf <- getConfig twilio
+    case mbTwilioConf of
+     Nothing -> do
+         logError $ "User " <> user <> " needs Twilio to log in"
+                     <> "but Twilio is not configured"
+         return ()
+     Just twilioConf -> do
+        logInfo $ mconcat [ "Sending OTP for user " , user
+                           , "(", p , ")"
+                           , ": " <> otp
+                           ]
+
+        Twilio.sendMessage (twilioConf ^. account)
+                           (twilioConf ^. authToken)
+                           (twilioConf ^. sourceNumber)
+                           p
+                           otp
 
 tokenChars :: [Char]
 tokenChars = concat [ ['a' .. 'z']
