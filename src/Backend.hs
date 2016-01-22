@@ -78,25 +78,17 @@ mkRandomOTP = do
     Password <$> mkRandomString otpIDChars len
 
 
-sendOTP :: Username -> Phone -> Password -> API ()
-sendOTP (Username user) (Phone p) (Password otp) = do
-    mbTwilioConf <- getConfig twilio
-    case mbTwilioConf of
-     Nothing -> do
-         logError $ "User " <> user <> " needs Twilio to log in"
-                     <> "but Twilio is not configured"
-         return ()
-     Just twilioConf -> do
-        logInfo $ mconcat [ "Sending OTP for user " , user
-                           , "(", p , ")"
-                           , ": " <> otp
-                           ]
-
-        Twilio.sendMessage (twilioConf ^. account)
-                           (twilioConf ^. authToken)
-                           (twilioConf ^. sourceNumber)
-                           p
-                           otp
+sendOTP :: TwilioConfig -> Username -> Phone -> Password -> API ()
+sendOTP twilioConf (Username user) (Phone p) (Password otp) = do
+    logInfo $ mconcat [ "Sending OTP for user " , user
+                       , "(", p , ")"
+                       , ": " <> otp
+                       ]
+    Twilio.sendMessage (twilioConf ^. account)
+                       (twilioConf ^. authToken)
+                       (twilioConf ^. sourceNumber)
+                       p
+                       otp
 
 tokenChars :: [Char]
 tokenChars = concat [ ['a' .. 'z']
@@ -119,13 +111,19 @@ login Login{ loginUser = username
          case checkPassword hash pwd of
            True -> do
                unless (hashUsesPolicy hash) $ rehash userId
+               twilioConf <- getConfig twilio
                case mbOtp of
-                Nothing -> case DB.userPhone usr of
-                            -- No phone number for two-factor auth
-                            Nothing -> Right <$> createToken userId
-                            Just p  -> do
-                                createOTP p userId
-                                return $ Left LoginErrorOTPRequired
+                Nothing -> do
+                    mbTwilioConf <- getConfig twilio
+                    case mbTwilioConf of
+                     Nothing -> Right <$> createToken userId
+                     Just twilioConf ->
+                         case DB.userPhone usr of
+                          -- No phone number for two-factor auth
+                          Nothing -> Right <$> createToken userId
+                          Just p  -> do
+                              createOTP twilioConf p userId
+                              return $ Left LoginErrorOTPRequired
                 Just otp -> do
                     otpTime <- fromIntegral . negate <$> getConfig oTPTimeoutSeconds
                     now <- liftIO getCurrentTime
@@ -163,14 +161,14 @@ login Login{ loginUser = username
         BCrypt.validatePassword hash (Text.encodeUtf8 pwd')
     hashUsesPolicy (PasswordHash hash) =
         BCrypt.hashUsesPolicy policy hash
-    createOTP p userId = do
+    createOTP twilioConf p userId = do
         otp <- mkRandomOTP
         now <- liftIO getCurrentTime
         _ <- runDB $ insert DB.UserOtp { DB.userOtpUser = userId
                                        , DB.userOtpPassword = otp
                                        , DB.userOtpCreated = now
                                        }
-        sendOTP username p otp
+        sendOTP twilioConf username p otp
         return ()
 
 checkToken :: Text -> B64Token -> API (Maybe UserID)

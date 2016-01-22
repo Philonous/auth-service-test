@@ -59,6 +59,7 @@ data Config = Config { configTimeout :: !Integer -- token timeout in seconds
                      , configDbString :: !ByteString
                      , configOTPLength :: !Int
                      , configOTPTimeoutSeconds :: !Integer
+                     , configTFARequired :: !Bool
                      , configTwilio :: !(Maybe TwilioConfig)
                      } deriving Show
 

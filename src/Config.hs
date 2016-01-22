@@ -146,6 +146,15 @@ getTwilioConfig conf = do
             $logError "Twilio config is incomplete"
             liftIO Exit.exitFailure
 
+get2FAConf conf = do
+     tfaRequired <- getConf' "TFA_REQUIRED" "tfa.required" (Right False) conf
+     twilioConf <- getTwilioConfig conf
+     case (tfaRequired, twilioConf) of
+      (True, Nothing) -> do
+          $logError "Two Factor Authentication is required, but Twilio is not configured"
+          liftIO Exit.exitFailure
+      _ -> return (tfaRequired, twilioConf)
+
 
 getAuthServiceConfig :: (MonadIO m, MonadLogger m) =>
                         Conf.Config
@@ -158,10 +167,11 @@ getAuthServiceConfig conf = do
                  (Right 4) conf
     otpt <- getConf' "OTP_TIMEOUT" "otp.timeout"
                  (Right 300) conf
-    twilioConf <- getTwilioConfig conf
+    (tfaRequired, twilioConf) <- get2FAConf conf
     return Config{ configTimeout = timeout
                  , configDbString = dbString
                  , configOTPLength = otpl
                  , configOTPTimeoutSeconds = otpt
+                 , configTFARequired = tfaRequired
                  , configTwilio = twilioConf
                  }
