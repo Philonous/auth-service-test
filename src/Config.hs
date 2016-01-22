@@ -99,7 +99,7 @@ getConf = getConfGeneric (Just . Text.pack)
 
 loadConf :: MonadIO m => m Conf.Config
 loadConf = liftIO $ do
-    mbConfPath <- lookupEnv "AUTH_SERVICE_CONF_PATH"
+    mbConfPath <- lookupEnv "CONF_PATH"
     let confFiles =  catMaybes [ Just $ Conf.Optional "/data/auth_service.conf"
                                , Conf.Required <$> mbConfPath
                                ]
@@ -112,11 +112,11 @@ loadConf = liftIO $ do
 
 getDBString :: (MonadLogger m, MonadIO m) => Conf.Config -> m ByteString
 getDBString conf = do
-    host <- getConf "AUTH_SERVICE_DB_HOST" "db.host" (Right "") conf
-    usr <- getConf "AUTH_SERVICE_DB_USER" "db.user" (Right "") conf
-    db   <- getConf "AUTH_SERVICE_DB_DATABASE" "db.database" (Right "auth-service")
+    host <- getConf "DB_HOST" "db.host" (Right "") conf
+    usr <- getConf "DB_USER" "db.user" (Right "") conf
+    db   <- getConf "DB_DATABASE" "db.database" (Right "auth-service")
                     conf
-    pwd <- getConf "AUTH_SERVICE_DB_PASSWORD" "db.password"
+    pwd <- getConf "DB_PASSWORD" "db.password"
                         (Right "") conf
     return . BS.intercalate " "
         $ [ "host"     .= host
@@ -132,9 +132,9 @@ getTwilioConfig :: (MonadIO m, MonadLogger m) =>
                    Conf.Config
                 -> m (Maybe TwilioConfig)
 getTwilioConfig conf = do
-    mbAccount <- getConfMaybe "AUTH_SERVICE_TWILIO_ACCOUNT" "twilio.account" conf
-    mbAuthToken <- getConfMaybe "AUTH_SERVICE_TWILIO_TOKEN" "twilio.token" conf
-    mbSourceNumber <- getConfMaybe "AUTH_SERICE_TWILIO_SOURCE" "twilio.source" conf
+    mbAccount <- getConfMaybe "TWILIO_ACCOUNT" "twilio.account" conf
+    mbAuthToken <- getConfMaybe "TWILIO_TOKEN" "twilio.token" conf
+    mbSourceNumber <- getConfMaybe "TWILIO_SOURCE" "twilio.source" conf
     case (mbAccount, mbAuthToken, mbSourceNumber) of
         (Nothing, Nothing, Nothing) -> return Nothing
         (Just account, Just authToken, Just sourceNumber) ->
@@ -151,12 +151,12 @@ getAuthServiceConfig :: (MonadIO m, MonadLogger m) =>
                         Conf.Config
                      -> m Config
 getAuthServiceConfig conf = do
-    timeout <- getConf' "AUTH_SERVICE_TOKEN_TIMEOUT" "token.timeout"
+    timeout <- getConf' "TOKEN_TIMEOUT" "token.timeout"
                  (Right 3600) {- 1 hour -} conf
     dbString <- getDBString conf
-    otpl <- getConf' "AUTH_SERVICE_OTP_LENGTH" "otp.length"
+    otpl <- getConf' "OTP_LENGTH" "otp.length"
                  (Right 4) conf
-    otpt <- getConf' "AUTH_SERVICE_OTP_TIMEOUT" "otp.timeout"
+    otpt <- getConf' "OTP_TIMEOUT" "otp.timeout"
                  (Right 300) conf
     twilioConf <- getTwilioConfig conf
     return Config{ configTimeout = timeout
