@@ -20,6 +20,7 @@ import           Types
 
 import           Logging
 
+
 type LoginAPI = "login"
               :> ReqBody '[JSON] Login
               :> Post '[JSON] (Headers '[Header "X-Token" B64Token] B64Token)

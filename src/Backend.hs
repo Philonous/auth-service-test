@@ -38,9 +38,6 @@ showText = Text.pack . show
 policy :: BCrypt.HashingPolicy
 policy = BCrypt.fastBcryptHashingPolicy { BCrypt.preferredHashCost = 10 }
 
-tokenTimeoutSeconds :: Integer
-tokenTimeoutSeconds = 300 -- 5 minutes
-
 hashPassword :: Password -> API (Maybe PasswordHash)
 hashPassword (Password pwd) = liftIO $
     fmap PasswordHash <$>
@@ -61,6 +58,21 @@ createUser usr = do
                             }
        _ <- runDB $ P.insert dbUser
        return $ Just ()
+
+getUserByName :: Username -> API (Maybe DB.User)
+getUserByName name = do
+    fmap (fmap entityVal) . runDB $ P.getBy (DB.UniqueUsername name)
+
+changeUserPassword :: UserID -> Password -> API (Maybe ())
+changeUserPassword user password = do
+    mbHash <- hashPassword password
+    case mbHash of
+     Nothing -> return Nothing
+     Just hash -> do
+         updates <- runDB $ P.updateWhere [DB.UserUuid ==. user]
+                                          [DB.UserPasswordHash =. hash]
+         return $ Just updates
+
 
 otpIDChars :: [Char]
 otpIDChars = "CDFGHJKLMNPQRSTVWXYZ2345679"

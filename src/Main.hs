@@ -41,6 +41,8 @@ main = runStderrLoggingT $ do
                   hPutStrLn stderr "Could not add user"
                   exitFailure
               Just () -> return ()
+         ("chpass": args') -> run $ changePassword args'
+
          ["run"] -> liftIO $ Warp.run 3000 (serveAPI pool conf)
          _ -> liftIO $ do
              hPutStrLn stderr "Usage: auth-service [adduser|run] [options]"
