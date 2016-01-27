@@ -51,7 +51,7 @@ serveLogout pool conf token = logoutHandler
     logoutHandler = do
         lift . runAPI pool conf $ logOut token
 
-type CheckTokenAPI = "checkToken"
+type CheckTokenAPI = "check-token"
                   :> Capture "instance" Text
                   :> Capture "token" B64Token
                   :> Get '[JSON] (Headers '[Header "X-User" UserID] ReturnUser)
