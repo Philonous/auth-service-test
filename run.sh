@@ -5,6 +5,10 @@ until nc -z database 5432; do
     sleep 1
 done
 
+# Prevent a possible race condition where transactions might fail since the
+# database system is starting up.
+sleep 5
+
 echo "setting up test user"
 
 export AUTH_SERVICE_DB_DATABASE=postgres
