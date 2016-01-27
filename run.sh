@@ -15,4 +15,4 @@ export AUTH_SERVICE_DB_USER=postgres
 
 echo "Auth-service is running!"
 
-exec auth-service run 1>&2
+exec auth-service run
