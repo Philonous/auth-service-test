@@ -3,6 +3,7 @@
 # Example:
 # m4 -DAUTH_SERVICE=localhost:3000 \
 #    -DUPSTREAM=localhost:4000 \
+#    -INSTANCE=myinstance
 #    -DPORT=80
 #    nginx.conf \
 #    > nginx.conf.out
@@ -39,7 +40,7 @@ http {
         }
         location /auth {
                 internal;
-                proxy_pass http://AUTH_SERVICE/checkToken/$cookie_token/;
+                proxy_pass http://AUTH_SERVICE/check-token/INSTANCE/$cookie_token/;
                 proxy_pass_request_body off;
                 proxy_set_header Content-Length "";
                 proxy_set_header X-Original-URI $request_uri;
