@@ -112,9 +112,9 @@ loadConf = liftIO $ do
 
 getDBString :: (MonadLogger m, MonadIO m) => Conf.Config -> m ByteString
 getDBString conf = do
-    host <- getConf "DB_HOST" "db.host" (Right "") conf
-    usr <- getConf "DB_USER" "db.user" (Right "") conf
-    db   <- getConf "DB_DATABASE" "db.database" (Right "auth-service")
+    host <- getConf "DB_HOST" "db.host" (Right "database") conf
+    usr <- getConf "DB_USER" "db.user" (Right "lambdatrade") conf
+    db   <- getConf "DB_DATABASE" "db.database" (Right "lambdatrade")
                     conf
     pwd <- getConf "DB_PASSWORD" "db.password"
                         (Right "") conf
