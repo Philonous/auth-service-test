@@ -61,14 +61,14 @@ instance FromJSON UserID where
 instance ToByteString UserID where
     builder = builder . Text.encodeUtf8 . UUID.toText . unUserID
 
-newtype Username = Username{ unUsername :: Text}
-                   deriving ( Show, Read, Eq, Ord, Typeable, Data, PathPiece
-                            , ToJSON, FromJSON
-                            , IsString, ToByteString
-                            , ToHttpApiData, FromHttpApiData
-                            )
+newtype Name = Name{ unName :: Text}
+             deriving ( Show, Read, Eq, Ord, Typeable, Data, PathPiece
+                      , ToJSON, FromJSON
+                      , IsString, ToByteString
+                      , ToHttpApiData, FromHttpApiData
+                      )
 
-makePrisms ''Username
+makePrisms ''Name
 
 newtype Password = Password{ unPassword :: Text}
                    deriving ( Show, Read, Eq, Ord, Typeable, Data
@@ -113,10 +113,10 @@ makePrisms ''B64Token
 
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "unB64"} ''B64Token
 
-data AddUser = AddUser { addUserName     :: !Username
-                       , addUserPassword :: !Password
-                       , addUserEmail    :: !Email
-                       , addUserPhone    :: !(Maybe Phone)
+data AddUser = AddUser { addUserEmail     :: !Email
+                       , addUserPassword  :: !Password
+                       , addUserName      :: !Name
+                       , addUserPhone     :: !(Maybe Phone)
                        } deriving (Show)
 
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "addUser"} ''AddUser
@@ -129,10 +129,10 @@ deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "returnUser"}
     ''ReturnUser
 makeLensesWith camelCaseFields ''ReturnUser
 
-data Login = Login { loginUser     :: !Username
+data Login = Login { loginUser     :: !Email
                    , loginPassword :: !Password
                    , loginOtp      :: !(Maybe Password)
-                   } deriving ( Show, Read, Eq, Ord, Typeable, Data )
+                   } deriving ( Show, Eq, Ord, Typeable, Data )
 
 
 

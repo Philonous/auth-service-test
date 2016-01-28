@@ -42,8 +42,9 @@ main = runStderrLoggingT $ do
                   exitFailure
               Just () -> return ()
          ("chpass": args') -> run $ changePassword args'
-
+         ("userinstances":args') -> run $ setInstances args'
          ["run"] -> liftIO $ Warp.run 3000 (serveAPI pool conf)
          _ -> liftIO $ do
-             hPutStrLn stderr "Usage: auth-service [adduser|run] [options]"
+             hPutStrLn stderr
+               "Usage: auth-service [run|adduser|chpass|userinstances] [options]"
              exitFailure

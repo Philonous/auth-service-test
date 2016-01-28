@@ -40,8 +40,8 @@ instance PersistField UserID where
 instance PersistFieldSql UserID where
     sqlType _ = SqlOther "uuid"
 
-deriving instance PersistField Username
-deriving instance PersistFieldSql Username
+deriving instance PersistField Name
+deriving instance PersistFieldSql Name
 
 deriving instance PersistField Password
 deriving instance PersistFieldSql Password

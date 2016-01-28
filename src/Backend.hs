@@ -10,21 +10,16 @@ module Backend
 
 import           Control.Lens
 import           Control.Monad
-import qualified Control.Monad.Catch as Ex
 import           Control.Monad.Reader
 import qualified Crypto.BCrypt as BCrypt
-import qualified Data.ByteString.Base64 as B64
 import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import qualified Data.Text.IO as Text
 import           Data.Time.Clock
 import qualified Data.UUID.V4 as UUID
 import qualified Database.Persist as P
-import           Database.Persist.Sql
-import           System.Entropy
-import           System.IO
+import           Database.Persist.Sql as P
 import           System.Random
 import qualified Twilio
 
@@ -59,9 +54,9 @@ createUser usr = do
        _ <- runDB $ P.insert dbUser
        return $ Just ()
 
-getUserByName :: Username -> API (Maybe DB.User)
-getUserByName name = do
-    fmap (fmap entityVal) . runDB $ P.getBy (DB.UniqueUsername name)
+getUserByEmail :: Email -> API (Maybe DB.User)
+getUserByEmail name = do
+    fmap (fmap entityVal) . runDB $ P.getBy (DB.UniqueUserEmail name)
 
 changeUserPassword :: UserID -> Password -> API (Maybe ())
 changeUserPassword user password = do
@@ -73,6 +68,19 @@ changeUserPassword user password = do
                                           [DB.UserPasswordHash =. hash]
          return $ Just updates
 
+addUserInstance :: UserID -> Text -> API ()
+addUserInstance user inst = do
+  _ <- runDB $ P.insert DB.UserInstance{ DB.userInstanceUser = user
+                                       , DB.userInstanceInstanceId = inst
+                                       }
+  return ()
+
+removeUserInstance :: UserID -> Text -> API Integer
+removeUserInstance user inst = do
+  count <- runDB $ P.deleteWhereCount [ DB.UserInstanceUser ==. user
+                                      , DB.UserInstanceInstanceId ==. inst
+                                      ]
+  return $ fromIntegral count
 
 otpIDChars :: [Char]
 otpIDChars = "CDFGHJKLMNPQRSTVWXYZ2345679"
@@ -90,8 +98,8 @@ mkRandomOTP = do
     Password <$> mkRandomString otpIDChars len
 
 
-sendOTP :: TwilioConfig -> Username -> Phone -> Password -> API ()
-sendOTP twilioConf (Username user) (Phone p) (Password otp) = do
+sendOTP :: TwilioConfig -> Email -> Phone -> Password -> API ()
+sendOTP twilioConf (Email user) (Phone p) (Password otp) = do
     logInfo $ mconcat [ "Sending OTP for user " , user
                        , "(", p , ")"
                        , ": " <> otp
@@ -110,11 +118,11 @@ tokenChars = concat [ ['a' .. 'z']
 
 
 login :: Login -> API (Either LoginError B64Token)
-login Login{ loginUser = username
+login Login{ loginUser = userEmail
            , loginPassword = pwd
            , loginOtp      = mbOtp
            } = do
-    mbUser <- runDB $ P.getBy (DB.UniqueUsername username)
+    mbUser <- runDB $ P.getBy (DB.UniqueUserEmail userEmail)
     case mbUser of
      Nothing -> return $ Left LoginErrorFailed
      Just (Entity _ usr) -> do
@@ -180,7 +188,7 @@ login Login{ loginUser = username
                                        , DB.userOtpPassword = otp
                                        , DB.userOtpCreated = now
                                        }
-        sendOTP twilioConf username p otp
+        sendOTP twilioConf userEmail p otp
         return ()
 
 checkToken :: Text -> B64Token -> API (Maybe UserID)

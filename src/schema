@@ -1,10 +1,10 @@
 User
   uuid UserID
   Primary uuid
-  name Username
-  UniqueUsername name
-  passwordHash PasswordHash
   email Email
+  UniqueUserEmail email
+  name Name
+  passwordHash PasswordHash
   phone Phone Maybe
 
 UserOtp
