@@ -36,6 +36,7 @@ executable auth-service
                    , either
                    , entropy >= 0.3
                    , exceptions >= 0.8
+                   , esqueleto
                    , http-api-data >= 0.2
                    , http-conduit >= 2.1
                    , http-types >= 0.9

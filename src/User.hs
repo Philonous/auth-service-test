@@ -58,19 +58,3 @@ changePassword args = do
          hPutStrLn stderr
              "Usage: auth-service chpass <email> <password>"
          exitFailure
-
-setInstances :: [String] -> API ()
-setInstances args = do
-  case Text.pack <$> args of
-   (command : userEmail : instances)
-     | command `List.elem` ["add", "remove"]
-       -> do
-         user <- getUser (Email userEmail)
-         case command of
-          "add" -> forM_ instances $ addUserInstance (DB.userUuid user)
-          "remove" -> forM_ instances $ removeUserInstance (DB.userUuid user)
-          _ -> error "command not found"
-   _ -> do
-     liftIO . hPutStrLn stderr $
-       "Usage: auth-service userinstance {add|remove} <email> <instance>"
-     liftIO exitFailure

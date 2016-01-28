@@ -33,6 +33,7 @@ share [ mkPersist sqlSettings, mkMigrate "migrateAll"]
     $(persistFileWith lowerCaseSettings "src/schema")
 
 makeLensesWith camelCaseFields ''User
+makeLensesWith camelCaseFields ''Instance
 makeLensesWith camelCaseFields ''UserOtp
 makeLensesWith camelCaseFields ''UserInstance
 makeLensesWith camelCaseFields ''Token

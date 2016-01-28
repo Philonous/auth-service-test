@@ -40,6 +40,22 @@ instance PersistField UserID where
 instance PersistFieldSql UserID where
     sqlType _ = SqlOther "uuid"
 
+instance PersistField InstanceID where
+    toPersistValue = toPersistValue . UUID.toString . unInstanceID
+    fromPersistValue = \x -> case x of
+        PersistDbSpecific bs ->
+            case UUID.fromASCIIBytes bs of
+             Nothing -> Left $ "Invalid UUID: " <> (Text.pack $ show bs)
+             Just u -> Right $ InstanceID u
+        PersistText txt ->
+            case UUID.fromString $ Text.unpack txt of
+             Nothing -> Left $ "Invalid UUID: " <> (Text.pack $ show txt)
+             Just u -> Right $ InstanceID u
+        e -> Left $ "Can not convert to uuid: " <> (Text.pack $ show e)
+
+instance PersistFieldSql InstanceID where
+    sqlType _ = SqlOther "uuid"
+
 deriving instance PersistField Name
 deriving instance PersistFieldSql Name
 

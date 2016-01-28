@@ -29,9 +29,41 @@ import           Web.PathPieces
 
 import           Helpers
 
+newtype InstanceID = InstanceID { unInstanceID :: UUID.UUID }
+                 deriving ( Show, Read, Eq, Ord, Typeable, Data
+                          )
+
+makePrisms ''InstanceID
+
+instance PathPiece InstanceID where
+    fromPathPiece = fmap InstanceID . UUID.fromText
+    toPathPiece = Text.pack . UUID.toString . unInstanceID
+
+instance ToHttpApiData InstanceID where
+    toUrlPiece = toPathPiece
+
+instance FromHttpApiData InstanceID where
+    parseUrlPiece txt =
+        case fromPathPiece txt of
+         Nothing -> Left $ "Could not parse user id " <> txt
+         Just uuid -> Right uuid
+
 newtype UserID = UserID { unUserID :: UUID.UUID }
                  deriving ( Show, Read, Eq, Ord, Typeable, Data
                           )
+
+instance ToJSON InstanceID where
+    toJSON (InstanceID uid) = toJSON $ UUID.toText uid
+
+instance FromJSON InstanceID where
+    parseJSON v = do
+        txt <- parseJSON v
+        case UUID.fromText txt of
+         Nothing -> fail $ "Can't parse UUID " <> (Text.unpack txt)
+         Just uuid -> return $ InstanceID uuid
+
+instance ToByteString InstanceID where
+    builder = builder . Text.encodeUtf8 . UUID.toText . unInstanceID
 
 makePrisms ''UserID
 
@@ -128,6 +160,17 @@ data ReturnUser = ReturnUser { returnUserUser :: !UserID }
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "returnUser"}
     ''ReturnUser
 makeLensesWith camelCaseFields ''ReturnUser
+
+data ReturnInstance = ReturnInstance { returnInstanceName :: !Text
+                                     , returnInstanceId :: !InstanceID
+                                     } deriving ( Show, Read, Eq, Ord
+                                                , Typeable, Data )
+
+makeLensesWith camelCaseFields ''ReturnInstance
+
+deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "returnInstance"}
+    ''ReturnInstance
+
 
 data Login = Login { loginUser     :: !Email
                    , loginPassword :: !Password

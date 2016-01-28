@@ -18,14 +18,18 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import           Data.Time.Clock
 import qualified Data.UUID.V4 as UUID
+import           Database.Esqueleto hiding ((^.), from)
+import qualified Database.Esqueleto as E
 import qualified Database.Persist as P
-import           Database.Persist.Sql as P
+import qualified Database.Persist.Sql as P
 import           System.Random
 import qualified Twilio
 
 import qualified Persist.Schema as DB
 import           Types
 import           Logging
+
+for = flip fmap
 
 showText :: Show a => a -> Text
 showText = Text.pack . show
@@ -64,23 +68,35 @@ changeUserPassword user password = do
     case mbHash of
      Nothing -> return Nothing
      Just hash -> do
-         updates <- runDB $ P.updateWhere [DB.UserUuid ==. user]
-                                          [DB.UserPasswordHash =. hash]
+         updates <- runDB $ P.updateWhere [DB.UserUuid P.==. user]
+                                          [DB.UserPasswordHash P.=. hash]
          return $ Just updates
 
-addUserInstance :: UserID -> Text -> API ()
+addUserInstance :: UserID -> InstanceID -> API ()
 addUserInstance user inst = do
   _ <- runDB $ P.insert DB.UserInstance{ DB.userInstanceUser = user
                                        , DB.userInstanceInstanceId = inst
                                        }
   return ()
 
-removeUserInstance :: UserID -> Text -> API Integer
+removeUserInstance :: UserID -> InstanceID -> API Integer
 removeUserInstance user inst = do
-  count <- runDB $ P.deleteWhereCount [ DB.UserInstanceUser ==. user
-                                      , DB.UserInstanceInstanceId ==. inst
+  count <- runDB $ P.deleteWhereCount [ DB.UserInstanceUser P.==. user
+                                      , DB.UserInstanceInstanceId P.==. inst
                                       ]
   return $ fromIntegral count
+
+getUserInstances :: UserID -> API [ReturnInstance]
+getUserInstances user = do
+  res <- runDB . select . E.from $ \(ui `InnerJoin` i) -> do
+     on (i E.^. DB.InstanceUuid ==. ui E.^. DB.UserInstanceInstanceId)
+     where_ (ui E.^. DB.UserInstanceUser ==. val user)
+     orderBy [asc $ i E.^. DB.InstanceName ]
+     return i
+  return $ for (entityVal <$> res) $ \i ->
+              ReturnInstance{ returnInstanceName = i ^. name
+                            , returnInstanceId = i ^. DB.uuid
+                            }
 
 otpIDChars :: [Char]
 otpIDChars = "CDFGHJKLMNPQRSTVWXYZ2345679"
@@ -148,15 +164,15 @@ login Login{ loginUser = userEmail
                     otpTime <- fromIntegral . negate <$> getConfig oTPTimeoutSeconds
                     now <- liftIO getCurrentTime
                     let cutoff = otpTime `addUTCTime` now
-                    runDB $ deleteWhere [DB.UserOtpCreated P.<=. cutoff]
-                    checkOTP <- runDB $ selectList [ DB.UserOtpUser P.==. userId
-                                                   , DB.UserOtpPassword P.==. otp
-                                                   ] []
+                    runDB $ P.deleteWhere [DB.UserOtpCreated P.<=. cutoff]
+                    checkOTP <- runDB $ P.selectList [ DB.UserOtpUser P.==. userId
+                                                     , DB.UserOtpPassword P.==. otp
+                                                     ] []
                     case checkOTP of
                      (_:_) -> do
-                         runDB $ deleteWhere [ DB.UserOtpUser P.==. userId
-                                             , DB.UserOtpPassword P.==. otp
-                                             ]
+                         runDB $ P.deleteWhere [ DB.UserOtpUser P.==. userId
+                                               , DB.UserOtpPassword P.==. otp
+                                               ]
                          Right <$> createToken userId
                      [] -> return $ Left LoginErrorFailed
            False -> return $ Left LoginErrorFailed
@@ -191,10 +207,10 @@ login Login{ loginUser = userEmail
         sendOTP twilioConf userEmail p otp
         return ()
 
-checkToken :: Text -> B64Token -> API (Maybe UserID)
+checkToken :: InstanceID -> B64Token -> API (Maybe UserID)
 checkToken inst tokenId = do
     now <- liftIO $ getCurrentTime
-    runDB $ deleteWhere [DB.TokenExpires P.<=. Just now]
+    runDB $ P.deleteWhere [DB.TokenExpires P.<=. Just now]
     mbToken <- runDB $ P.get (DB.TokenKey tokenId)
     case mbToken of
      Nothing -> return Nothing
@@ -206,6 +222,6 @@ checkToken inst tokenId = do
 
 logOut :: B64Token -> API ()
 logOut token = do
-    runDB $ delete (DB.TokenKey token)
+    runDB $ P.delete (DB.TokenKey token)
 
 -- addUser name password email mbPhone = do

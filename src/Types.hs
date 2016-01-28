@@ -18,18 +18,26 @@ module Types
   , module Types
   ) where
 
-import Control.Lens
-import Control.Monad.Catch
-import Control.Monad.Reader
-import Data.ByteString (ByteString)
-import Data.Text (Text)
-import Database.Persist.Sql
-import Servant
+import           Control.Lens
+import           Control.Monad.Catch
+import           Control.Monad.Reader
+import           Data.ByteString (ByteString)
+import           Data.Text (Text)
+import           Data.UUID (UUID)
+import qualified Data.UUID as UUID
+import           Database.Persist.Sql
+import           Servant
 
-import AuthServiceTypes
+import           AuthServiceTypes
 
 
 deriving instance FromText B64Token
+
+instance FromText UUID where
+  fromText = UUID.fromText
+
+deriving instance FromText InstanceID
+deriving instance FromText UserID
 
 --------------------------------------------------------------------------------
 -- Error -----------------------------------------------------------------------

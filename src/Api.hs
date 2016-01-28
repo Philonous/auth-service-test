@@ -52,7 +52,7 @@ serveLogout pool conf token = logoutHandler
         lift . runAPI pool conf $ logOut token
 
 type CheckTokenAPI = "check-token"
-                  :> Capture "instance" Text
+                  :> Capture "instance" InstanceID
                   :> Capture "token" B64Token
                   :> Get '[JSON] (Headers '[Header "X-User" UserID] ReturnUser)
 
@@ -62,11 +62,21 @@ serveCheckToken pool conf inst token = checkTokenHandler
     checkTokenHandler = do
         res <- lift . runAPI pool conf $ do
             logDebug $ "Checking token " <> showText token
-                       <> " for instance " <> inst
+                       <> " for instance " <> showText inst
             checkToken inst token
         case res of
          Nothing -> left err403
          Just usr -> return $ (addHeader usr $ ReturnUser usr)
+
+type GetUserInstancesAPI = "user-instances"
+                         :> Capture "user" UserID
+                         :> Get '[JSON] [ReturnInstance]
+
+serveGetUserInstancesAPI :: ConnectionPool
+                         -> Config
+                         -> Server GetUserInstancesAPI
+serveGetUserInstancesAPI pool conf user =
+  lift . runAPI pool conf $ getUserInstances user
 
 type UserMirrorAPI = "showUser"
                    :> Header "X-User" Text
@@ -77,11 +87,16 @@ serveUserMirror mbUser = do
      Nothing -> return "None"
      Just user -> return user
 
-apiPrx :: Proxy (LoginAPI :<|> CheckTokenAPI :<|> LogoutAPI :<|> UserMirrorAPI)
+apiPrx :: Proxy (    LoginAPI
+                :<|> CheckTokenAPI
+                :<|> LogoutAPI
+                :<|> GetUserInstancesAPI
+                :<|> UserMirrorAPI)
 apiPrx = Proxy
 
 serveAPI :: ConnectionPool -> Config -> Application
 serveAPI pool conf = serve apiPrx $ serveLogin pool conf
                                :<|> serveCheckToken pool conf
                                :<|> serveLogout pool conf
+                               :<|> serveGetUserInstancesAPI pool conf
                                :<|> serveUserMirror
