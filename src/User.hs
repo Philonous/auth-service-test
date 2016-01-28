@@ -30,7 +30,7 @@ addUser args = do
                          }
    _ -> liftIO $ do
        hPutStrLn stderr
-           "usage: auth-service adduser <email> <password> <name> [<phone>]"
+           "Usage: auth-service adduser <email> <password> <name> [<phone>]"
        exitFailure
 
 
@@ -56,7 +56,7 @@ changePassword args = do
       _ -> return ()
    _ -> liftIO $ do
          hPutStrLn stderr
-             "usage: auth-service chpass <email> <password>"
+             "Usage: auth-service chpass <email> <password>"
          exitFailure
 
 setInstances :: [String] -> API ()
@@ -72,5 +72,5 @@ setInstances args = do
           _ -> error "command not found"
    _ -> do
      liftIO . hPutStrLn stderr $
-       "usage: auth-service userinstance {add|remove} <user> <instance>"
+       "Usage: auth-service userinstance {add|remove} <email> <instance>"
      liftIO exitFailure
