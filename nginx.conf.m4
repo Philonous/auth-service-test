@@ -38,8 +38,10 @@ http {
             proxy_set_header X-User $user;
             proxy_set_header X-Original-URI $request_uri;
         }
-        location /auth {
+        location = /auth {
                 internal;
+                set token=$cookie_token;
+                if($token = "")
                 proxy_pass http://AUTH_SERVICE/check-token/INSTANCE/$cookie_token/;
                 proxy_pass_request_body off;
                 proxy_set_header Content-Length "";
@@ -48,13 +50,13 @@ http {
 
         # This part is only necessary if the client doesn't contact the central
         # auth service (e.g. for SSO)
-        location /login {
+        location = /login {
                 proxy_pass http://AUTH_SERVICE/login/;
                 proxy_set_header X-Original-URI $request_uri;
                 add_header Set-Cookie "token=$upstream_http_x_token";
         }
 
-        location /logout {
+        location = /logout {
                 proxy_pass http://AUTH_SERVICE/logout/$cookie_token;
                 proxy_set_header X-Original-URI $request_uri;
                 add_header Set-Cookie "token=$upstream_http_x_token";
