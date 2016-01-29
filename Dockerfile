@@ -11,6 +11,7 @@ RUN echo "dependencies v1" && \
       libpq-dev \
       libstdc++-4.8-dev \
       netcat \
+      postgresql-client \
         && \
     ln -s /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /usr/lib/libstdc++.so && \
     rm -rf /var/lib/apt/lists/*

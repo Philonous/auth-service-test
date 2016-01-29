@@ -1,17 +1,22 @@
 database:
   image: postgres:9.5
-
+  environment:
+    - POSTGRES_USER=lambdatrade
 
 authservice:
   build: .
   links:
     - database
+  volumes:
+    - ./testsetup.sh:/testsetup.sh
+
 
 nginx:
   image: nginx:latest
   volumes:
     - ./index.htm:/www/index.htm
     - ./nginx.conf:/etc/nginx/nginx.conf
+    - ./index.html:/www/index.html
   ports:
     - 8000:8000
   links:
