@@ -177,7 +177,15 @@ data Login = Login { loginUser     :: !Email
                    , loginOtp      :: !(Maybe Password)
                    } deriving ( Show, Eq, Ord, Typeable, Data )
 
-
-
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "login"} ''Login
 makeLensesWith camelCaseFields ''Login
+
+data ReturnLogin = ReturnLogin { returnLoginToken :: !B64Token
+                               , returnLoginInstances :: ![ReturnInstance]
+                               } deriving ( Show, Read, Eq, Ord
+                                          , Typeable, Data )
+
+makeLensesWith camelCaseFields ''ReturnLogin
+
+deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "returnLogin"}
+    ''ReturnLogin

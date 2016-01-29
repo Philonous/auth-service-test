@@ -23,15 +23,15 @@ import           Logging
 
 type LoginAPI = "login"
               :> ReqBody '[JSON] Login
-              :> Post '[JSON] (Headers '[Header "X-Token" B64Token] B64Token)
+              :> Post '[JSON] (Headers '[Header "X-Token" B64Token] ReturnLogin)
 
 serveLogin :: ConnectionPool -> Config -> Server LoginAPI
 serveLogin pool conf loginReq = loginHandler
   where
     loginHandler = do
-        mbToken <- lift . runAPI pool conf $ login loginReq
-        case mbToken of
-         Right tok -> return (addHeader tok tok)
+        mbReturnLogin <- lift . runAPI pool conf $ login loginReq
+        case mbReturnLogin of
+         Right rl -> return (addHeader (returnLoginToken rl) rl)
          Left LoginErrorOTPRequired ->
              left ServantErr{ errHTTPCode = 499
                             , errReasonPhrase = "OTP required"

@@ -12,14 +12,15 @@ import           Control.Lens
 import           Control.Monad
 import           Control.Monad.Reader
 import qualified Crypto.BCrypt as BCrypt
+import           Data.Maybe (listToMaybe)
 import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import           Data.Time.Clock
 import qualified Data.UUID.V4 as UUID
-import           Database.Esqueleto hiding ((^.), from)
 import qualified Database.Esqueleto as E
+import           Database.Esqueleto hiding ((^.), from)
 import qualified Database.Persist as P
 import qualified Database.Persist.Sql as P
 import           System.Random
@@ -133,7 +134,7 @@ tokenChars = concat [ ['a' .. 'z']
                     ] -- Roughly 6 bit per char
 
 
-login :: Login -> API (Either LoginError B64Token)
+login :: Login -> API (Either LoginError ReturnLogin)
 login Login{ loginUser = userEmail
            , loginPassword = pwd
            , loginOtp      = mbOtp
@@ -192,7 +193,10 @@ login Login{ loginUser = userEmail
                                          , DB.tokenCreated = now
                                          , DB.tokenExpires = Nothing
                                          }
-        return token
+        instances <- getUserInstances userId
+        return ReturnLogin{ returnLoginToken = token
+                          , returnLoginInstances = instances
+                          }
     checkPassword (PasswordHash hash) (Password pwd') =
         BCrypt.validatePassword hash (Text.encodeUtf8 pwd')
     hashUsesPolicy (PasswordHash hash) =
