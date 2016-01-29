@@ -107,18 +107,19 @@ docker_test() {
        echo "Could not login"
        exit 1
     fi
-    RES=$(curl -v\
-               -H "X-Token: $TOKEN" \
+    # RES=$(curl -v\
+    #            -H "X-Token: $TOKEN" \
+    #            -H "X-Instance: $INSTANCE" \
+    #            http://$DOCKER_HOST/)
+    # echo $RES
+    RES=$(curl -v \
                -H "X-Instance: $INSTANCE" \
+               -H "X-Token: $TOKEN" \
                http://$DOCKER_HOST/)
     echo $RES
-    RES=$(curl -v \
-               -H "X-Instance: $INSTANCE" \
-               --cookie "TOKEN=$TOKEN" http://$DOCKER_HOST/)
-    echo $RES
-    RES=$(curl -v \
-               --cookie "TOKEN=$TOKEN" http://$DOCKER_HOST/)
-    echo $RES
+    # RES=$(curl -v \
+    #            --cookie "TOKEN=$TOKEN" http://$DOCKER_HOST/)
+    # echo $RES
     # nginx_logs
 
 }
