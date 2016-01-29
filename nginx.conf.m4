@@ -38,12 +38,8 @@ http {
             # successful
 
             proxy_pass http://$http_x_instance/;
-
-            proxy_pass_request_body off;
-            proxy_set_header Content-Length "";
             proxy_set_header X-User $user;
             proxy_set_header X-Original-URI $request_uri;
-            # Redirect to internal path depending on X-instance
         }
 
         location = /auth {
