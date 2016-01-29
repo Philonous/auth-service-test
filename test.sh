@@ -49,6 +49,10 @@ EOF
 
 }
 
+nginx_logs () {
+    docker exec authservice_nginx_1 cat /tmp/nginx.log
+}
+
 nginx_conf() {
     m4 -DAUTH_SERVICE=authservice:3000 \
        -DUPSTREAM=localhost:4000 \
@@ -59,6 +63,10 @@ nginx_conf() {
        -DINSTANCE=de305d54-75b4-431b-adb2-eb6b9e546014\
        nginx.conf.m4 \
       | tee nginx.conf
+
+    docker restart authservice_nginx_1
+    docker exec authservice_nginx_1 cat /tmp/nginx.log
+
 }
 
 start_nginx() {
@@ -91,6 +99,7 @@ setup () {
 
 docker_test() {
     setup
+    nginx_conf
     RES="$(login "$DOCKER_HOST")"
     echo $RES
     TOKEN=$(echo "$RES" | jq -r '.token.token')
@@ -98,10 +107,19 @@ docker_test() {
        echo "Could not login"
        exit 1
     fi
-    RES=$(curl -v -H "X-Token: $TOKEN" http://$DOCKER_HOST/)
+    RES=$(curl -v\
+               -H "X-Token: $TOKEN" \
+               -H "X-Instance: $INSTANCE" \
+               http://$DOCKER_HOST/)
     echo $RES
-    RES=$(curl -v --cookie "TOKEN=$TOKEN" http://$DOCKER_HOST/)
+    RES=$(curl -v \
+               -H "X-Instance: $INSTANCE" \
+               --cookie "TOKEN=$TOKEN" http://$DOCKER_HOST/)
     echo $RES
+    RES=$(curl -v \
+               --cookie "TOKEN=$TOKEN" http://$DOCKER_HOST/)
+    echo $RES
+    # nginx_logs
 
 }
 

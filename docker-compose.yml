@@ -17,6 +17,7 @@ nginx:
     - ./index.htm:/www/index.htm
     - ./nginx.conf:/etc/nginx/nginx.conf
     - ./index.html:/www/index.html
+    # - ./index.html:/www/local/index.html
   ports:
     - 8000:8000
   links:

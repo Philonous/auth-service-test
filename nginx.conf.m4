@@ -37,12 +37,12 @@ http {
             # The variable $user now contains the username when the check was
             # successful
 
-            # proxy_pass http://UPSTREAM/;
-            # proxy_pass_request_body off;
-            # proxy_set_header Content-Length "";
-            # proxy_set_header X-User $user;
-            # proxy_set_header X-Original-URI $request_uri;
-            root /www;
+
+            # Redirect to internal path depending on X-instance
+            if ($http_x_instance = "de305d54-75b4-431b-adb2-eb6b9e546014") {
+                rewrite ^/(.*)$ /testinstance/$1 last;
+            }
+            return 404;
         }
         location = /auth {
                 internal;
@@ -50,11 +50,19 @@ http {
                 if ($http_x_token) {
                   set $token $http_x_token;
                 }
-                proxy_pass http://AUTH_SERVICE/check-token/INSTANCE/$token/;
+                proxy_pass http://AUTH_SERVICE/check-token/$http_x_instance/$token/;
                 proxy_pass_request_body off;
                 proxy_set_header Content-Length "";
                 proxy_set_header X-Original-URI $request_uri;
         }
+
+        # Every instance needs a location block. Use it to proxy_pass or
+        # whatever :)
+        location /testinstance/ {
+                internal;
+                alias /www/;
+        }
+
 
         # This part is only necessary if the client doesn't contact the central
         # auth service (e.g. for SSO)
