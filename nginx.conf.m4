@@ -2,8 +2,8 @@
 #
 # Example:
 # m4 -DAUTH_SERVICE=localhost:3000 \
-#    -DUPSTREAM=localhost:4000 \
-#    -DACCESS_LOG=/var/log/nginx/access.log
+#    -DUPSTREAM_PORT=4000 \
+#    -ACCESS_LOG=/var/log/nginx/access.log
 #    -DPORT=80 \
 #    nginx.conf \
 #    > nginx.conf.out
@@ -34,7 +34,7 @@ http {
             # The variable $user now contains the username when the check was
             # successful
 
-            proxy_pass http://$http_x_instance/;
+            proxy_pass http://$http_x_instance:UPSTREAM_PORT/;
             proxy_set_header X-User $user;
             proxy_set_header X-Original-URI $request_uri;
         }
