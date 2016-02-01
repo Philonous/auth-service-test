@@ -42,7 +42,10 @@ http {
         location = /auth {
                 internal;
                 set $token $cookie_token;
-                if ($http_x_token = '') {
+                if ($token = '') {
+                  set $token $http_x_token;
+                }
+                if ($token = '') {
                   return 403;
                 }
                 if ($http_x_instance = '') {
