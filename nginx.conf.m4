@@ -1,16 +1,17 @@
-# use m4 to configure AUTH_SERVICE and UPSTREAM and PORT
+# use m4 to configure
 #
 # Example:
 # m4 -DAUTH_SERVICE=localhost:3000 \
 #    -DUPSTREAM_PORT=4000 \
-#    -ACCESS_LOG=/var/log/nginx/access.log
+#    -DACCESS_LOG=/var/log/nginx/access.log
+#    -DERROR_LOG=/var/log/nginx/error.log
 #    -DPORT=80 \
 #    nginx.conf.m4 \
 #    > nginx.conf
 
 worker_processes 1;
 
-error_log /tmp/nginx.log debug;
+ifdef(`ERROR_LOG', `error_log ERROR_LOG warn;')
 
 events {
     worker_connections 1024;
@@ -22,17 +23,18 @@ http {
     sendfile on;
     keepalive_timeout 65;
     ifdef(`ACCESS_LOG', `access_log ACCESS_LOG;')
+
     server {
         listen PORT;
         server_name auth-service;
         rewrite_log on;
+        resolver 127.0.0.1;
         location / {
             auth_request /auth;
             auth_request_set $user $upstream_http_x_user;
             # The variable $user now contains the username when the check was
             # successful
-
-            proxy_pass http://$http_x_instance:UPSTREAM_PORT/;
+            proxy_pass http://$http_x_instance:4000/;
             proxy_set_header X-User $user;
             proxy_set_header X-Original-URI $request_uri;
         }

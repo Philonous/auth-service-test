@@ -53,19 +53,25 @@ nginx_logs () {
     docker exec authservice_nginx_1 cat /tmp/nginx.log
 }
 
-nginx_conf() {
+nginx_build_conf () {
     m4 -DAUTH_SERVICE=authservice:3000 \
        -DUPSTREAM=localhost:4000 \
        -INSTANCE=myinstance \
        -DPORT=8000 \
        -DACCESS_LOG=off \
+       -DERROR_LOG=/tmp/nginx.log \
        -DFOREGROUND \
-       -DINSTANCE=de305d54-75b4-431b-adb2-eb6b9e546014\
+       -DUPSTREAMPORT=4000 \
+       -DUSP=4000 \
+       -DACCES_LOG=off \
        nginx.conf.m4 \
-      | tee nginx.conf
+       > nginx.conf
+}
 
+nginx_reload_conf() {
+    nginx_build_conf
     docker restart authservice_nginx_1
-    docker exec authservice_nginx_1 cat /tmp/nginx.log
+    nginx_logs
 
 }
 
@@ -73,6 +79,11 @@ start_nginx() {
     nginx_conf
     sudo docker-compose up
     }
+
+enter_nginx() {
+    docker exec -it authservice_nginx_1 /bin/bash
+}
+
 
 login() {
 curl -H "Content-Type: application/json" -X POST -d "{ \"user\": \"$USER\", \"password\": \"$PASSWORD\" }" \
@@ -93,13 +104,12 @@ runtest() {
 }
 
 
-setup () {
+docker_setup () {
     docker exec -it authservice_authservice_1 /testsetup.sh
 }
 
 docker_test() {
-    setup
-    nginx_conf
+    docker_setup
     RES="$(login "$DOCKER_HOST")"
     echo $RES
     TOKEN=$(echo "$RES" | jq -r '.token.token')
@@ -115,13 +125,22 @@ docker_test() {
     RES=$(curl -v \
                -H "X-Instance: $INSTANCE" \
                -H "X-Token: $TOKEN" \
-               http://$DOCKER_HOST/)
+               http://$DOCKER_HOST/index.htm)
     echo $RES
     # RES=$(curl -v \
     #            --cookie "TOKEN=$TOKEN" http://$DOCKER_HOST/)
     # echo $RES
     # nginx_logs
 
+}
+
+docker_rebuild() {
+    set -e
+    nginx_build_conf
+    docker-compose stop
+    docker-compose rm -f
+    docker-compose build
+    docker-compose up
 }
 
 case $1 in
@@ -137,11 +156,20 @@ case $1 in
     dockertest)
         docker_test
         ;;
+    docker)
+        docker_rebuild
+        ;;
     login)
         login $DOCKER_HOST
         ;;
-    nginx)
-        nginx_conf
+    nginx_rebuild_conf)
+        nginx_build_conf
+        ;;
+    nginx_logs)
+        nginx_logs
+        ;;
+    nginx_enter)
+        enter_nginx
         ;;
     *)
         echo "usage: test.sh (run|localsetup|localtest|dockertest|login|nginx)"
