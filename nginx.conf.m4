@@ -3,15 +3,12 @@
 # Example:
 # m4 -DAUTH_SERVICE=localhost:3000 \
 #    -DUPSTREAM=localhost:4000 \
-#    -INSTANCE=myinstance \
-#    -ACCESS_LOG=/var/log/nginx/access.log
+#    -DACCESS_LOG=/var/log/nginx/access.log
 #    -DPORT=80 \
 #    nginx.conf \
 #    > nginx.conf.out
 #
 #    add -DFOREGROUND to run nginx in foreground
-
-
 
 worker_processes 1;
 
@@ -22,10 +19,10 @@ events {
 }
 
 http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    sendfile        on;
-    keepalive_timeout  65;
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    sendfile on;
+    keepalive_timeout 65;
     ifdef(`ACCESS_LOG', `access_log ACCESS_LOG;')
     server {
         listen PORT;
@@ -70,7 +67,5 @@ http {
                 proxy_set_header X-Original-URI $request_uri;
                 add_header Set-Cookie "token=$upstream_http_x_token";
         }
-
-
     }
- }
+}
