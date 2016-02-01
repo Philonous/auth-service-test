@@ -5,10 +5,8 @@
 #    -DUPSTREAM_PORT=4000 \
 #    -ACCESS_LOG=/var/log/nginx/access.log
 #    -DPORT=80 \
-#    nginx.conf \
-#    > nginx.conf.out
-#
-#    add -DFOREGROUND to run nginx in foreground
+#    nginx.conf.m4 \
+#    > nginx.conf
 
 worker_processes 1;
 
