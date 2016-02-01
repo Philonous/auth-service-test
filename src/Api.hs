@@ -10,6 +10,7 @@ module Api where
 import           Backend
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Either
+import           Data.Traversable
 import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -52,21 +53,40 @@ serveLogout pool conf token = logoutHandler
         lift . runAPI pool conf $ logOut token
 
 type CheckTokenAPI = "check-token"
-                  :> Capture "instance" InstanceID
                   :> Capture "token" B64Token
+                  :> Capture "instance" InstanceID
                   :> Get '[JSON] (Headers '[Header "X-User" UserID] ReturnUser)
 
 serveCheckToken :: ConnectionPool -> Config -> Server CheckTokenAPI
-serveCheckToken pool conf inst token = checkTokenHandler
+serveCheckToken pool conf token inst = checkTokenHandler
   where
     checkTokenHandler = do
         res <- lift . runAPI pool conf $ do
             logDebug $ "Checking token " <> showText token
                        <> " for instance " <> showText inst
-            checkToken inst token
+            mbUser <- checkToken token
+            forM mbUser $ \user -> do
+              checkInstance inst user
+              return user
         case res of
          Nothing -> left err403
          Just usr -> return $ (addHeader usr $ ReturnUser usr)
+
+type PublicCheckTokenAPI = "check-token"
+                        :> Capture "token" B64Token
+                        :> Get '[JSON] ()
+
+servePublicCheckToken :: ConnectionPool -> Config -> Server PublicCheckTokenAPI
+servePublicCheckToken pool conf token = checkTokenHandler
+  where
+    checkTokenHandler = do
+        res <- lift . runAPI pool conf $ do
+            logDebug $ "Checking token " <> showText token
+            checkToken token
+        case res of
+         Nothing -> left err403
+         Just _usr -> return ()
+
 
 type GetUserInstancesAPI = "user-instances"
                          :> Capture "user" UserID
@@ -89,6 +109,7 @@ serveUserMirror mbUser = do
 
 apiPrx :: Proxy (    LoginAPI
                 :<|> CheckTokenAPI
+                :<|> PublicCheckTokenAPI
                 :<|> LogoutAPI
                 :<|> GetUserInstancesAPI
                 :<|> UserMirrorAPI)
@@ -97,6 +118,7 @@ apiPrx = Proxy
 serveAPI :: ConnectionPool -> Config -> Application
 serveAPI pool conf = serve apiPrx $ serveLogin pool conf
                                :<|> serveCheckToken pool conf
+                               :<|> servePublicCheckToken pool conf
                                :<|> serveLogout pool conf
                                :<|> serveGetUserInstancesAPI pool conf
                                :<|> serveUserMirror

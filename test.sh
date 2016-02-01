@@ -86,7 +86,7 @@ enter_nginx() {
 
 
 login() {
-curl -H "Content-Type: application/json" -X POST -d "{ \"user\": \"$USER\", \"password\": \"$PASSWORD\" }" \
+curl -v -H "Content-Type: application/json" -X POST -d "{ \"user\": \"$USER\", \"password\": \"$PASSWORD\" }" \
                http://$1/login
 }
 

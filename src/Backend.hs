@@ -211,18 +211,17 @@ login Login{ loginUser = userEmail
         sendOTP twilioConf userEmail p otp
         return ()
 
-checkToken :: InstanceID -> B64Token -> API (Maybe UserID)
-checkToken inst tokenId = do
+
+checkToken :: B64Token -> API (Maybe UserID)
+checkToken tokenId = do
     now <- liftIO $ getCurrentTime
     runDB $ P.deleteWhere [DB.TokenExpires P.<=. Just now]
-    mbToken <- runDB $ P.get (DB.TokenKey tokenId)
-    case mbToken of
-     Nothing -> return Nothing
-     Just token -> do
-         mbInst <- runDB $ P.get (DB.UserInstanceKey (DB.tokenUser token) inst)
-         case mbInst of
-          Nothing -> return Nothing
-          Just _ -> return . Just $ DB.tokenUser token
+    fmap DB.tokenUser <$> (runDB $ P.get (DB.TokenKey tokenId))
+
+checkInstance  :: InstanceID -> UserID -> API (Maybe DB.UserInstance)
+checkInstance inst user = runDB $ P.get (DB.UserInstanceKey user inst)
+
+-- checkInstance :: InstanceID ->
 
 logOut :: B64Token -> API ()
 logOut token = do
