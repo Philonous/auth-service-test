@@ -42,7 +42,7 @@ main = runStderrLoggingT $ do
                   exitFailure
               Just () -> return ()
          ("chpass": args') -> run $ changePassword args'
-         ["run"] -> liftIO $ Warp.run 3000 (serveAPI pool conf)
+         ["run"] -> liftIO $ Warp.run 80 (serveAPI pool conf)
          _ -> liftIO $ do
              hPutStrLn stderr
                "Usage: auth-service [run|adduser|chpass] [options]"

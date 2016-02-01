@@ -54,6 +54,7 @@ nginx_logs () {
 }
 
 nginx_build_conf () {
+    set -x
     m4 -DAUTH_SERVICE=authservice:3000 \
        -DUPSTREAM=localhost:4000 \
        -INSTANCE=myinstance \
@@ -61,9 +62,9 @@ nginx_build_conf () {
        -DACCESS_LOG=off \
        -DERROR_LOG=/tmp/nginx.log \
        -DFOREGROUND \
-       -DUPSTREAMPORT=4000 \
-       -DUSP=4000 \
+       -DUPSTREAM_PORT=4000 \
        -DACCES_LOG=off \
+       -DFoo=bar \
        nginx.conf.m4 \
        > nginx.conf
 }
@@ -86,8 +87,10 @@ enter_nginx() {
 
 
 login() {
-curl -v -H "Content-Type: application/json" -X POST -d "{ \"user\": \"$USER\", \"password\": \"$PASSWORD\" }" \
-               http://$1/login
+    curl -H "Content-Type: application/json" \
+         --silent \
+         -d "{ \"user\": \"$USER\", \"password\": \"$PASSWORD\" }" \
+         http://$1/login
 }
 
 # run _local_ test
@@ -110,23 +113,33 @@ docker_setup () {
 
 docker_test() {
     docker_setup
+    echo "Trying to log in"
     RES="$(login "$DOCKER_HOST")"
-    echo $RES
     TOKEN=$(echo "$RES" | jq -r '.token.token')
+    echo "Got token: $TOKEN"
     if [[ -z "$TOKEN" ]]; then
        echo "Could not login"
        exit 1
     fi
+    echo "Checking token"
+    RES=$(curl --write-out %{http_code}\
+               --silent \
+               -H "X-Token: $TOKEN" \
+               http://$DOCKER_HOST/check-token)
+    echo "Check token result is: $RES"
     # RES=$(curl -v\
     #            -H "X-Token: $TOKEN" \
     #            -H "X-Instance: $INSTANCE" \
     #            http://$DOCKER_HOST/)
     # echo $RES
-    RES=$(curl -v \
+    echo "Trying to reach upstream resource"
+    RES=$(curl --silent \
                -H "X-Instance: $INSTANCE" \
                -H "X-Token: $TOKEN" \
                http://$DOCKER_HOST/index.htm)
-    echo $RES
+    echo "Upstream says:" $RES
+
+
     # RES=$(curl -v \
     #            --cookie "TOKEN=$TOKEN" http://$DOCKER_HOST/)
     # echo $RES

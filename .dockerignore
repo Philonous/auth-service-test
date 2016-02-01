@@ -1,12 +1,12 @@
-auth_web
 dist
 docker-compose.yml
-index.htm
+index.html
 nginx.conf
 nginx.conf.m4
 test.sh
 testsetup.sh
 upstream-nginx.conf
+web
 .git
 .cabal-sandbox
 .dockerignore

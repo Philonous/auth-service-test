@@ -11,7 +11,7 @@
 
 worker_processes 1;
 
-ifdef(`ERROR_LOG', `error_log ERROR_LOG warn;')
+ifdef(`ERROR_LOG', `error_log ERROR_LOG;')
 
 events {
     worker_connections 1024;
@@ -34,7 +34,7 @@ http {
             auth_request_set $user $upstream_http_x_user;
             # The variable $user now contains the username when the check was
             # successful
-            proxy_pass http://$http_x_instance:4000/;
+            ifdef(`UPSTREAM_PORT', `proxy_pass http://$http_x_instance:UPSTREAM_PORT/;', `proxy_pass http://$http_x_instance/;')
             proxy_set_header X-User $user;
             proxy_set_header X-Original-URI $request_uri;
         }

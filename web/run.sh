@@ -1,6 +1,6 @@
 #!/bin/sh
 
-until nc -z auth 3000; do
+until nc -z authservice 80; do
     echo "Waiting for auth-service..."
     sleep 1
 done
