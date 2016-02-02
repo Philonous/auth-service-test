@@ -108,7 +108,7 @@ runtest() {
 
 
 docker_setup () {
-    docker exec -it authservice_authservice_1 /testsetup.sh
+    docker exec -it authservice_auth-service_1 /testsetup.sh
 }
 
 docker_test() {

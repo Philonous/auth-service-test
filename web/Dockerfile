@@ -25,7 +25,7 @@ COPY dnsmasq.sh /etc/service/dnsmasq/run
 COPY dnsmasq.conf /etc/dnsmasq.conf
 COPY nginx.conf.m4 /nginx.conf.m4
 
-RUN m4 -DAUTH_SERVICE=authservice:80 \
+RUN m4 -DAUTH_SERVICE=auth-service:80 \
        /nginx.conf.m4 \
        > /etc/nginx/nginx.conf
 
