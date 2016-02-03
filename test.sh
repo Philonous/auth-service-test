@@ -168,21 +168,21 @@ docker_test() {
     fi
 
 
-    echo "Trying /authenticate.html"
+    echo "Trying /auth.html"
 
-    RES=$($CURL http://$DOCKER_HOST/authenticate.html)
+    RES=$($CURL http://$DOCKER_HOST/auth.html)
     if [[ $RES != "Authenticate!" ]]; then
-      echo "Did not get authenticate.html, instead got $RES"
+      echo "Did not get auth.html, instead got $RES"
       exit 1
     else
-      echo "Got /authenticate.html"
+      echo "Got /auth.html"
     fi
 
-    echo "Trying /authenticate.html with token"
+    echo "Trying /auth.html with token"
     RES=$($CURL -o /dev/null \
                 -w %{http_code} \
                 --cookie "token=$TOKEN" \
-                http://$DOCKER_HOST/authenticate.html)
+                http://$DOCKER_HOST/auth.html)
     if [[ $RES != "303" ]]; then
       echo "Did not get redirect, instead got $RES"
       exit 1

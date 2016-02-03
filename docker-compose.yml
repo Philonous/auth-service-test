@@ -20,7 +20,7 @@ upstream:
 auth-web:
   build: web
   volumes:
-    - ./frontend/authenticate.html:/www/authenticate.html
+    - ./frontend/auth.html:/www/auth.html
   links:
     - auth-service
     # Link upstream containers to their instance IDs

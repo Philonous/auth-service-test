@@ -34,7 +34,7 @@ http {
             auth_request_set $user $upstream_http_x_user;
             # The variable $user now contains the username when the check was
             # successful
-            proxy_pass http://$http_x_instance:4000/;
+            proxy_pass http://$http_x_instance:3000/;
             proxy_set_header X-User $user;
             proxy_set_header X-Original-URI $request_uri;
         }
@@ -85,10 +85,10 @@ http {
                 proxy_set_header X-Original-URI $request_uri;
         }
 
-        # Locations to redirect /authenticate.html
+        # Locations to redirect /auth.html
 
-        location = /authenticate.html {
-            # Serve authenticate.html instead of a 404 page when auth fails
+        location = /auth.html {
+            # Serve auth.html instead of a 404 page when auth fails
             error_page 403 =200 /authenticatehtml;
             auth_request /check-token;
             # `try_files' only fires after authentication and allows us to use
@@ -105,10 +105,11 @@ http {
         location @toroot {
             return 303 /;
         }
-        # Auciliary location to serve the authenticate.html file
+        # Auciliary location to serve the auth.html file
         location = /authenticatehtml {
             internal;
-            alias /www/authenticate.html;
+            add_header Content-Type text/html;
+            alias /www/auth.html;
         }
 
 
