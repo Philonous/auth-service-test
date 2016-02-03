@@ -1,0 +1,10 @@
+        location = /authenticate.html {
+            proxy_pass http://auth-web/authenticate.html;
+            proxy_pass_request_body off;
+            proxy_set_header Content-Length "";
+            proxy_set_header X-Original-URI $request_uri;
+        }
+        location /api/ {
+            proxy_pass http://auth-web/;
+            proxy_set_header X-Original-URI $request_uri;
+        }
