@@ -2,6 +2,14 @@
 
 set -e
 
+if [[ -n $DEBUG ]]; then
+  set -x
+  CURL="curl -v"
+else
+  CURL="curl --silent"
+fi
+
+
 # You need to have jq in path
 
 export DB_HOST=database
@@ -10,6 +18,7 @@ export DB_DATABASE=lambdatrade
 
 HOST=localhost:3000
 DOCKER_HOST=localhost:8000
+API=$DOCKER_HOST/api
 
 # Make sure that this matches with setuptest.sh when running against docker
 USER=no@spam.please
@@ -28,7 +37,6 @@ start () {
 
 # setup for _local_ testing
 local_setup () {
-    set -x
     db <<EOF
 DROP SCHEMA public CASCADE;
 CREATE SCHEMA public
@@ -54,7 +62,6 @@ nginx_logs () {
 }
 
 nginx_build_conf () {
-    set -x
     m4 -DAUTH_SERVICE=authservice:3000 \
        -DUPSTREAM=localhost:4000 \
        -INSTANCE=myinstance \
@@ -87,8 +94,7 @@ enter_nginx() {
 
 
 login() {
-    curl -H "Content-Type: application/json" \
-         --silent \
+    $CURL -H "Content-Type: application/json" \
          -d "{ \"user\": \"$USER\", \"password\": \"$PASSWORD\" }" \
          http://$1/login
 }
@@ -102,19 +108,20 @@ runtest() {
        echo "Could not login"
        exit 1
     fi
-    RES=$(curl http://$HOST/check-token/$INSTANCE/$TOKEN)
+    RES=$($CURL http://$HOST/check-token/$INSTANCE/$TOKEN)
     echo $RES
 }
 
 
 docker_setup () {
-    docker exec -it authservice_auth-service_1 /testsetup.sh
+    docker exec -it authservice_auth-service_1 /testsetup.sh > /dev/null
 }
 
 docker_test() {
+    echo "Running setup"
     docker_setup
     echo "Trying to log in"
-    RES="$(login "$DOCKER_HOST")"
+    RES="$(login "$API")"
     TOKEN=$(echo "$RES" | jq -r '.token.token')
     echo "Got token: $TOKEN"
     if [[ -z "$TOKEN" ]]; then
@@ -122,30 +129,76 @@ docker_test() {
        exit 1
     fi
     echo "Checking token"
-    RES=$(curl --write-out %{http_code}\
-               --silent \
-               -H "X-Token: $TOKEN" \
-               http://$DOCKER_HOST/check-token)
-    echo "Check token result is: $RES"
-    # RES=$(curl -v\
-    #            -H "X-Token: $TOKEN" \
-    #            -H "X-Instance: $INSTANCE" \
-    #            http://$DOCKER_HOST/)
-    # echo $RES
+    RES=$($CURL --write-out %{http_code}\
+                -H "X-Token: $TOKEN" \
+                http://$API/check-token)
+    if [[ $RES != "204" ]]; then
+      echo "Could not verify tokenm got $RES"
+      exit 1
+    fi
     echo "Trying to reach upstream resource"
-    RES=$(curl --silent \
-               -H "X-Instance: $INSTANCE" \
-               -H "X-Token: $TOKEN" \
-               http://$DOCKER_HOST/index.htm)
+    RES=$($CURL -H "X-Instance: $INSTANCE" \
+                -H "X-Token: $TOKEN" \
+                http://$API/index.htm)
+    if [[ $RES != "it works!" ]]; then
+      echo "Could not retrieve index.html, got $RES insted"
+      exit 1
+    fi
     echo "Upstream says:" $RES
 
+    echo "Trying to reach upstream resource without token"
+    RES=$($CURL -o /dev/null \
+                -w %{http_code} \
+                -H "X-Instance: $INSTANCE" \
+                http://$API/index.htm)
+    if [[ $RES != "403" ]]; then
+      echo "Did not get authorization denied, instead got $RES"
+      exit 1
+    fi
 
-    # RES=$(curl -v \
+    echo "Trying to reach upstream resource with bogus token"
+    RES=$($CURL -o /dev/null \
+                -w %{http_code} \
+                -H "X-Instance: $INSTANCE" \
+                -H "X-Token: bogus$TOKEN" \
+                http://$API/index.htm)
+    if [[ $RES != "403" ]]; then
+      echo "Did not get authorization denied, instead got $RES"
+      exit 1
+    fi
+
+
+    echo "Trying /authenticate.html"
+
+    RES=$($CURL http://$DOCKER_HOST/authenticate.html)
+    if [[ $RES != "Authenticate!" ]]; then
+      echo "Did not get authenticate.html, instead got $RES"
+      exit 1
+    else
+      echo "Got /authenticate.html"
+    fi
+
+    echo "Trying /authenticate.html with token"
+    RES=$($CURL -o /dev/null \
+                -w %{http_code} \
+                --cookie "token=$TOKEN" \
+                http://$DOCKER_HOST/authenticate.html)
+    if [[ $RES != "303" ]]; then
+      echo "Did not get redirect, instead got $RES"
+      exit 1
+    else
+      echo "Got redirect"
+    fi
+
+
+
+    # RES=$($CURL -v \
     #            --cookie "TOKEN=$TOKEN" http://$DOCKER_HOST/)
     # echo $RES
     # nginx_logs
-
 }
+
+
 
 docker_rebuild() {
     set -e

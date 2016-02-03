@@ -7,8 +7,6 @@ auth-service:
   build: .
   links:
     - database
-  volumes:
-    - ./testsetup.sh:/testsetup.sh
   environment:
     - log=true
 
@@ -19,11 +17,10 @@ upstream:
     - ./index.html:/www/index.html
     - ./upstream-nginx.conf:/etc/nginx/nginx.conf
 
-nginx:
+auth-web:
   build: web
-  # s/8000/<desired port>
-  ports:
-    - 8000:80
+  volumes:
+    - ./frontend/authenticate.html:/www/authenticate.html
   links:
     - auth-service
     # Link upstream containers to their instance IDs
@@ -31,12 +28,11 @@ nginx:
 
 frontend:
   image: nginx:latest
+  # s/8000/<desired port>
+  ports:
+    - 8000:80
   volumes:
     - ./frontend/nginx.conf:/etc/nginx/nginx.conf
-    - ./frontend/index.html:/www/index.html
-    - ./frontend/authenticate.html:/www/authenticate.html
-    - ./frontend/skip.html:/www/skip.html
+    - ./frontend/auth-service.include:/etc/nginx/auth-service.include
   links:
-    - auth-service
-  ports:
-    - 8008:80
+    - auth-web
