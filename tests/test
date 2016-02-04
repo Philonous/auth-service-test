@@ -86,7 +86,7 @@ nginx_reload_conf() {
 start_nginx() {
     nginx_conf
     sudo docker-compose up
-    }
+}
 
 enter_nginx() {
     docker exec -it authservice_nginx_1 /bin/bash
@@ -114,6 +114,7 @@ runtest() {
 
 
 docker_setup () {
+    docker cp testsetup.sh authservice_auth-service_1:/testsetup.sh
     docker exec -it authservice_auth-service_1 /testsetup.sh > /dev/null
 }
 
@@ -190,18 +191,13 @@ docker_test() {
       echo "Got redirect"
     fi
 
-
-
-    # RES=$($CURL -v \
-    #            --cookie "TOKEN=$TOKEN" http://$DOCKER_HOST/)
-    # echo $RES
-    # nginx_logs
 }
 
 
 
 docker_rebuild() {
     set -e
+    cd ..
     nginx_build_conf
     docker-compose stop
     docker-compose rm -f
@@ -238,7 +234,11 @@ case $1 in
         enter_nginx
         ;;
     *)
-        echo "usage: test.sh (run|localsetup|localtest|dockertest|login|nginx)"
+        echo "Start container setup with ./test docker"
+        echo "then run ./test dockertest"
+        echo "other commands: "
+        echo "login to get a token"
+
         exit 1
         ;;
 esac

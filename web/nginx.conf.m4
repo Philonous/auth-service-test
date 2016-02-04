@@ -40,7 +40,6 @@ http {
         }
 
         location = /auth {
-                internal;
                 set $token $cookie_token;
                 if ($token = '') {
                   set $token $http_x_token;
@@ -90,7 +89,7 @@ http {
         location = /auth.html {
             # Serve auth.html instead of a 404 page when auth fails
             error_page 403 =200 /authenticatehtml;
-            auth_request /check-token;
+            auth_request /auth;
             # `try_files' only fires after authentication and allows us to use
             # another location if none are found. You can replace @toroot with
             # /, but then it will serve the data from there rather than

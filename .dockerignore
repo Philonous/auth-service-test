@@ -5,6 +5,7 @@ index.html
 nginx.conf
 nginx.conf.m4
 test.sh
+tests
 testsetup.sh
 upstream-nginx.conf
 web
