@@ -55,6 +55,7 @@ http {
                 proxy_pass_request_body off;
                 proxy_set_header Content-Length "";
                 proxy_set_header X-Original-URI $request_uri;
+                expires -1;
         }
 
         # This part is only necessary if the client doesn't contact the central
