@@ -8,8 +8,8 @@
 set -x
 
 export DB_HOST=database
-export DB_USER=lambdatrade
-export DB_DATABASE=lambdatrade
+export DB_USER=postgres
+export DB_DATABASE=postgres
 
 USER=no@spam.please
 PASSWORD=pwd123
