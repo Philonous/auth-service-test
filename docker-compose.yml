@@ -1,7 +1,5 @@
 database:
   image: postgres:9.5
-  environment:
-    - POSTGRES_USER=lambdatrade
 
 auth-service:
   build: .
