@@ -36,18 +36,25 @@ start () {
 
 
 nginx_logs () {
-    docker exec authservice_nginx_1 cat /tmp/nginx.log
+    docker exec authservice_upstream_1 cat /tmp/nginx.log
 }
 
 enter_nginx() {
-    docker exec -it authservice_nginx_1 /bin/bash
+    docker exec -it authservice_upstream_1 /bin/bash
 }
 
 
 login() {
-    $CURL -H "Content-Type: application/json" \
-         -d "{ \"user\": \"$USER\", \"password\": \"$PASSWORD\" }" \
-         http://$1/login
+    echo "logging in"
+    RES=$($CURL -H "Content-Type: application/json" \
+                -d "{ \"user\": \"$USER\", \"password\": \"$PASSWORD\" }" \
+                http://$1/login)
+    TOKEN=$(echo "$RES" | jq -r '.token.token')
+    echo "Got token: $TOKEN"
+    if [[ -z "$TOKEN" ]]; then
+       echo "Could not login"
+       exit 1
+    fi
 }
 
 # run _local_ test
@@ -69,17 +76,12 @@ docker_setup () {
     docker exec -it authservice_auth-service_1 /testsetup.sh > /dev/null
 }
 
+
 docker_test() {
     echo "Running setup"
     docker_setup
     echo "Trying to log in"
-    RES="$(login "$API")"
-    TOKEN=$(echo "$RES" | jq -r '.token.token')
-    echo "Got token: $TOKEN"
-    if [[ -z "$TOKEN" ]]; then
-       echo "Could not login"
-       exit 1
-    fi
+    login "$API"
     echo "Checking token"
     RES=$($CURL --write-out %{http_code}\
                 -H "X-Token: $TOKEN" \
@@ -91,7 +93,7 @@ docker_test() {
     echo "Trying to reach upstream resource"
     RES=$($CURL -H "X-Instance: $INSTANCE" \
                 -H "X-Token: $TOKEN" \
-                http://$API/index.htm)
+                http://$API/fooo/index.htm)
     if [[ $RES != "it works!" ]]; then
       echo "Could not retrieve index.html, got $RES insted"
       exit 1
@@ -142,6 +144,17 @@ docker_test() {
     else
       echo "Got redirect"
     fi
+
+}
+
+footest () {
+    docker_setup
+    login "$API"
+    curl -v \
+         -H "X-Token: $TOKEN" \
+         -H "X-Instance: $INSTANCE" \
+         http://$API/foo/index.html
+
 }
 
 
@@ -171,6 +184,9 @@ case $1 in
         ;;
     nginx_enter)
         enter_nginx
+        ;;
+    foo)
+        footest
         ;;
     *)
         echo "usage: test.sh dockertest|docker|login|nginx_rebuild_conf|nginx_logs|nginx_enter"
