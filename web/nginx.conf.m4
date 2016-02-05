@@ -68,7 +68,7 @@ http {
         location = /logout {
                 proxy_pass http://AUTH_SERVICE/logout/$cookie_token;
                 proxy_set_header X-Original-URI $request_uri;
-                add_header Set-Cookie "token=deleted; Path=/; Expires=Thu, 01-Jan-1970 00:00:01 GMT"
+                add_header Set-Cookie "token=deleted; Path=/; Expires=Thu, 01-Jan-1970 00:00:01 GMT";
 
         }
         location = /check-token {
@@ -85,9 +85,24 @@ http {
                 proxy_set_header X-Original-URI $request_uri;
         }
 
+
         location = /auth-service.js {
             add_header Content-Type text/javascript;
             alias /www/auth-service.js;
+        }
+
+        location = /user-info {
+                set $token $cookie_token;
+                if ($token = '') {
+                  set $token $http_x_token;
+                }
+                if ($token = '') {
+                  return 403;
+                }
+                proxy_pass http://AUTH_SERVICE/user-info-by-token/$token/;
+                proxy_pass_request_body off;
+                proxy_set_header Content-Length "";
+                proxy_set_header X-Original-URI $request_uri;
         }
 
         # Locations to redirect /auth.html

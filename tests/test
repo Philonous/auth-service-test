@@ -93,9 +93,9 @@ docker_test() {
     echo "Trying to reach upstream resource"
     RES=$($CURL -H "X-Instance: $INSTANCE" \
                 -H "X-Token: $TOKEN" \
-                http://$API/fooo/index.htm)
-    if [[ $RES != "it works!" ]]; then
-      echo "Could not retrieve index.html, got $RES insted"
+                http://$API/foo/index.html)
+    if [[ $RES != "foo!" ]]; then
+      echo "Could not retrieve foo.html, got $RES insted"
       exit 1
     fi
     echo "Upstream says:" $RES
@@ -121,9 +121,7 @@ docker_test() {
       exit 1
     fi
 
-
     echo "Trying /auth.html"
-
     RES=$($CURL http://$DOCKER_HOST/auth.html)
     if [[ $RES != "Authenticate!" ]]; then
       echo "Did not get auth.html, instead got $RES"
@@ -144,6 +142,16 @@ docker_test() {
     else
       echo "Got redirect"
     fi
+
+    echo "Trying to get user info"
+    RES=$($CURL --cookie "token=$TOKEN" \
+                http://$API/user-info)
+    if [[ $(echo "$RES" | jq -r '.email') != "no@spam.please" ]]; then
+      echo "Could not get user info"
+      exit 1
+    fi
+    echo "Got user info"
+
 
 }
 
