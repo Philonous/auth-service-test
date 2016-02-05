@@ -34,7 +34,7 @@ http {
             auth_request_set $user $upstream_http_x_user;
             # The variable $user now contains the username when the check was
             # successful
-            proxy_pass http://$http_x_instance$uri;
+            proxy_pass http://$http_x_instance$uri$is_args$args;
             proxy_set_header X-User $user;
             proxy_set_header X-Original-URI $request_uri;
         }
