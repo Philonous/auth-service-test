@@ -7,30 +7,62 @@ Get started
 -----------
 
 The instructions below assumes that you are using Docker Compose, that the API
-you want to protect is called "server", that you are running a PostgreSQL
-instance called "database", and that your PostgreSQL database and user name is
-"lambdatrade".
+you want to protect is called "server", that your API is proxied to from /api,
+that you are running a PostgreSQL instance called "database", and that your
+PostgreSQL database and user name is "postgres".
 
 Add this repository as a submodule, and put the following in your
-docker-compose.yml configuration:
+docker-compose.yml configuration (assuming one instance):
 
-    auth:
+    auth-service:
       build: auth-service
-      environment:
-        DB_PASSWORD: ...
       links:
       - database
-    auth_web:
+    auth-web:
       build: auth-service/web
       links:
-      - auth
-      - server
+      - auth-service
+      - server:INSTANCE_ID
 
-At this point you can proxy your API requests to http://auth_web:3000/, like so:
+Volume ./auth-service/frontend/auth-service.include to
+/etc/nginx/auth-service.include in your web server.
 
-    location /api/ {
-        proxy_pass http://auth_web:3000/;
+In your web nginx.conf file, put this line in your server block:
+
+    include auth-service.include;
+
+Also, if you want unauthenticated requests to /index.html to be translated into
+the authentication page of this component, add the following as well:
+
+    location /index.html {
+        auth_request /api/auth;
+        error_page 403 =303 /auth.html;
     }
+
+An example docker-compose.yml configuration for your web app would be:
+
+    web:
+      image: nginx:latest
+      links:
+      - auth-web
+      volumes:
+      - ./web/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./web/app:/www:ro
+      - ./auth-service/frontend/auth-service.include:/etc/nginx/auth-service.include:ro
+
+Make sure you set the X-Instance header to the instance identifier somewhere
+external to the web container. This can be done either in your client app or,
+for instance, in an external router Nginx container, like so:
+
+    location / {
+        proxy_pass http://web/;
+        proxy_set_header X-Instance 'INSTANCE_ID';
+    }
+
+If you want to use the authentication markup beloning to this library, make sure
+to provide AngularJS and Bootstrap under /libs.js and /libs.css. Please also
+provide a background image at /background.jpg. Please note that only a Swedish
+version of the markup is available at this time.
 
 Please see auth-service.config for the configuration options.
 

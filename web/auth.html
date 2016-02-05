@@ -3,18 +3,13 @@
   <head>
     <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" />
     <title>Logga in</title>
-    <link href="libs.css" rel="stylesheet" type="text/css" />
-    <link href="style.css" rel="stylesheet" type="text/css" />
-    <script src="libs.js" type="text/javascript"></script>
+    <link href="/libs.css" rel="stylesheet" type="text/css" />
+    <script src="/libs.js" type="text/javascript"></script>
     <script type="text/javascript">
 (function () {
     'use strict';
 
     var app = angular.module('authenticate', ['ui.bootstrap']);
-
-    // app.config(['$httpProvider', function ($httpProvider) {
-    //     $httpProvider.defaults.withCredentials = true;
-    // }]);
 
     app.factory('AuthenticationService', ['$http', '$rootScope', function ($http, $rootScope) {
         var authenticated = false;
@@ -25,7 +20,6 @@
                     password: password,
                     user: user
                 }).then(function (result) {
-                    console.log(result);
                     $rootScope.session = result;
                     $rootScope.$broadcast('loginSucceeded', result);
                     if (!authenticated) {
@@ -34,14 +28,12 @@
                     }
                     return result;
                 }, function (error) {
-                    console.log(error);
                     $rootScope.$broadcast('loginFailed', error);
                     return error;
                 });
             },
             logout: function () {
                 return $http.post('/api/logout').then(function (result) {
-                    console.log(result);
                     $rootScope.session = null;
                     $rootScope.$broadcast('logoutSucceeded', result);
                     if (authenticated) {
@@ -50,7 +42,6 @@
                     }
                     return result;
                 }, function (error) {
-                    console.log(error);
                     $rootScope.$broadcast('logoutFailed', error);
                     return error;
                 });
@@ -66,7 +57,7 @@
         };
 
         $scope.$on('loginSucceeded', function () {
-            // $window.location = '/';
+            $window.location.reload(true);
         });
 
         $scope.$on('loginFailed', function () {
@@ -76,7 +67,7 @@
 })();
     </script>
   </head>
-  <body style="background-image: url(background.jpg); background-size: cover;">
+  <body style="background-image: url(/background.jpg); background-size: cover;">
     <div class="container">
       <div class="panel panel-default" style="margin: 3em auto 0px; padding: 0.6em; width: 24em;">
         <form name="authenticate.form" ng-submit="authenticate.submit()">

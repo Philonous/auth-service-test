@@ -84,6 +84,11 @@ http {
                 proxy_set_header X-Original-URI $request_uri;
         }
 
+        location = /auth-service.js {
+            add_header Content-Type text/javascript;
+            alias /www/auth-service.js;
+        }
+
         # Locations to redirect /auth.html
 
         location = /auth.html {

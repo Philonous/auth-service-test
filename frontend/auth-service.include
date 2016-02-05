@@ -1,3 +1,6 @@
+        location = /auth-service.js {
+            proxy_pass http://auth-web/auth-service.js;
+        }
         location = /auth.html {
             proxy_pass http://auth-web/auth.html;
             proxy_pass_request_body off;
