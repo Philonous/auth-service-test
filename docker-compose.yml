@@ -33,5 +33,6 @@ frontend:
   volumes:
     - ./frontend/nginx.conf:/etc/nginx/nginx.conf
     - ./frontend/auth-service.include:/etc/nginx/auth-service.include
+    - ./tests/index.html:/www/index.html
   links:
     - auth-web
