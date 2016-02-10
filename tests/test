@@ -122,12 +122,10 @@ docker_test() {
     fi
 
     echo "Trying / without a token"
-    RES=$($CURL -o /dev/null \
-                -w %{http_code} \
-                http://$DOCKER_HOST/
+    RES=$($CURL http://$DOCKER_HOST/
        )
-    if [[ $RES != "303" ]]; then
-      echo "Did not get redirect $RES"
+    if [[ $RES != "Authenticate!" ]]; then
+      echo "Did not get redirect , instead got $RES"
       exit 1
     fi
 
@@ -249,6 +247,23 @@ docker_test() {
     fi
 
     echo "Trying If-Modified-Since + If-None-Match without token"
+    RES=$($CURL -I "X-Instance: $INSTANCE" \
+                http://$DOCKER_HOST/index.html)
+
+    ETAG=$(echo "$RES" | tr -d '\r' | awk 'BEGIN {FS=": "}/^ETag/{print $2}')
+    LASTMOD=$(echo "$RES" \
+                   | tr -d '\r' \
+                   | awk 'BEGIN {FS=": "}/^Last-Modified/{print $2}'
+           )
+    if [[ -z $ETAG ]]; then
+      echo "No ETag received: \n$RES"
+      exit 1
+    fi
+    if [[ -z $LASTMOD ]]; then
+      echo "No Last-Modified received: \n$RES"
+      exit 1
+    fi
+
     RES=$($CURL -H "X-Instance: $INSTANCE" \
                 -H "If-Modified-Since: $LASTMOD" \
                 -H "If-None-Match: $ETAG" \
@@ -256,7 +271,7 @@ docker_test() {
                 -w %{http_code} \
                 http://$DOCKER_HOST/index.html
        )
-    if [[ $RES != "303" ]]; then
+    if [[ $RES != "304" ]]; then
       echo "If-Modified-Since + If-None-Match did not result in 304, got $RES instead"
       exit 1
     fi
