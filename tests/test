@@ -12,22 +12,68 @@ fi
 
 # You need to have jq in path
 
-export DB_HOST=database
-export DB_USER=lambdatrade
-export DB_DATABASE=lambdatrade
-
-HOST=localhost:3000
+AUTHSERVICE_CONTAINER=authservice_auth-service_1
+DB_HOST=database
+DB_USER=postgres
+DB_DATABASE=postgres
 DOCKER_HOST=localhost:8000
 API=$DOCKER_HOST/api
-
-# Make sure that this matches with setuptest.sh when running against docker
 USER=no@spam.please
 PASSWORD=pwd123
-NAME="John Doe"
+USER2=no2@spam.please
+PASSWORD2=pwd1234
+NAME="JohnDoe"
 INSTANCE="de305d54-75b4-431b-adb2-eb6b9e546014"
 
+authservice () {
+   docker exec $AUTHSERVICE_CONTAINER auth-service $@
+}
+
 db () {
-    psql -h $DB_HOST -U $DB_USER $DB_DATABASE
+    docker exec \
+           -i $AUTHSERVICE_CONTAINER psql \
+           -h $DB_HOST \
+           -U $DB_USER \
+           $DB_DATABASE $@
+}
+
+run_db () {
+    docker exec \
+           -it $AUTHSERVICE_CONTAINER psql \
+           -h $DB_HOST \
+           -U $DB_USER \
+           $DB_DATABASE $@
+}
+
+
+docker_setup () {
+    db > /dev/null <<EOF
+DROP SCHEMA public CASCADE;
+CREATE SCHEMA public
+  AUTHORIZATION postgres;
+
+GRANT ALL ON SCHEMA public TO postgres;
+GRANT ALL ON SCHEMA public TO public;
+COMMENT ON SCHEMA public
+  IS 'standard public schema';
+EOF
+    authservice adduser "$USER" "$PASSWORD" "$NAME"
+    authservice adduser "$USER2" "$PASSWORD2" "$NAME" "12345"
+
+    db > /dev/null <<EOF
+INSERT INTO "instance" VALUES ('${INSTANCE}', 'instance1');
+INSERT INTO "user_instance" VALUES ( (SELECT "uuid" FROM "user" WHERE "email" = '${USER}')
+                                   , (SELECT "uuid" FROM "instance" WHERE "name"='instance1'));
+EOF
+}
+
+get_otp () {
+OTP=$(db -qtA <<EOF
+SELECT password FROM user_otp
+  ORDER BY created DESC
+  LIMIT 1
+EOF
+   )
 }
 
 start () {
@@ -44,22 +90,60 @@ enter_nginx() {
 }
 
 
+create_otp() {
+    echo "Creating OTP"
+    if [[ -z $1 ]]; then
+      LOGIN_USER=$USER
+    else
+        LOGIN_USER=$1
+    fi
+    if [[ -z $2 ]]; then
+      LOGIN_PASSWORD=$PASSWORD
+    else
+        LOGIN_PASSWORD=$2
+    fi
+    RES=$($CURL -H "Content-Type: application/json" \
+                -d "{ \"user\": \"$LOGIN_USER\", \"password\": \"$LOGIN_PASSWORD\" }" \
+                http://$API/login)
+    if [[ ! $RES == '{"error":"One time password required"}' ]]; then
+      echo "Could not create OTP: $RES"
+      exit 1
+    fi
+}
+
 login() {
     echo "logging in"
+    if [[ -z $1 ]]; then
+      LOGIN_USER=$USER
+    else
+        LOGIN_USER=$1
+    fi
+    if [[ -z $2 ]]; then
+      LOGIN_PASSWORD=$PASSWORD
+    else
+        LOGIN_PASSWORD=$2
+    fi
+    if [[ -z $3 ]]; then
+      LOGIN_STRING="{ \"user\": \"$LOGIN_USER\", \"password\": \"$LOGIN_PASSWORD\" }"
+    else
+        LOGIN_STRING="{ \"user\": \"$LOGIN_USER\", \"password\": \"$LOGIN_PASSWORD\", \"otp\":\"$3\" }"
+    fi
+
     RES=$($CURL -H "Content-Type: application/json" \
-                -d "{ \"user\": \"$USER\", \"password\": \"$PASSWORD\" }" \
-                http://$1/login)
+                -d "$LOGIN_STRING" \
+                http://$API/login)
+
     TOKEN=$(echo "$RES" | jq -r '.token.token')
     echo "Got token: $TOKEN"
     if [[ -z "$TOKEN" ]]; then
-       echo "Could not login"
+       echo "Could not login: $RES"
        exit 1
     fi
 }
 
 # run _local_ test
 runtest() {
-    RES="$(login "$HOST")"
+    RES="$(login)"
     echo $RES
     TOKEN=$(echo "$RES" | jq -r '.token.token')
     if [[ -z "$TOKEN" ]]; then
@@ -70,18 +154,11 @@ runtest() {
     echo $RES
 }
 
-
-docker_setup () {
-    docker cp ./testsetup.sh authservice_auth-service_1:/testsetup.sh
-    docker exec -it authservice_auth-service_1 /testsetup.sh > /dev/null
-}
-
-
 docker_test() {
     echo "Running setup"
     docker_setup
     echo "Trying to log in"
-    login "$API"
+    login
     echo "Checking token"
     RES=$($CURL --write-out %{http_code}\
                 -H "X-Token: $TOKEN" \
@@ -276,18 +353,19 @@ docker_test() {
       exit 1
     fi
 
+    echo "Testing otp"
+    create_otp $USER2 $PASSWORD2
+    get_otp
+    if [[ -z $OTP ]]; then
+      echo "Could not get OTP"
+    else
+        echo "Got OTP: $OTP"
+    fi
+    OTP=$(echo $OTP | tr '[:upper:]' '[:lower:]')
+    echo "trying OTP $OTP"
+    login $USER2 $PASSWORD2 $OTP
+
 }
-
-footest () {
-    docker_setup
-    login "$API"
-    curl -v \
-         -H "X-Token: $TOKEN" \
-         -H "X-Instance: $INSTANCE" \
-         http://$API/foo/index.html
-
-}
-
 
 docker_rebuild() {
     set -e
@@ -305,7 +383,8 @@ case $1 in
         docker_rebuild
         ;;
     login)
-        login $DOCKER_HOST
+        shift
+        login $@
         ;;
     nginx_rebuild_conf)
         nginx_build_conf
@@ -318,6 +397,9 @@ case $1 in
         ;;
     foo)
         footest
+        ;;
+    db)
+        run_db
         ;;
     *)
         echo "usage: test.sh dockertest|docker|login|nginx_rebuild_conf|nginx_logs|nginx_enter"

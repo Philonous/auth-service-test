@@ -27,6 +27,7 @@ type LoginAPI = "login"
               :> ReqBody '[JSON] Login
               :> Post '[JSON] (Headers '[Header "X-Token" B64Token] ReturnLogin)
 
+-- Will be transformed into X-Token header and token cookie by the nginx
 serveLogin :: ConnectionPool -> Config -> Server LoginAPI
 serveLogin pool conf loginReq = loginHandler
   where
