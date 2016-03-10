@@ -354,21 +354,21 @@ docker_test() {
     echo "Trying / without token (should fail)"
     RES=$($CURL http://$DOCKER_HOST/ )
     if [[ $RES != "Authenticate!" ]]; then
-      echo "Did not receive Authenticate!, gor $RES instead"
+      echo "Did not receive Authenticate!, got $RES instead"
       exit 1
     fi
 
     echo "Trying /index.html without token (should fail)"
     RES=$($CURL http://$DOCKER_HOST/index.html )
     if [[ $RES != "Authenticate!" ]]; then
-      echo "Did not receive Authenticate!, gor $RES instead"
+      echo "Did not receive Authenticate!, got $RES instead"
       exit 1
     fi
 
     echo "Trying /foo.html without token"
     RES=$($CURL http://$DOCKER_HOST/foo.html )
     if [[ $RES != "foo!" ]]; then
-      echo "Did not receive foo!, gor $RES instead"
+      echo "Did not receive foo!, got $RES instead"
       exit 1
     fi
 
