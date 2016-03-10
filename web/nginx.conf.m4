@@ -57,7 +57,7 @@ http {
                 proxy_set_header X-Original-URI $request_uri;
         }
 
-        define(`expire', `ifelse(COOKIE, `session', `; Expires=Fri, 01-Jan-2038 00:00:01 GMT;')')
+        define(`expire', `ifelse(COOKIE, `permanent', `; Expires=Fri, 01-Jan-2038 00:00:01 GMT;')')
         location = /login {
                 proxy_pass http://AUTH_SERVICE/login/;
                 proxy_set_header X-Original-URI $request_uri;
