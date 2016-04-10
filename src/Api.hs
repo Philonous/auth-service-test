@@ -1,20 +1,17 @@
 -- Copyright (c) 2015 Lambdatrade AB
 -- All rights reserved
 
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE DataKinds #-}
 
 module Api where
 
 import           Backend
 import           Control.Monad.Trans
-import           Control.Monad.Trans.Either
+import           Control.Monad.Except
 import           Data.Monoid
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import           Data.Traversable
-import qualified Data.Traversable as Traversable
 import           Database.Persist.Sql
 import           Network.Wai
 import           Servant
@@ -36,23 +33,23 @@ serveLogin pool conf loginReq = loginHandler
         case mbReturnLogin of
          Right rl -> return (addHeader (returnLoginToken rl) rl)
          Left LoginErrorOTPRequired ->
-             left ServantErr{ errHTTPCode = 499
-                            , errReasonPhrase = "OTP required"
-                            , errBody =
-                              "{\"error\":\"One time password required\"}"
-                            , errHeaders = []
-                            }
-         Left _e -> left err403
+             throwError ServantErr{ errHTTPCode = 499
+                                  , errReasonPhrase = "OTP required"
+                                  , errBody =
+                                    "{\"error\":\"One time password required\"}"
+                                  , errHeaders = []
+                                  }
+         Left _e -> throwError err403
 
 type LogoutAPI = "logout"
                :> Capture "token" B64Token
                :> Post '[JSON] ()
 
 serveLogout :: ConnectionPool -> Config -> Server LogoutAPI
-serveLogout pool conf token = logoutHandler
+serveLogout pool conf tok = logoutHandler
   where
     logoutHandler = do
-        lift . runAPI pool conf $ logOut token
+        lift . runAPI pool conf $ logOut tok
 
 type CheckTokenAPI = "check-token"
                   :> Capture "token" B64Token
@@ -60,18 +57,18 @@ type CheckTokenAPI = "check-token"
                   :> Get '[JSON] (Headers '[Header "X-User" UserID] ReturnUser)
 
 serveCheckToken :: ConnectionPool -> Config -> Server CheckTokenAPI
-serveCheckToken pool conf token inst = checkTokenHandler
+serveCheckToken pool conf tok inst = checkTokenHandler
   where
     checkTokenHandler = do
         res <- lift . runAPI pool conf $ do
-            logDebug $ "Checking token " <> showText token
+            logDebug $ "Checking token " <> showText tok
                        <> " for instance " <> showText inst
-            mbUser <- checkToken token
-            forM mbUser $ \user -> do
-              checkInstance inst user
-              return user
+            mbUser <- checkToken tok
+            forM mbUser $ \usr -> do
+              _ <- checkInstance inst usr
+              return usr
         case res of
-         Nothing -> left err403
+         Nothing -> throwError err403
          Just usr -> return $ (addHeader usr $ ReturnUser usr)
 
 type PublicCheckTokenAPI = "check-token"
@@ -79,14 +76,14 @@ type PublicCheckTokenAPI = "check-token"
                         :> Get '[JSON] ()
 
 servePublicCheckToken :: ConnectionPool -> Config -> Server PublicCheckTokenAPI
-servePublicCheckToken pool conf token = checkTokenHandler
+servePublicCheckToken pool conf tok = checkTokenHandler
   where
     checkTokenHandler = do
         res <- lift . runAPI pool conf $ do
-            logDebug $ "Checking token " <> showText token
-            checkToken token
+            logDebug $ "Checking token " <> showText tok
+            checkToken tok
         case res of
-         Nothing -> left err403
+         Nothing -> throwError err403
          Just _usr -> return ()
 
 
@@ -97,8 +94,8 @@ type GetUserInstancesAPI = "user-instances"
 serveGetUserInstancesAPI :: ConnectionPool
                          -> Config
                          -> Server GetUserInstancesAPI
-serveGetUserInstancesAPI pool conf user =
-  lift . runAPI pool conf $ getUserInstances user
+serveGetUserInstancesAPI pool conf usr =
+  lift . runAPI pool conf $ getUserInstances usr
 
 
 type GetUserInfoAPI = "user-info-by-token"
@@ -108,20 +105,11 @@ type GetUserInfoAPI = "user-info-by-token"
 serveGetUserInfoAPI :: ConnectionPool
                     -> Config
                     -> Server GetUserInfoAPI
-serveGetUserInfoAPI pool conf token =  do
-  mbRUI <- lift . runAPI pool conf $ getUserInfo token
+serveGetUserInfoAPI pool conf tok =  do
+  mbRUI <- lift . runAPI pool conf $ getUserInfo tok
   case mbRUI of
-   Nothing -> left err403
+   Nothing -> throwError err403
    Just rui -> return rui
-
-type UserMirrorAPI = "showUser"
-                   :> Header "X-User" Text
-                   :> Get '[JSON] Text
-
-serveUserMirror mbUser = do
-    case mbUser of
-     Nothing -> return "None"
-     Just user -> return user
 
 apiPrx :: Proxy (    LoginAPI
                 :<|> CheckTokenAPI
@@ -129,7 +117,7 @@ apiPrx :: Proxy (    LoginAPI
                 :<|> LogoutAPI
                 :<|> GetUserInstancesAPI
                 :<|> GetUserInfoAPI
-                :<|> UserMirrorAPI)
+                )
 apiPrx = Proxy
 
 serveAPI :: ConnectionPool -> Config -> Application
@@ -139,4 +127,3 @@ serveAPI pool conf = serve apiPrx $ serveLogin pool conf
                                :<|> serveLogout pool conf
                                :<|> serveGetUserInstancesAPI pool conf
                                :<|> serveGetUserInfoAPI pool conf
-                               :<|> serveUserMirror
