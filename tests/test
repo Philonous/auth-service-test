@@ -25,6 +25,8 @@ PASSWORD2=pwd1234
 NAME="JohnDoe"
 INSTANCE="de305d54-75b4-431b-adb2-eb6b9e546014"
 
+NOTINSTANCE="deadbeef-75b4-431b-adb2-eb6b9e546014"
+
 authservice () {
    docker exec $AUTHSERVICE_CONTAINER auth-service $@
 }
@@ -160,11 +162,12 @@ docker_test() {
     echo "Trying to log in"
     login
     echo "Checking token"
-    RES=$($CURL --write-out %{http_code}\
+    RES=$($CURL -o /dev/null \
+                --write-out %{http_code}\
                 -H "X-Token: $TOKEN" \
                 http://$API/check-token)
-    if [[ $RES != "204" ]]; then
-      echo "Could not verify tokenm got $RES"
+    if [[ $RES != "200" ]]; then
+      echo "Could not verify token got $RES"
       exit 1
     fi
     echo "Trying to reach upstream resource"
@@ -350,6 +353,19 @@ docker_test() {
       echo "Could not get index.html without instance"
       exit 1
     fi
+
+    echo "Trying index.html with wrong instance"
+    RES=$($CURL -H "X-Instance: $NOTINSTANCE" \
+                --cookie "token=$TOKEN" \
+                -o /dev/null \
+                -w %{http_code} \
+                http://$API/index.html
+       )
+    if [[ $RES != "403" ]]; then
+      echo "Did not get 403, got $RES instead"
+      exit 1
+    fi
+
 
     echo "Trying / without token (should fail)"
     RES=$($CURL http://$DOCKER_HOST/ )

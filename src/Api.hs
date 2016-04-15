@@ -11,6 +11,7 @@ module Api where
 import           Backend
 import           Control.Monad.Trans
 import           Control.Monad.Except
+import           Control.Monad.Trans.Maybe
 import           Data.Monoid
 import           Database.Persist.Sql
 import           Network.Wai
@@ -63,9 +64,9 @@ serveCheckToken pool conf tok inst = checkTokenHandler
         res <- lift . runAPI pool conf $ do
             logDebug $ "Checking token " <> showText tok
                        <> " for instance " <> showText inst
-            mbUser <- checkToken tok
-            forM mbUser $ \usr -> do
-              _ <- checkInstance inst usr
+            runMaybeT $ do
+              usr <- MaybeT $ checkToken tok
+              _ <- MaybeT $ checkInstance inst usr
               return usr
         case res of
          Nothing -> throwError err403
