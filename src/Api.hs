@@ -52,6 +52,16 @@ serveLogout pool conf tok = logoutHandler
     logoutHandler = do
         lift . runAPI pool conf $ logOut tok
 
+type DisableSessionsAPI = "disable-sessions"
+                       :> Capture "token" B64Token
+                       :> Post '[JSON] ()
+
+serverDisableSessions :: ConnectionPool -> Config -> Server DisableSessionsAPI
+serverDisableSessions pool conf tok = disableSessionsHandler
+  where
+    disableSessionsHandler = do
+      lift . runAPI pool conf $ closeOtherSessions tok
+
 type CheckTokenAPI = "check-token"
                   :> Capture "token" B64Token
                   :> Capture "instance" InstanceID
@@ -116,6 +126,7 @@ apiPrx :: Proxy (    LoginAPI
                 :<|> CheckTokenAPI
                 :<|> PublicCheckTokenAPI
                 :<|> LogoutAPI
+                :<|> DisableSessionsAPI
                 :<|> GetUserInstancesAPI
                 :<|> GetUserInfoAPI
                 )
@@ -126,5 +137,6 @@ serveAPI pool conf = serve apiPrx $ serveLogin pool conf
                                :<|> serveCheckToken pool conf
                                :<|> servePublicCheckToken pool conf
                                :<|> serveLogout pool conf
+                               :<|> serverDisableSessions pool conf
                                :<|> serveGetUserInstancesAPI pool conf
                                :<|> serveGetUserInfoAPI pool conf

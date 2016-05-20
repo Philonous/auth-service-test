@@ -70,6 +70,18 @@ http {
                 add_header Set-Cookie "token=deleted; Path=/; Expires=Thu, 01-Jan-1970 00:00:01 GMT";
 
         }
+        location = /disable-sessions {
+                set $token $cookie_token;
+                if ($token = '') {
+                  set $token $http_x_token;
+                }
+                if ($token = '') {
+                  return 403;
+                }
+                proxy_pass http://AUTH_SERVICE/disable-sessions/$token/;
+                proxy_set_header X-Original-URI $request_uri;
+
+        }
         location = /check-token {
                 set $token $cookie_token;
                 if ($token = '') {

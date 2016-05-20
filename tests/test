@@ -5,8 +5,10 @@ set -e
 if [[ -n $DEBUG ]]; then
   set -x
   CURL="curl -v"
+  SILENT=""
 else
   CURL="curl --silent"
+  SILENT="-o /dev/null"
 fi
 
 
@@ -26,6 +28,11 @@ NAME="JohnDoe"
 INSTANCE="de305d54-75b4-431b-adb2-eb6b9e546014"
 
 NOTINSTANCE="deadbeef-75b4-431b-adb2-eb6b9e546014"
+
+fail () {
+    echo -e "\e[91mTest Failed: $1\e[39m"
+    exit 1
+}
 
 authservice () {
    docker exec $AUTHSERVICE_CONTAINER auth-service $@
@@ -142,6 +149,34 @@ login() {
        exit 1
     fi
 }
+
+call() {
+    RES=$($CURL -XPOST \
+                -o /dev/null \
+                -w %{http_code} \
+                -H "X-Instance: $INSTANCE" \
+                -H "X-Token: $TOKEN" \
+                "http://$API/$1"
+        )
+    if [[ $RES -lt 200 || $RES -gt 300 ]]; then
+       fail "Calling http://$API/$1 failed with error code $RES"
+    fi
+}
+
+logout() {
+    $CURL -H "X-Instance: $INSTANCE" \
+          -H "X-Token: $TOKEN" \
+          http://$API/logout
+}
+
+check_upstream() {
+    RES=$($CURL -H "X-Instance: $INSTANCE" \
+                -H "X-Token: $TOKEN" \
+                http://$API/foo/index.html)
+    [[ $RES == "foo!" ]]
+}
+
+
 
 # run _local_ test
 runtest() {
@@ -399,6 +434,28 @@ docker_test() {
     OTP=$(echo $OTP | tr '[:upper:]' '[:lower:]')
     echo "trying OTP $OTP"
     login $USER2 $PASSWORD2 $OTP
+
+    echo "Testing logout"
+    logout
+    RES=$($CURL -H "X-Instance: $INSTANCE" \
+                -H "X-Token: $TOKEN" \
+                -o /dev/null \
+                -w %{http_code} \
+                http://$API/foo/index.html)
+    if [[ $RES != "403" ]]; then
+      echo "Accessing resource after logout didn't lead to 403, returned $RES instead"
+      exit 1
+    fi
+
+    echo "Testing disable-sessions"
+    login
+    OLDTOKEN=$TOKEN
+    login
+    check_upstream || fail "Could not reach upstream"
+    call "disable-sessions"
+    check_upstream || fail "Disable-sessions disabled current session"
+    TOKEN=$OLDTOKEN
+    check_upstream && fail "Sessions where not disabled"
 
 }
 

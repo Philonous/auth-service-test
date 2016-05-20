@@ -27,9 +27,10 @@ import qualified Database.Persist.Sql as P
 import           System.Random
 import qualified Twilio
 
-import qualified Persist.Schema as DB
-import           Types
 import           Logging
+import qualified Persist.Schema as DB
+import           Persist.Sql
+import           Types
 
 for = flip fmap
 
@@ -133,7 +134,6 @@ tokenChars = concat [ ['a' .. 'z']
                     , ['A' .. 'Z']
                     , ['0' .. '9']
                     ] -- Roughly 6 bit per char
-
 
 login :: Login -> API (Either LoginError ReturnLogin)
 login Login{ loginUser = userEmail
@@ -250,3 +250,13 @@ logOut token = do
     runDB $ P.delete (DB.TokenKey token)
 
 -- addUser name password email mbPhone = do
+
+closeOtherSessions :: B64Token -> API ()
+closeOtherSessions tokenID = do
+  runDB $ E.delete . E.from $ \token -> do
+    whereL [ E.exists . E.from $ \token' ->
+              whereL [ token E.^. DB.TokenUser E.==. token' E.^. DB.TokenUser
+                     , token' E.^. DB.TokenToken E.==. E.val tokenID
+                     ]
+           , token E.^. DB.TokenToken E.!=. E.val tokenID
+           ]
