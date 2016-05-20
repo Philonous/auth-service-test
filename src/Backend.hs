@@ -209,6 +209,7 @@ login Login{ loginUser = userEmail
                                          , DB.tokenUser = userId
                                          , DB.tokenCreated = now
                                          , DB.tokenExpires = Nothing
+                                         , DB.tokenLastUse = Nothing
                                          }
         instances' <- getUserInstances userId
         return ReturnLogin{ returnLoginToken = token'
@@ -254,6 +255,7 @@ getUserByToken tokenId = do
     on (user' E.^. DB.UserUuid ==. token' E.^. DB.TokenUser)
     where_ (token' E.^. DB.TokenToken ==. val tokenId)
     return user'
+  runDB $ P.update (DB.TokenKey tokenId) [DB.TokenLastUse P.=. Just now]
   return . fmap entityVal $ listToMaybe user'
 
 getUserInfo :: B64Token -> API (Maybe ReturnUserInfo)

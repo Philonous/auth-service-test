@@ -33,6 +33,7 @@ Token
   Foreign User fkUser user
   created UTCTime
   expires UTCTime Maybe
+  lastUse UTCTime Maybe
 
 Log
   time UTCTime

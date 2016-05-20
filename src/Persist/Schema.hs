@@ -27,7 +27,7 @@ import Database.Persist.Quasi
 import Database.Persist.TH
 
 import Types
-import Persist.Stage
+import Persist.Stage ()
 
 share [ mkPersist sqlSettings, mkMigrate "migrateAll"]
     $(persistFileWith lowerCaseSettings "src/schema")
