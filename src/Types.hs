@@ -43,6 +43,13 @@ data LoginError = LoginErrorFailed -- Username not found, password wrong or OTP
 
 makePrisms ''LoginError
 
+data ChangePasswordError = ChangePasswordLoginError LoginError
+                         | ChangePasswordTokenError
+                         | ChangePasswordHashError
+                           deriving (Show, Eq)
+
+makePrisms ''ChangePasswordError
+
 --------------------------------------------------------------------------------
 -- Config ----------------------------------------------------------------------
 --------------------------------------------------------------------------------

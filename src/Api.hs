@@ -62,6 +62,22 @@ serverDisableSessions pool conf tok = disableSessionsHandler
     disableSessionsHandler = do
       lift . runAPI pool conf $ closeOtherSessions tok
 
+type ChangePasswordAPI = "change-password"
+                       :> Capture "token" B64Token
+                       :> ReqBody '[JSON] ChangePassword
+                       :> Post '[JSON] ()
+
+serveChangePassword :: ConnectionPool -> Config -> Server ChangePasswordAPI
+serveChangePassword pool conf tok chpass = chPassHandler
+  where
+    chPassHandler = do
+      mbError <- lift . runAPI pool conf $ changePassword tok chpass
+      case mbError of
+       Right _ -> return ()
+       Left (ChangePasswordLoginError{}) -> throwError err403
+       Left (ChangePasswordHashError{}) -> throwError err500
+       Left (ChangePasswordTokenError{}) -> throwError err403
+
 type CheckTokenAPI = "check-token"
                   :> Capture "token" B64Token
                   :> Capture "instance" InstanceID
@@ -127,6 +143,7 @@ apiPrx :: Proxy (    LoginAPI
                 :<|> PublicCheckTokenAPI
                 :<|> LogoutAPI
                 :<|> DisableSessionsAPI
+                :<|> ChangePasswordAPI
                 :<|> GetUserInstancesAPI
                 :<|> GetUserInfoAPI
                 )
@@ -138,5 +155,6 @@ serveAPI pool conf = serve apiPrx $ serveLogin pool conf
                                :<|> servePublicCheckToken pool conf
                                :<|> serveLogout pool conf
                                :<|> serverDisableSessions pool conf
+                               :<|> serveChangePassword pool conf
                                :<|> serveGetUserInstancesAPI pool conf
                                :<|> serveGetUserInfoAPI pool conf

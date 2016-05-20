@@ -200,3 +200,11 @@ makeLensesWith camelCaseFields ''ReturnLogin
 
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "returnLogin"}
     ''ReturnLogin
+
+data ChangePassword = ChangePassword { changePasswordOldPasword :: !Password
+                                     , changePasswordNewPassword :: !Password
+                                     } deriving ( Show, Eq, Ord, Typeable, Data )
+
+deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "changePassword"}
+           ''ChangePassword
+makeLensesWith camelCaseFields ''ChangePassword

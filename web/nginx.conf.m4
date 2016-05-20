@@ -82,6 +82,18 @@ http {
                 proxy_set_header X-Original-URI $request_uri;
 
         }
+        location = /change-password {
+                set $token $cookie_token;
+                if ($token = '') {
+                  set $token $http_x_token;
+                }
+                if ($token = '') {
+                  return 403;
+                }
+                proxy_pass http://AUTH_SERVICE/change-password/$token/;
+                proxy_set_header X-Original-URI $request_uri;
+
+        }
         location = /check-token {
                 set $token $cookie_token;
                 if ($token = '') {
