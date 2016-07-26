@@ -19,6 +19,7 @@ executable auth-service
   other-modules:     Api
                    , AuthServiceTypes
                    , Backend
+                   , Config
                    , Helpers
                    , Logging
                    , Persist.Schema
@@ -42,6 +43,7 @@ executable auth-service
                    , http-types >= 0.9
                    , lens
                    , monad-logger >= 0.3
+                   , nejla-common
                    , mtl >= 2.2
                    , path-pieces
                    , persistent >= 2.2

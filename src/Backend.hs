@@ -27,9 +27,10 @@ import qualified Database.Persist.Sql as P
 import           System.Random
 import qualified Twilio
 
+import           NejlaCommon (whereL)
+
 import           Logging
 import qualified Persist.Schema as DB
-import           Persist.Sql
 import           Types
 
 for :: Functor f => f a -> (a -> b) -> f b

@@ -8,6 +8,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
@@ -26,6 +27,7 @@ import           Data.Text (Text)
 import           Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import           Database.Persist.Sql
+import qualified NejlaCommon as NC
 import           Servant
 import           Web.HttpApiData
 
@@ -76,27 +78,24 @@ makeLensesWith camelCaseFields ''Config
 -- Monad -----------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-data ApiState = ApiState { apiStateSqlCon :: SqlBackend
-                         , apiStateConfig :: Config
+data ApiState = ApiState { apiStateConfig :: Config
                          }
 
 makeLensesWith camelCaseFields ''ApiState
 
-newtype API a = API { unAPI :: ReaderT ApiState IO a }
-              deriving ( Functor, Applicative, Monad, MonadIO
-                       , MonadThrow, MonadCatch)
+type API a = NC.App ApiState NC.Privileged NC.ReadCommitted a
+
+-- newtype API a = API { unAPI :: ReaderT ApiState IO a }
+--               deriving ( Functor, Applicative, Monad, MonadIO
+--                        , MonadThrow, MonadCatch)
 
 runDB :: ReaderT SqlBackend IO a -> API a
-runDB m = do
-    con <- API $ view sqlCon
-    liftIO $ runReaderT m con
+runDB m = NC.db' m
 
 getConfig ::  Lens' Config a -> API a
-getConfig g = API . view $ config . g
+getConfig g = NC.viewState $ config . g
 
 runAPI :: ConnectionPool -> Config -> API a -> IO a
-runAPI pool conf (API m) = flip runSqlPool pool . ReaderT $ \con ->
-    let state = ApiState { apiStateSqlCon = con
-                         , apiStateConfig = conf
-                         }
-    in runReaderT m state
+runAPI pool conf m =
+  let st = ApiState { apiStateConfig = conf }
+  in NC.runApp' pool st m
