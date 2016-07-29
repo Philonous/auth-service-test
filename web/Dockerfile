@@ -9,11 +9,12 @@ RUN apt-key adv \
           >> /etc/apt/sources.list &&\
     apt-get update &&\
     apt-get install -y \
+        ca-certificates \
         dnsmasq \
         gettext-base \
         m4 \
+        netcat \
         nginx=${NGINX_VERSION} \
-        ca-certificates \
         && \
     rm -rf /var/lib/apt/lists/*
 

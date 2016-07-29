@@ -1,3 +1,4 @@
+Dockerfile
 dist
 docker-compose.yml
 frontend
@@ -10,5 +11,8 @@ testsetup.sh
 upstream-nginx.conf
 web
 .git
+**/.git
 .cabal-sandbox
 .dockerignore
+.stack-work
+**/.stack-work
