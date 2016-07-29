@@ -36,6 +36,6 @@ Token
   lastUse UTCTime Maybe
 
 Log
-  time UTCTime
-  message Text
-  details Value sqltype=jsonb
+  time UTCTime default=now()
+  type Text
+  payload Value sqltype=jsonb

@@ -29,7 +29,7 @@ import qualified Twilio
 
 import           NejlaCommon (whereL)
 
-import           Logging
+import qualified Logging as Log
 import qualified Persist.Schema as DB
 import           Types
 
@@ -61,6 +61,7 @@ createUser usr = do
                             , DB.userPhone = usr ^. phone
                             }
        _ <- runDB $ P.insert dbUser
+       Log.logES $ Log.UserCreated{ Log.user = usr ^. email}
        return $ Just ()
 
 getUserByEmail :: Email -> API (Maybe DB.User)
@@ -121,16 +122,17 @@ mkRandomOTP = do
 
 
 sendOTP :: TwilioConfig -> Email -> Phone -> Password -> API ()
-sendOTP twilioConf (Email user') (Phone p) (Password otp') = do
-    logInfo $ mconcat [ "Sending OTP for user " , user'
-                       , "(", p , ")"
-                       , ": " <> otp'
-                       ]
+sendOTP twilioConf usr@(Email user') (Phone p) otpp@(Password otp') = do
+    Log.logInfo $ mconcat [ "Sending OTP for user " , user'
+                          , "(", p , ")"
+                          , ": " <> otp'
+                          ]
     Twilio.sendMessage (twilioConf ^. account)
                        (twilioConf ^. authToken)
                        (twilioConf ^. sourceNumber)
                        p
                        otp'
+    Log.logES Log.OTPSent{Log.user = usr, Log.otp = otpp}
 
 tokenChars :: [Char]
 tokenChars = concat [ ['a' .. 'z']
@@ -170,18 +172,34 @@ login Login{ loginUser = userEmail
            } = do
     mbError <- checkUserPassword userEmail pwd
     case mbError of
-     Left e -> return $ Left e
+     Left e -> do
+       Log.logES $ Log.AuthFailed{ Log.user = userEmail
+                                 , Log.triedOtp = mbOtp
+                                 }
+       return $ Left e
      Right usr -> do
          let userId = usr ^. DB.uuid
          case mbOtp of
           Nothing -> do
               mbTwilioConf <- getConfig twilio
               case mbTwilioConf of
-               Nothing -> Right <$> createToken userId
+               Nothing -> do
+                 rl <- createToken userId
+                 Log.logES Log.AuthSuccess{ Log.user = userEmail
+                                          , Log.token =
+                                              rl ^. token . to unB64Token
+                                          }
+                 return $ Right rl
                Just twilioConf ->
                    case DB.userPhone usr of
                     -- No phone number for two-factor auth
-                    Nothing -> Right <$> createToken userId
+                    Nothing -> do
+                      rl <- createToken userId
+                      Log.logES Log.AuthSuccess{ Log.user = userEmail
+                                               , Log.token =
+                                                   rl ^. token . to unB64Token
+                                               }
+                      return $ Right rl
                     Just p  -> do
                         createOTP twilioConf p userId
                         return $ Left LoginErrorOTPRequired
@@ -199,8 +217,17 @@ login Login{ loginUser = userEmail
                    runDB $ P.deleteWhere [ DB.UserOtpUser P.==. userId
                                          , DB.UserOtpPassword P.==. otp'
                                          ]
-                   Right <$> createToken userId
-               [] -> return $ Left LoginErrorFailed
+                   rl <- createToken userId
+                   Log.logES Log.AuthSuccess{ Log.user = userEmail
+                                            , Log.token =
+                                                rl ^. token . to unB64Token
+                                            }
+                   return $ Right rl
+               [] -> do
+                 Log.logES $ Log.AuthFailed{ Log.user = userEmail
+                                           , Log.triedOtp = mbOtp
+                                           }
+                 return $ Left LoginErrorFailed
   where
     createToken userId = do
         now <- liftIO $ getCurrentTime
@@ -224,6 +251,7 @@ login Login{ loginUser = userEmail
                                        , DB.userOtpCreated = now
                                        }
         sendOTP twilioConf userEmail p otp'
+
         return ()
 
 changePassword :: B64Token
@@ -238,11 +266,15 @@ changePassword tok ChangePassword { changePasswordOldPasword = oldPwd
     Just usr -> return usr
   mbError <- lift $ checkUserPassword (DB.userEmail usr ) oldPwd
   case mbError of
-    Left e -> throwError $ ChangePasswordLoginError e
-    Right _ -> return ()
+    Left e -> do
+      lift $ Log.logES Log.PasswordChangeFailed{ Log.user = usr ^. email}
+      throwError $ ChangePasswordLoginError e
+    Right _ -> lift $ Log.logES Log.PasswordChanged{ Log.user = usr ^. email}
   mbError' <- lift $ changeUserPassword (usr ^. DB.uuid) newPwd
   case mbError' of
-    Nothing -> throwError ChangePasswordHashError
+    Nothing -> do
+      lift $ Log.logES Log.PasswordChangeFailed{ Log.user = usr ^. email}
+      throwError ChangePasswordHashError
     Just _ -> return ()
 
 
@@ -271,17 +303,49 @@ getUserInfo token' = do
                           , returnUserInfoInstances = instances'
                           }
 
+checkTokenInstance :: Text -> B64Token -> InstanceID -> API (Maybe UserID)
+checkTokenInstance request (B64Token "") inst = do
+    Log.logES Log.RequestNoToken{ Log.request = request
+                                , Log.instanceId = inst
+                                }
+    return Nothing
+checkTokenInstance request tok inst = do
+    mbUsr <- getUserByToken tok
+    case mbUsr of
+      Nothing -> do
+        Log.logES Log.RequestInvalidToken{ Log.request = request
+                                         , Log.token = unB64Token tok
+                                         , Log.instanceId = inst
+                                         }
+        return Nothing
+      Just usr -> do
+        mbInst <- checkInstance inst (DB.userUuid usr)
+        case mbInst of
+          Nothing -> do
+            Log.logES Log.RequestInvalidInstance{ Log.user = usr ^. email
+                                                , Log.request = request
+                                                , Log.token = unB64Token tok
+                                                , Log.instanceId = inst
+                                                }
+            return Nothing
+          Just _ -> return $ Just (DB.userUuid usr)
+
 checkToken :: B64Token -> API (Maybe UserID)
 checkToken tokenId = fmap DB.userUuid <$> getUserByToken tokenId
 
-checkInstance  :: InstanceID -> UserID -> API (Maybe DB.UserInstance)
+checkInstance :: InstanceID -> UserID -> API (Maybe DB.UserInstance)
 checkInstance inst user' = runDB $ P.get (DB.UserInstanceKey user' inst)
 
 -- checkInstance :: InstanceID ->
 
 logOut :: B64Token -> API ()
 logOut token' = do
+    mbUser <- getUserByToken token'
+    case mbUser of
+      Just usr -> Log.logES Log.Logout{ Log.user = usr ^. email }
+      _ -> return ()
     runDB $ P.delete (DB.TokenKey token')
+
 
 -- addUser name password email mbPhone = do
 

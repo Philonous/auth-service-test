@@ -44,9 +44,6 @@ http {
                 if ($token = '') {
                   set $token $http_x_token;
                 }
-                if ($token = '') {
-                  return 403;
-                }
                 set $instance $http_x_instance;
                 if ($instance = '') {
                   return 403;

@@ -9,10 +9,10 @@
 module Api where
 
 import           Backend
-import           Control.Monad.Trans
 import           Control.Monad.Except
-import           Control.Monad.Trans.Maybe
+import           Data.Maybe (fromMaybe)
 import           Data.Monoid
+import           Data.Text (Text)
 import           Database.Persist.Sql
 import           Network.Wai
 import           Servant
@@ -81,19 +81,17 @@ serveChangePassword pool conf tok chpass = chPassHandler
 type CheckTokenAPI = "check-token"
                   :> Capture "token" B64Token
                   :> Capture "instance" InstanceID
+                  :> Header "X-Original-URI" Text
                   :> Get '[JSON] (Headers '[Header "X-User" UserID] ReturnUser)
 
 serveCheckToken :: ConnectionPool -> Config -> Server CheckTokenAPI
-serveCheckToken pool conf tok inst = checkTokenHandler
+serveCheckToken pool conf tok inst req = checkTokenHandler
   where
     checkTokenHandler = do
         res <- lift . runAPI pool conf $ do
             logDebug $ "Checking token " <> showText tok
                        <> " for instance " <> showText inst
-            runMaybeT $ do
-              usr <- MaybeT $ checkToken tok
-              _ <- MaybeT $ checkInstance inst usr
-              return usr
+            checkTokenInstance (fromMaybe "" req) tok inst
         case res of
          Nothing -> throwError err403
          Just usr -> return $ (addHeader usr $ ReturnUser usr)
