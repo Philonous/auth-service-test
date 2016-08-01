@@ -18,6 +18,7 @@ UserOtp
   Foreign User fkUSer user
   password Password
   created UTCTime
+  deactivated UTCTime Maybe
 
 UserInstance
   user UserID

@@ -14,6 +14,7 @@ import qualified Data.Aeson as Aeson
 import           Data.Aeson.TH
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HMap
+import           Data.Int
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Text.IO as Text
@@ -62,9 +63,9 @@ logES msg = do
 type Request = Text
 
 data LogEvent
-  = OTPSent{ user :: !Email, otp:: !Password}
+  = OTPSent{ user :: !Email, otp:: !Int64}
   | AuthSuccess{ user:: !Email, token :: !Text}
-  | AuthSuccessOTP{ user:: !Email, otp:: !Password, token :: !Text}
+  | AuthSuccessOTP{ user:: !Email, otp:: !Int64, token :: !Text}
   | AuthFailed{ user:: !Email, triedOtp:: !(Maybe Password)}
   | Request{ user:: !Email, request :: !Request, token :: !Text}
   | RequestNoToken{request:: !Request, instanceId :: !InstanceID}

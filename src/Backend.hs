@@ -122,7 +122,7 @@ mkRandomOTP = do
 
 
 sendOTP :: TwilioConfig -> Email -> Phone -> Password -> API ()
-sendOTP twilioConf usr@(Email user') (Phone p) otpp@(Password otp') = do
+sendOTP twilioConf (Email user') (Phone p) (Password otp') = do
     Log.logInfo $ mconcat [ "Sending OTP for user " , user'
                           , "(", p , ")"
                           , ": " <> otp'
@@ -132,7 +132,6 @@ sendOTP twilioConf usr@(Email user') (Phone p) otpp@(Password otp') = do
                        (twilioConf ^. sourceNumber)
                        p
                        otp'
-    Log.logES Log.OTPSent{Log.user = usr, Log.otp = otpp}
 
 tokenChars :: [Char]
 tokenChars = concat [ ['a' .. 'z']
@@ -164,6 +163,11 @@ checkUserPassword userEmail pwd = do
          Nothing -> return () -- TODO: log error
          Just newHash -> runDB $ P.update (DB.UserKey userId)
                                           [DB.UserPasswordHash P.=. newHash]
+
+deactivateOtpWhere :: [P.Filter DB.UserOtp] -> API ()
+deactivateOtpWhere selector = do
+  now <- liftIO getCurrentTime
+  runDB $ P.updateWhere selector [DB.UserOtpDeactivated P.=. Just now]
 
 login :: Login -> API (Either LoginError ReturnLogin)
 login Login{ loginUser = userEmail
@@ -208,20 +212,24 @@ login Login{ loginUser = userEmail
               otpTime <- fromIntegral . negate <$> getConfig oTPTimeoutSeconds
               now <- liftIO getCurrentTime
               let cutoff = otpTime `addUTCTime` now
-              runDB $ P.deleteWhere [DB.UserOtpCreated P.<=. cutoff]
+              deactivateOtpWhere [DB.UserOtpCreated P.<=. cutoff]
               checkOTP <- runDB $ P.selectList [ DB.UserOtpUser P.==. userId
                                                , DB.UserOtpPassword P.==. otp'
+                                               , DB.UserOtpDeactivated
+                                                 P.==. Nothing
                                                ] []
               case checkOTP of
-               (_:_) -> do
-                   runDB $ P.deleteWhere [ DB.UserOtpUser P.==. userId
-                                         , DB.UserOtpPassword P.==. otp'
-                                         ]
+               (k:_) -> do
+                   deactivateOtpWhere [ DB.UserOtpUser P.==. userId
+                                      , DB.UserOtpPassword P.==. otp'
+                                      ]
                    rl <- createToken userId
-                   Log.logES Log.AuthSuccess{ Log.user = userEmail
-                                            , Log.token =
-                                                rl ^. token . to unB64Token
-                                            }
+                   Log.logES Log.AuthSuccessOTP
+                     { Log.user = userEmail
+                     , Log.token = rl ^. token . to unB64Token
+                     , Log.otp = P.unSqlBackendKey . DB.unUserOtpKey
+                                   $ entityKey k
+                     }
                    return $ Right rl
                [] -> do
                  Log.logES $ Log.AuthFailed{ Log.user = userEmail
@@ -246,12 +254,16 @@ login Login{ loginUser = userEmail
     createOTP twilioConf p userId = do
         otp' <- mkRandomOTP
         now <- liftIO getCurrentTime
-        _ <- runDB $ insert DB.UserOtp { DB.userOtpUser = userId
-                                       , DB.userOtpPassword = otp'
-                                       , DB.userOtpCreated = now
-                                       }
+        key <- runDB $ insert DB.UserOtp { DB.userOtpUser = userId
+                                         , DB.userOtpPassword = otp'
+                                         , DB.userOtpCreated = now
+                                         , DB.userOtpDeactivated = Nothing
+                                         }
         sendOTP twilioConf userEmail p otp'
-
+        Log.logES Log.OTPSent{ Log.user = userEmail
+                             , Log.otp = P.unSqlBackendKey $
+                                          DB.unUserOtpKey key
+                             }
         return ()
 
 changePassword :: B64Token
