@@ -29,12 +29,13 @@ UserInstance
 
 Token
   token B64Token
-  Primary token
+  UniqueToken token
   user UserID
   Foreign User fkUser user
   created UTCTime
   expires UTCTime Maybe
   lastUse UTCTime Maybe
+  deactivated UTCTime Maybe
 
 Log
   time UTCTime default=now()

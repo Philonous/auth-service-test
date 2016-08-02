@@ -8,6 +8,7 @@ module Backend
   (module Backend
   ) where
 
+import           Control.Arrow ((***))
 import           Control.Lens
 import           Control.Monad
 import           Control.Monad.Except
@@ -32,6 +33,12 @@ import           NejlaCommon (whereL)
 import qualified Logging as Log
 import qualified Persist.Schema as DB
 import           Types
+
+unOtpKey :: Key DB.UserOtp -> Log.OtpRef
+unOtpKey = P.unSqlBackendKey . DB.unUserOtpKey
+
+unTokenKey :: Key DB.Token -> Log.TokenRef
+unTokenKey = P.unSqlBackendKey . DB.unTokenKey
 
 for :: Functor f => f a -> (a -> b) -> f b
 for = flip fmap
@@ -169,6 +176,11 @@ deactivateOtpWhere selector = do
   now <- liftIO getCurrentTime
   runDB $ P.updateWhere selector [DB.UserOtpDeactivated P.=. Just now]
 
+deactivateTokenWhere :: [P.Filter DB.Token] -> API ()
+deactivateTokenWhere selector = do
+  now <- liftIO getCurrentTime
+  runDB $ P.updateWhere selector [DB.TokenDeactivated P.=. Just now]
+
 login :: Login -> API (Either LoginError ReturnLogin)
 login Login{ loginUser = userEmail
            , loginPassword = pwd
@@ -178,7 +190,8 @@ login Login{ loginUser = userEmail
     case mbError of
      Left e -> do
        Log.logES $ Log.AuthFailed{ Log.user = userEmail
-                                 , Log.triedOtp = mbOtp
+                                 , Log.reason =
+                                     Log.AuthFailedReasonWrongPassword
                                  }
        return $ Left e
      Right usr -> do
@@ -188,20 +201,18 @@ login Login{ loginUser = userEmail
               mbTwilioConf <- getConfig twilio
               case mbTwilioConf of
                Nothing -> do
-                 rl <- createToken userId
+                 (tid, rl) <- createToken userId
                  Log.logES Log.AuthSuccess{ Log.user = userEmail
-                                          , Log.token =
-                                              rl ^. token . to unB64Token
+                                          , Log.tokenId = tid
                                           }
                  return $ Right rl
                Just twilioConf ->
                    case DB.userPhone usr of
                     -- No phone number for two-factor auth
                     Nothing -> do
-                      rl <- createToken userId
+                      (tid, rl) <- createToken userId
                       Log.logES Log.AuthSuccess{ Log.user = userEmail
-                                               , Log.token =
-                                                   rl ^. token . to unB64Token
+                                               , Log.tokenId = tid
                                                }
                       return $ Right rl
                     Just p  -> do
@@ -223,17 +234,18 @@ login Login{ loginUser = userEmail
                    deactivateOtpWhere [ DB.UserOtpUser P.==. userId
                                       , DB.UserOtpPassword P.==. otp'
                                       ]
-                   rl <- createToken userId
+                   (tid,  rl) <- createToken userId
                    Log.logES Log.AuthSuccessOTP
                      { Log.user = userEmail
-                     , Log.token = rl ^. token . to unB64Token
+                     , Log.tokenId = tid
                      , Log.otp = P.unSqlBackendKey . DB.unUserOtpKey
                                    $ entityKey k
                      }
                    return $ Right rl
                [] -> do
                  Log.logES $ Log.AuthFailed{ Log.user = userEmail
-                                           , Log.triedOtp = mbOtp
+                                           , Log.reason =
+                                               Log.AuthFailedReasonWrongOtp
                                            }
                  return $ Left LoginErrorFailed
   where
@@ -241,16 +253,20 @@ login Login{ loginUser = userEmail
         now <- liftIO $ getCurrentTime
         -- token <- liftIO $ b64Token <$> getEntropy 16 -- 128 bits
         token' <- B64Token <$> mkRandomString tokenChars 22 -- > 128 bit
-        _ <- runDB . P.insert $ DB.Token { DB.tokenToken = token'
-                                         , DB.tokenUser = userId
-                                         , DB.tokenCreated = now
-                                         , DB.tokenExpires = Nothing
-                                         , DB.tokenLastUse = Nothing
-                                         }
+        key <- runDB . P.insert $ DB.Token { DB.tokenToken = token'
+                                           , DB.tokenUser = userId
+                                           , DB.tokenCreated = now
+                                           , DB.tokenExpires = Nothing
+                                           , DB.tokenLastUse = Nothing
+                                           , DB.tokenDeactivated = Nothing
+                                           }
+        let tokenId = P.unSqlBackendKey $ DB.unTokenKey key
         instances' <- getUserInstances userId
-        return ReturnLogin{ returnLoginToken = token'
-                          , returnLoginInstances = instances'
-                          }
+        return ( tokenId
+               , ReturnLogin{ returnLoginToken = token'
+                            , returnLoginInstances = instances'
+                            }
+               )
     createOTP twilioConf p userId = do
         otp' <- mkRandomOTP
         now <- liftIO getCurrentTime
@@ -273,10 +289,10 @@ changePassword tok ChangePassword { changePasswordOldPasword = oldPwd
                                   , changePasswordNewPassword = newPwd
                                   } = runExceptT $ do
   mbUser <- lift $ getUserByToken tok
-  usr <- case mbUser of
+  (tokenID, usr) <- case mbUser of
     Nothing -> throwError ChangePasswordTokenError
     Just usr -> return usr
-  mbError <- lift $ checkUserPassword (DB.userEmail usr ) oldPwd
+  mbError <- lift $ checkUserPassword (DB.userEmail usr) oldPwd
   case mbError of
     Left e -> do
       lift $ Log.logES Log.PasswordChangeFailed{ Log.user = usr ^. email}
@@ -290,23 +306,26 @@ changePassword tok ChangePassword { changePasswordOldPasword = oldPwd
     Just _ -> return ()
 
 
-getUserByToken :: B64Token -> API (Maybe DB.User)
+getUserByToken :: B64Token -> API (Maybe (Log.TokenRef, DB.User))
 getUserByToken tokenId = do
   -- Delete expired tokens
   now <- liftIO $ getCurrentTime
-  runDB $ P.deleteWhere [DB.TokenExpires P.<=. Just now]
+  deactivateTokenWhere [DB.TokenExpires P.<=. Just now]
 
   user' <- runDB . select . E.from $ \(user' `InnerJoin` token') -> do
     on (user' E.^. DB.UserUuid ==. token' E.^. DB.TokenUser)
-    where_ (token' E.^. DB.TokenToken ==. val tokenId)
-    return user'
-  runDB $ P.update (DB.TokenKey tokenId) [DB.TokenLastUse P.=. Just now]
-  return . fmap entityVal $ listToMaybe user'
+    whereL [ token' E.^. DB.TokenToken ==. val tokenId
+           , E.isNothing $ token' E.^. DB.TokenDeactivated
+           ]
+    return (token' E.^. DB.TokenId, user')
+  runDB $ P.updateWhere [DB.TokenToken P.==. tokenId]
+                        [DB.TokenLastUse P.=. Just now]
+  return . fmap (unTokenKey . unValue *** entityVal) $ listToMaybe user'
 
 getUserInfo :: B64Token -> API (Maybe ReturnUserInfo)
 getUserInfo token' = do
   mbUser <- getUserByToken token'
-  Traversable.forM mbUser $ \user' -> do
+  Traversable.forM mbUser $ \(_tid, user') -> do
     instances' <- getUserInstances (user' ^. DB.uuid)
     return ReturnUserInfo { returnUserInfoId = user' ^. DB.uuid
                           , returnUserInfoEmail = user' ^. email
@@ -330,20 +349,20 @@ checkTokenInstance request tok inst = do
                                          , Log.instanceId = inst
                                          }
         return Nothing
-      Just usr -> do
+      Just (tid,  usr) -> do
         mbInst <- checkInstance inst (DB.userUuid usr)
         case mbInst of
           Nothing -> do
             Log.logES Log.RequestInvalidInstance{ Log.user = usr ^. email
                                                 , Log.request = request
-                                                , Log.token = unB64Token tok
+                                                , Log.tokenId = tid
                                                 , Log.instanceId = inst
                                                 }
             return Nothing
           Just _ -> return $ Just (DB.userUuid usr)
 
 checkToken :: B64Token -> API (Maybe UserID)
-checkToken tokenId = fmap DB.userUuid <$> getUserByToken tokenId
+checkToken tokenId = fmap (DB.userUuid . snd) <$> getUserByToken tokenId
 
 checkInstance :: InstanceID -> UserID -> API (Maybe DB.UserInstance)
 checkInstance inst user' = runDB $ P.get (DB.UserInstanceKey user' inst)
@@ -354,9 +373,11 @@ logOut :: B64Token -> API ()
 logOut token' = do
     mbUser <- getUserByToken token'
     case mbUser of
-      Just usr -> Log.logES Log.Logout{ Log.user = usr ^. email }
+      Just (tid , usr) -> Log.logES Log.Logout{ Log.user = usr ^. email
+                                              , Log.tokenId = tid
+                                              }
       _ -> return ()
-    runDB $ P.delete (DB.TokenKey token')
+    deactivateTokenWhere [DB.TokenToken P.==. token']
 
 
 -- addUser name password email mbPhone = do

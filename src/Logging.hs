@@ -12,7 +12,6 @@ module Logging where
 import           Control.Monad.Trans
 import qualified Data.Aeson as Aeson
 import           Data.Aeson.TH
-import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HMap
 import           Data.Int
 import           Data.Text (Text)
@@ -20,6 +19,7 @@ import qualified Data.Text as Text
 import           Data.Text.IO as Text
 import           Data.Time.Clock
 import           Database.Persist
+import           Helpers
 import           NejlaCommon
 import           System.IO
 import           Types
@@ -61,31 +61,37 @@ logES msg = do
   return ()
 
 type Request = Text
+type OtpRef = Int64
+type TokenRef = Int64
+
+data AuthFailedReason = AuthFailedReasonWrongPassword
+                      | AuthFailedReasonWrongOtp
+                      deriving (Show)
+
 
 data LogEvent
-  = OTPSent{ user :: !Email, otp:: !Int64}
-  | AuthSuccess{ user:: !Email, token :: !Text}
-  | AuthSuccessOTP{ user:: !Email, otp:: !Int64, token :: !Text}
-  | AuthFailed{ user:: !Email, triedOtp:: !(Maybe Password)}
-  | Request{ user:: !Email, request :: !Request, token :: !Text}
+  = OTPSent{ user :: !Email, otp:: !OtpRef}
+  | AuthSuccess{ user:: !Email, tokenId :: !TokenRef}
+  | AuthSuccessOTP{ user:: !Email, otp:: !OtpRef, tokenId :: !TokenRef}
+  | AuthFailed{ user:: !Email, reason :: !AuthFailedReason}
+  | Request{ user:: !Email, request :: !Request, tokenId :: !TokenRef}
   | RequestNoToken{request:: !Request, instanceId :: !InstanceID}
   | RequestInvalidToken{ request :: !Request
-                               , token:: !Text
-                               , instanceId :: !InstanceID
-                               }
+                       , token:: !Text
+                       , instanceId :: !InstanceID
+                       }
   | RequestInvalidInstance{ user :: !Email
                           , request :: !Request
-                          , token :: !Text
+                          , tokenId :: !TokenRef
                           , instanceId :: !InstanceID
                           }
-  | Logout{user ::  !Email}
+  | Logout{ user ::  !Email
+          , tokenId :: !TokenRef
+          }
   | UserCreated {user :: !Email }
   | PasswordChangeFailed {user :: !Email }
   | PasswordChanged {user :: !Email }
   deriving (Show)
-
-deriveJSON defaultOptions{sumEncoding = TaggedObject "type" "contents"}
-           ''LogEvent
 
 instance LogMessage LogEvent where
   messageType OTPSent{}                = "otp_sent"
@@ -100,3 +106,11 @@ instance LogMessage LogEvent where
   messageType UserCreated{}            = "user_created"
   messageType PasswordChangeFailed{}   = "password_change_failed"
   messageType PasswordChanged{}        = "password_changed"
+
+deriveJSON (defaultOptions{constructorTagModifier =
+                              cctu "_" . dropPrefix "AuthFailedReason"
+                          }
+           ) ''AuthFailedReason
+
+deriveJSON defaultOptions{sumEncoding = TaggedObject "type" "contents"}
+           ''LogEvent
