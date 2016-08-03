@@ -409,6 +409,9 @@ case $1 in
     docker)
         docker_rebuild
         ;;
+    setup)
+        docker_setup
+        ;;
     login)
         shift
         login $@
