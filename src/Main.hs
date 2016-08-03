@@ -21,6 +21,8 @@ import           System.Environment
 import           System.Exit
 import           System.IO
 
+import           NejlaCommon (withPool)
+
 import           Api
 import           Config
 import           Persist.Schema
@@ -48,16 +50,14 @@ logMiddleware app req respond = do
 
 main :: IO ()
 main = runStderrLoggingT $ do
-    confFile <- loadConf
+    confFile <- loadConf "auth_service"
     conf <- getAuthServiceConfig confFile
-    let connectionString = conf ^. dbString
-    liftIO . putStrLn $ "Connecting to DB " ++ show connectionString
     mbLogging <- liftIO $ lookupEnv "log"
     let logM = case mbLogging of
                 Just "true" -> logMiddleware
                 _ -> Prelude.id
 
-    withPostgresqlPool connectionString 5 $ \pool -> do
+    liftIO . withPool confFile 5 $ \pool -> do
         let run = liftIO . runAPI pool conf
         liftIO $ runSqlPool (runMigration migrateAll) pool
         args <- liftIO getArgs

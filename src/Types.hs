@@ -65,7 +65,6 @@ data TwilioConfig = TwilioConfig { twilioConfigAccount :: !Text
 makeLensesWith camelCaseFields ''TwilioConfig
 
 data Config = Config { configTimeout :: !Integer -- token timeout in seconds
-                     , configDbString :: !ByteString
                      , configOTPLength :: !Int
                      , configOTPTimeoutSeconds :: !Integer
                      , configTFARequired :: !Bool
