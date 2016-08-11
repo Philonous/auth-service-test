@@ -7,7 +7,9 @@
 
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Logging where
+module Logging
+  ( module Logging
+  ) where
 
 import           Control.Monad.Trans
 import qualified Data.Aeson as Aeson
@@ -46,19 +48,8 @@ logInfo = logMessage Info
 logWarn = logMessage Warn
 logError = logMessage Error
 
-logES :: LogMessage a =>
-         a
-      -> API ()
-logES msg = do
-  now <- liftIO getCurrentTime
-  let pl = case Aeson.toJSON msg of
-                  Aeson.Object o -> Aeson.Object (HMap.delete "type" o)
-                  v -> v
-  _ <- runDB $ insert DB.Log { DB.logTime = now
-                             , DB.logType = messageType msg
-                             , DB.logPayload = pl
-                             }
-  return ()
+logES :: (MonadIO m, LogMessage a) => a -> m ()
+logES = liftIO . logEvent
 
 type Request = Text
 type OtpRef = Int64
@@ -67,7 +58,6 @@ type TokenRef = Int64
 data AuthFailedReason = AuthFailedReasonWrongPassword
                       | AuthFailedReasonWrongOtp
                       deriving (Show)
-
 
 data LogEvent
   = OTPSent{ user :: !Email, otp:: !OtpRef}
@@ -112,5 +102,8 @@ deriveJSON (defaultOptions{constructorTagModifier =
                           }
            ) ''AuthFailedReason
 
-deriveJSON defaultOptions{sumEncoding = TaggedObject "type" "contents"}
+deriveJSON defaultOptions{ sumEncoding = TaggedObject "type" "contents"
+                         , constructorTagModifier =
+                              cctu "_"
+                         }
            ''LogEvent

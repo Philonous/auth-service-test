@@ -295,13 +295,13 @@ changePassword tok ChangePassword { changePasswordOldPasword = oldPwd
   mbError <- lift $ checkUserPassword (DB.userEmail usr) oldPwd
   case mbError of
     Left e -> do
-      lift $ Log.logES Log.PasswordChangeFailed{ Log.user = usr ^. email}
+      Log.logES Log.PasswordChangeFailed{ Log.user = usr ^. email}
       throwError $ ChangePasswordLoginError e
-    Right _ -> lift $ Log.logES Log.PasswordChanged{ Log.user = usr ^. email}
+    Right _ -> Log.logES Log.PasswordChanged{ Log.user = usr ^. email}
   mbError' <- lift $ changeUserPassword (usr ^. DB.uuid) newPwd
   case mbError' of
     Nothing -> do
-      lift $ Log.logES Log.PasswordChangeFailed{ Log.user = usr ^. email}
+      Log.logES Log.PasswordChangeFailed{ Log.user = usr ^. email}
       throwError ChangePasswordHashError
     Just _ -> return ()
 

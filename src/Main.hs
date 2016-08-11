@@ -49,7 +49,8 @@ logMiddleware app req respond = do
     fromBS = Text.unpack . Text.decodeUtf8With Text.lenientDecode
 
 main :: IO ()
-main = runStderrLoggingT $ do
+main = runStderrLoggingT . filterLogger (\_source level -> False)
+       $ do
     confFile <- loadConf "auth_service"
     conf <- getAuthServiceConfig confFile
     mbLogging <- liftIO $ lookupEnv "log"
@@ -57,9 +58,9 @@ main = runStderrLoggingT $ do
                 Just "true" -> logMiddleware
                 _ -> Prelude.id
 
-    liftIO . withPool confFile 5 $ \pool -> do
+    withPool confFile 5 $ \pool -> do
         let run = liftIO . runAPI pool conf
-        liftIO $ runSqlPool (runMigration migrateAll) pool
+        liftIO $ runSqlPool (runMigrationSilent migrateAll) pool
         args <- liftIO getArgs
         case args of
          ("adduser": args') -> do

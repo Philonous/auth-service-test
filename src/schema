@@ -36,8 +36,3 @@ Token
   expires UTCTime Maybe
   lastUse UTCTime Maybe
   deactivated UTCTime Maybe
-
-Log
-  time UTCTime default=now()
-  type Text
-  payload Value sqltype=jsonb
