@@ -38,7 +38,7 @@ logMiddleware app req respond = do
     ]
   app req respond'
   where
-    debug f = hPutStrLn stderr $ "[DEBUG#auth-serivce]" ++ f
+    debug f = hPutStrLn stderr $ "[Info#auth-serivce]" ++ f
     respond' res = do
       debug $ concat
         ["> "
@@ -49,7 +49,7 @@ logMiddleware app req respond = do
     fromBS = Text.unpack . Text.decodeUtf8With Text.lenientDecode
 
 main :: IO ()
-main = runStderrLoggingT . filterLogger (\_source level -> False)
+main = runStderrLoggingT . filterLogger (\_source level -> level >= LevelWarn)
        $ do
     confFile <- loadConf "auth_service"
     conf <- getAuthServiceConfig confFile
