@@ -11,6 +11,7 @@ module Logging
   ( module Logging
   ) where
 
+import           Control.Monad.Logger
 import           Control.Monad.Trans
 import qualified Data.Aeson as Aeson
 import           Data.Aeson.TH
@@ -28,28 +29,17 @@ import           Types
 
 import qualified Persist.Schema as DB
 
-data LogLevel = Debug | Info | Warn | Error deriving (Eq, Show)
+logDebug, logInfo, logWarn, logError :: MonadLogger m => Text -> m ()
+logDebug = logDebugNS "auth-service"
+logInfo  = logDebugNS "auth-service"
+logWarn  = logWarnNS  "auth-service"
+logError = logErrorNS "auth-service"
 
-logLevelToText :: LogLevel -> Text
-logLevelToText Debug  = "DEBUG"
-logLevelToText Info  = "INFO"
-logLevelToText Warn  = "WARN"
-logLevelToText Error = "ERROR"
 
-logMessage :: LogLevel -> Text -> API ()
-logMessage level msg = do
-    liftIO . Text.hPutStrLn stderr $ Text.concat [ "[", logLevelToText level , "] "
-                                                 ,  msg
-                                                 ]
-
-logDebug, logInfo, logWarn, logError :: Text -> API ()
-logDebug =  logMessage Debug
-logInfo = logMessage Info
-logWarn = logMessage Warn
-logError = logMessage Error
-
-logES :: (MonadIO m, LogMessage a) => a -> m ()
-logES = liftIO . logEvent
+logES :: (MonadIO m, MonadLogger m, IsLogEvent a) =>
+         a
+      -> m ()
+logES = logEvent
 
 type Request = Text
 type OtpRef = Int64
@@ -59,7 +49,7 @@ data AuthFailedReason = AuthFailedReasonWrongPassword
                       | AuthFailedReasonWrongOtp
                       deriving (Show)
 
-data LogEvent
+data Event
   = OTPSent{ user :: !Email, otp:: !OtpRef}
   | AuthSuccess{ user:: !Email, tokenId :: !TokenRef}
   | AuthSuccessOTP{ user:: !Email, otp:: !OtpRef, tokenId :: !TokenRef}
@@ -83,19 +73,31 @@ data LogEvent
   | PasswordChanged {user :: !Email }
   deriving (Show)
 
-instance LogMessage LogEvent where
-  messageType OTPSent{}                = "otp_sent"
-  messageType AuthSuccess{}            = "auth_success"
-  messageType AuthSuccessOTP{}         = "auth_success"
-  messageType AuthFailed{}             = "auth_failed"
-  messageType Request{}                = "request"
-  messageType RequestNoToken{}         = "request_no_token"
-  messageType RequestInvalidToken{}    = "request_invalid_token"
-  messageType RequestInvalidInstance{} = "request_invalid_instance"
-  messageType Logout{}                 = "logout"
-  messageType UserCreated{}            = "user_created"
-  messageType PasswordChangeFailed{}   = "password_change_failed"
-  messageType PasswordChanged{}        = "password_changed"
+instance IsLogEvent Event where
+  toLogEvent v@OTPSent{}                =
+    eventDetails "otp_sent" v
+  toLogEvent v@AuthSuccess{}            =
+    eventDetails "auth_success" v
+  toLogEvent v@AuthSuccessOTP{}         =
+    eventDetails "auth_success" v
+  toLogEvent v@AuthFailed{}             =
+    eventDetails "auth_failed" v
+  toLogEvent v@Request{}                =
+    eventDetails "request" v
+  toLogEvent v@RequestNoToken{}         =
+    eventDetails "request_no_token" v
+  toLogEvent v@RequestInvalidToken{}    =
+    eventDetails "request_invalid_token" v
+  toLogEvent v@RequestInvalidInstance{} =
+    eventDetails "request_invalid_instance" v
+  toLogEvent v@Logout{}                 =
+    eventDetails "logout" v
+  toLogEvent v@UserCreated{}            =
+    eventDetails "user_created" v
+  toLogEvent v@PasswordChangeFailed{}   =
+    eventDetails "password_change_failed" v
+  toLogEvent v@PasswordChanged{}        =
+    eventDetails "password_changed" v
 
 deriveJSON (defaultOptions{constructorTagModifier =
                               cctu "_" . dropPrefix "AuthFailedReason"
@@ -106,4 +108,4 @@ deriveJSON defaultOptions{ sumEncoding = TaggedObject "type" "contents"
                          , constructorTagModifier =
                               cctu "_"
                          }
-           ''LogEvent
+           ''Event

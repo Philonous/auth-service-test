@@ -34,6 +34,7 @@ executable auth-service
                    , bytestring
                    , bytestring-conversion >= 0.3
                    , configurator
+                   , data-default
                    , either
                    , entropy >= 0.3
                    , esqueleto

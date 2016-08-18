@@ -23,6 +23,7 @@ import           Control.Lens
 import           Control.Monad.Catch
 import           Control.Monad.Reader
 import           Data.ByteString (ByteString)
+import           Data.Default
 import           Data.Text (Text)
 import           Data.UUID (UUID)
 import qualified Data.UUID as UUID
@@ -97,4 +98,4 @@ getConfig g = NC.viewState $ config . g
 runAPI :: ConnectionPool -> Config -> API a -> IO a
 runAPI pool conf m =
   let st = ApiState { apiStateConfig = conf }
-  in NC.runApp' pool st m
+  in NC.runApp' def pool st m
