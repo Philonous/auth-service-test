@@ -30,12 +30,12 @@ sendMessage :: Text
             -> Text
             -> Text
             -> API ()
-sendMessage account authToken from to msg = do
-    let accountSid = Text.encodeUtf8 account
+sendMessage account' authToken' from to msg = do
+    let accountSid = Text.encodeUtf8 account'
         username = accountSid
-        password = Text.encodeUtf8 authToken
+        password' = Text.encodeUtf8 authToken'
     manager <- liftIO $ newManager tlsManagerSettings
-    request' <- liftIO $ parseUrl "https://api.twilio.com/"
+    request' <- liftIO $ parseRequest "https://api.twilio.com/"
     let urlPath = BS.intercalate "/" [ ""
                                      , apiVersion
                                      , "Accounts"
@@ -46,13 +46,13 @@ sendMessage account authToken from to msg = do
                , ("To", Text.encodeUtf8 to)
                , ("Body", Text.encodeUtf8 msg)
                ]
-        request = urlEncodedBody body $
+        req = urlEncodedBody body $
                     request'{ path   = urlPath
-                            , requestHeaders = [mkAuth username password
+                            , requestHeaders = [mkAuth username password'
                                                ]
                             , checkStatus = \_status _rhdrs _cookies -> Nothing
                             }
-    mbResponse <- Ex.try $ httpLbs request manager
+    mbResponse <- Ex.try $ httpLbs req manager
     case mbResponse of
       Left (e :: HttpException) -> do
           logError $ "Error while connection to Twilio: " <> showText e
@@ -69,5 +69,5 @@ sendMessage account authToken from to msg = do
   where
     showText :: Show a => a -> Text
     showText = Text.pack . show
-    mkAuth username password  =
-        ("Authorization", "Basic " <> (B64.encode $ username <> ":" <> password))
+    mkAuth username password'  =
+        ("Authorization", "Basic " <> (B64.encode $ username <> ":" <> password'))

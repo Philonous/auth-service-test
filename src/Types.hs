@@ -20,17 +20,11 @@ module Types
   ) where
 
 import           Control.Lens
-import           Control.Monad.Catch
 import           Control.Monad.Reader
-import           Data.ByteString (ByteString)
 import           Data.Default
 import           Data.Text (Text)
-import           Data.UUID (UUID)
-import qualified Data.UUID as UUID
 import           Database.Persist.Sql
 import qualified NejlaCommon as NC
-import           Servant
-import           Web.HttpApiData
 
 import           AuthServiceTypes
 
@@ -83,7 +77,7 @@ data ApiState = ApiState { apiStateConfig :: Config
 
 makeLensesWith camelCaseFields ''ApiState
 
-type API a = NC.App ApiState NC.Privileged NC.ReadCommitted a
+type API a = NC.App ApiState 'NC.Privileged 'NC.ReadCommitted a
 
 -- newtype API a = API { unAPI :: ReaderT ApiState IO a }
 --               deriving ( Functor, Applicative, Monad, MonadIO

@@ -289,7 +289,7 @@ changePassword tok ChangePassword { changePasswordOldPasword = oldPwd
                                   , changePasswordNewPassword = newPwd
                                   } = runExceptT $ do
   mbUser <- lift $ getUserByToken tok
-  (tokenID, usr) <- case mbUser of
+  (_tokenID, usr) <- case mbUser of
     Nothing -> throwError ChangePasswordTokenError
     Just usr -> return usr
   mbError <- lift $ checkUserPassword (DB.userEmail usr) oldPwd

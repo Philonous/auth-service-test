@@ -20,7 +20,6 @@
 module Persist.Schema where
 
 import Control.Lens
-import Data.Aeson
 import Data.Text (Text)
 import Data.Time.Clock
 import Database.Persist.Quasi

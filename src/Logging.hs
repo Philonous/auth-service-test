@@ -13,21 +13,13 @@ module Logging
 
 import           Control.Monad.Logger
 import           Control.Monad.Trans
-import qualified Data.Aeson as Aeson
 import           Data.Aeson.TH
-import qualified Data.HashMap.Strict as HMap
 import           Data.Int
 import           Data.Text (Text)
-import qualified Data.Text as Text
-import           Data.Text.IO as Text
-import           Data.Time.Clock
-import           Database.Persist
 import           Helpers
 import           NejlaCommon
-import           System.IO
+import           NejlaCommon.Helpers
 import           Types
-
-import qualified Persist.Schema as DB
 
 logDebug, logInfo, logWarn, logError :: MonadLogger m => Text -> m ()
 logDebug = logDebugNS "auth-service"
