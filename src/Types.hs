@@ -64,6 +64,7 @@ data Config = Config { configTimeout :: !Integer -- token timeout in seconds
                      , configOTPTimeoutSeconds :: !Integer
                      , configTFARequired :: !Bool
                      , configTwilio :: !(Maybe TwilioConfig)
+                     , configUseTransactionLevels :: !Bool
                      } deriving Show
 
 makeLensesWith camelCaseFields ''Config
@@ -92,4 +93,5 @@ getConfig g = NC.viewState $ config . g
 runAPI :: ConnectionPool -> Config -> API a -> IO a
 runAPI pool conf m =
   let st = ApiState { apiStateConfig = conf }
-  in NC.runApp' def pool st m
+  in NC.runApp' (def & NC.useTransactionLevels .~ (conf ^. useTransactionLevels))
+                 pool st m

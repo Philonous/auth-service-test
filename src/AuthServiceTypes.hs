@@ -52,6 +52,8 @@ newtype UserID = UserID { unUserID :: UUID.UUID }
                  deriving ( Show, Read, Eq, Ord, Typeable, Data
                           )
 
+makePrisms ''UserID
+
 instance ToJSON InstanceID where
     toJSON (InstanceID uid) = toJSON $ UUID.toText uid
 
@@ -64,8 +66,6 @@ instance FromJSON InstanceID where
 
 instance ToByteString InstanceID where
     builder = builder . Text.encodeUtf8 . UUID.toText . unInstanceID
-
-makePrisms ''UserID
 
 instance PathPiece UserID where
     fromPathPiece = fmap UserID . UUID.fromText

@@ -19,7 +19,7 @@ import qualified Persist.Schema as DB
 import           System.Exit
 import           Types
 
-addUser :: [Text] -> API (Maybe ())
+addUser :: [Text] -> API (Maybe UserID)
 addUser args = do
   case args of
    (emailAddr : pwd : name : mbPhone) -> do

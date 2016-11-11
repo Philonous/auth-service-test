@@ -69,7 +69,7 @@ main = runStderrLoggingT . filterLogger (\_source level -> level >= LevelWarn)
               Nothing -> liftIO $ do
                   hPutStrLn stderr "Could not add user"
                   exitFailure
-              Just () -> return ()
+              Just (UserID uid) -> liftIO $ print uid
          ("chpass": args') -> run $ changePassword args'
          ["run"] -> liftIO $ Warp.run 80 (logM $ serveAPI pool conf)
          _ -> liftIO $ do

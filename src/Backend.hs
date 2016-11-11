@@ -54,7 +54,7 @@ hashPassword (Password pwd) = liftIO $
     fmap PasswordHash <$>
       BCrypt.hashPasswordUsingPolicy policy (Text.encodeUtf8 pwd)
 
-createUser :: AddUser -> API (Maybe ())
+createUser :: AddUser -> API (Maybe UserID)
 createUser usr = do
     uid <- UserID <$> liftIO UUID.nextRandom
     mbHash <- hashPassword $ usr ^. password
@@ -69,7 +69,7 @@ createUser usr = do
                             }
        _ <- runDB $ P.insert dbUser
        Log.logES $ Log.UserCreated{ Log.user = usr ^. email}
-       return $ Just ()
+       return $ Just uid
 
 getUserByEmail :: Email -> API (Maybe DB.User)
 getUserByEmail name' = do
@@ -84,6 +84,21 @@ changeUserPassword user' password' = do
          updates <- runDB $ P.updateWhere [DB.UserUuid P.==. user']
                                           [DB.UserPasswordHash P.=. hash]
          return $ Just updates
+
+--------------------------------------------------------------------------------
+-- Instances -------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+addInstance :: Maybe InstanceID -> Text -> API InstanceID
+addInstance mbIid name' = do
+  instanceID <- case mbIid of
+                  Nothing -> liftIO $ InstanceID <$> UUID.nextRandom
+                  Just iid -> return iid
+  _ <- runDB . P.insert $ DB.Instance{ DB.instanceUuid = instanceID
+                                     , DB.instanceName = name'
+                                     }
+  return instanceID
 
 addUserInstance :: UserID -> InstanceID -> API ()
 addUserInstance user' inst = do

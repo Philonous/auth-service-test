@@ -79,4 +79,5 @@ getAuthServiceConfig conf = do
                  , configOTPTimeoutSeconds = otpt
                  , configTFARequired = tfaRequired
                  , configTwilio = twilioConf
+                 , configUseTransactionLevels = True
                  }
