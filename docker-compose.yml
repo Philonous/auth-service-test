@@ -22,7 +22,7 @@ services:
     networks:
       - auth-service
 
-  #One or more application container
+  # One or more application container
   upstream:
     image: nginx:latest
     volumes:
@@ -46,7 +46,6 @@ services:
     networks:
       - auth-service
 
-
   frontend:
     image: nginx:latest
     # s/8000/<desired port>
@@ -61,7 +60,6 @@ services:
       - auth-web
     networks:
       - auth-service
-
 
 networks:
   auth-service:
