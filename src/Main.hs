@@ -60,7 +60,7 @@ main = runStderrLoggingT . filterLogger (\_source level -> level >= LevelWarn)
 
     withPool confFile 5 $ \pool -> do
         let run = liftIO . runAPI pool conf
-        liftIO $ runSqlPool (runMigrationSilent migrateAll) pool
+        _ <- liftIO $ runSqlPool (runMigrationSilent migrateAll) pool
         args <- liftIO getArgs
         case args of
          ("adduser": args') -> do

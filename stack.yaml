@@ -1,5 +1,8 @@
-resolver: lts-6.9
+resolver: lts-8.15
 
 packages:
-  - 'nejla-common'
-  - '.'
+  - location: '.'
+  - location:
+      git: git@git.nejla.com:nejla-ab/common.git
+      commit: 71352bb662a5a8b81285a29dc211aa6ecfa20866
+    extra-dep: true

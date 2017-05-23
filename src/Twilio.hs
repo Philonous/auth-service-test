@@ -50,7 +50,6 @@ sendMessage account' authToken' from to msg = do
                     request'{ path   = urlPath
                             , requestHeaders = [mkAuth username password'
                                                ]
-                            , checkStatus = \_status _rhdrs _cookies -> Nothing
                             }
     mbResponse <- Ex.try $ httpLbs req manager
     case mbResponse of

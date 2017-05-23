@@ -31,6 +31,7 @@ import           AuthServiceTypes
 
 data AuthServiceException
     = AuthServiceHttpException HttpException
+    | AuthServiceResponseException Status ResponseHeaders
     | AuthServiceResponseDecodeException Text
     deriving (Show, Typeable)
 
@@ -42,10 +43,7 @@ instance Ex.Exception AuthServiceException
 
 throwResponse :: Response r -> IO a
 throwResponse response =
-    Ex.throwM . AuthServiceHttpException $
-      StatusCodeException (responseStatus response)
-                          (responseHeaders response)
-                          (responseCookieJar response)
+    Ex.throwM $ AuthServiceResponseException (responseStatus response) (responseHeaders response)
 
 
 decodeJSON :: Aeson.FromJSON a => BSL.ByteString -> IO a
@@ -64,7 +62,7 @@ call' :: ToJSON a =>
 call' meth site urlPath v = do
     let body = maybe "" Aeson.encode v
     manager <- newManager tlsManagerSettings
-    requestUrl <- parseUrl site
+    requestUrl <- parseRequest site
     let contentType = case meth of
                    "POST" | not (BSL.null body) ->
                             [ ("Content-Type", "application/json")]
@@ -74,7 +72,7 @@ call' meth site urlPath v = do
                              , method = meth
                              , requestHeaders =
                                  contentType
-                             , checkStatus = \_status _rhdrs _cookies -> Nothing
+                             -- , checkStatus = \_status _rhdrs _cookies -> Nothing
                              , requestBody = RequestBodyLBS body
                              }
     mbResponse <- Ex.try $ httpLbs request manager
