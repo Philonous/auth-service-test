@@ -69,6 +69,10 @@ createUser usr = do
                             }
        _ <- runDB $ P.insert dbUser
        Log.logES $ Log.UserCreated{ Log.user = usr ^. email}
+       _ <- runDB . P.insertMany $ for (usr ^. instances) $ \iid ->
+           DB.UserInstance { DB.userInstanceUser = uid
+                           , DB.userInstanceInstanceId = iid
+                           }
        return $ Just uid
 
 getUserByEmail :: Email -> API (Maybe DB.User)

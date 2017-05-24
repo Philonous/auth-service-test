@@ -27,6 +27,7 @@ addUser args = do
                          , addUserPassword = Password pwd
                          , addUserName     = Name name
                          , addUserPhone    = Phone <$> listToMaybe mbPhone
+                         , addUserInstances = []
                          }
    _ -> liftIO $ do
        hPutStrLn stderr

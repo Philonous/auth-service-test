@@ -70,6 +70,7 @@ testUser = AddUser { addUserEmail = Email "no@spam.please"
                    , addUserPassword = Password "pwd"
                    , addUserName = "Jon Doe"
                    , addUserPhone = Nothing
+                   , addUserInstances = []
                    }
 
 withUser :: AddUser -> (UserID -> (forall a. API a -> IO a) -> IO ()) -> IO ()

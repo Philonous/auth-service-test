@@ -142,13 +142,17 @@ newtype B64Token = B64Token { unB64Token :: Text }
                             )
 
 makePrisms ''B64Token
-
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "unB64"} ''B64Token
+
+--------------------------------------------------------------------------------
+-- User ------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 data AddUser = AddUser { addUserEmail     :: !Email
                        , addUserPassword  :: !Password
                        , addUserName      :: !Name
                        , addUserPhone     :: !(Maybe Phone)
+                       , addUserInstances :: ![InstanceID]
                        } deriving (Show)
 
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "addUser"} ''AddUser
