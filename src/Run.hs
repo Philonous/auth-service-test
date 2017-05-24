@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Main where
+module Run where
 
 import           Control.Lens
 import           Control.Monad.Logger
@@ -48,8 +48,8 @@ logMiddleware app req respond = do
       respond res
     fromBS = Text.unpack . Text.decodeUtf8With Text.lenientDecode
 
-main :: IO ()
-main = runStderrLoggingT . filterLogger (\_source level -> level >= LevelWarn)
+runMain :: IO ()
+runMain = runStderrLoggingT . filterLogger (\_source level -> level >= LevelWarn)
        $ do
     confFile <- loadConf "auth_service"
     conf <- getAuthServiceConfig confFile
