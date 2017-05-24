@@ -44,8 +44,6 @@ library
                    , bytestring-conversion >= 0.3
                    , configurator
                    , data-default
-                   , either
-                   , entropy >= 0.3
                    , esqueleto
                    , exceptions >= 0.8
                    , http-api-data >= 0.2
@@ -60,69 +58,35 @@ library
                    , persistent-postgresql >= 2.2
                    , persistent-template >= 2.1
                    , random >= 1.1
-                   , servant >= 0.6
                    , servant-server >= 0.4.4
                    , text
                    , time >= 1.5
-                   , transformers >= 0.4
-                   , unordered-containers
                    , uuid >= 1.3
                    , wai >= 3.0
                    , warp
   default-language: Haskell2010
 
-test-suite tests
+test-suite unit-tests
   type:              exitcode-stdio-1.0
   hs-source-dirs:    test
   main-is:           Test.hs
-  other-modules:     Test.Api
+  other-modules:     Test.Common
   build-depends:     base
-                   , HUnit
                    , QuickCheck
-                   , aeson
                    , auth-service
-                   , base64-bytestring >= 1.0
-                   , bcrypt
-                   , bytestring
-                   , bytestring-conversion >= 0.3
-                   , configurator
-                   , data-default
-                   , either
-                   , entropy >= 0.3
-                   , esqueleto
                    , exceptions >= 0.8
-                   , hspec
                    , hspec-expectations
-                   , hspec-wai
-                   , hspec-wai-json
-                   , http-api-data >= 0.2
-                   , http-conduit >= 2.1
-                   , http-types >= 0.9
                    , lens
                    , monad-logger >= 0.3
                    , mtl >= 2.2
-                   , nejla-common
-                   , path-pieces
-                   , persistent >= 2.2
-                   , persistent-postgresql >= 2.2
                    , persistent-sqlite
-                   , persistent-template >= 2.1
-                   , random >= 1.1
                    , resource-pool
-                   , servant
-                   , servant >= 0.6
-                   , servant-server
-                   , tasty
                    , tasty-hunit
                    , tasty-quickcheck
                    , tasty-th
                    , text
-                   , time >= 1.5
-                   , transformers >= 0.4
-                   , unordered-containers
-                   , uuid >= 1.3
-                   , wai >= 3.0
-                   , warp
-                   , wreq
+  ghc-options:       -Wall
+  default-language: Haskell2010
+
   ghc-options:       -Wall
   default-language: Haskell2010
