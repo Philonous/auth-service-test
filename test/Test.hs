@@ -11,13 +11,9 @@ module Main where
 
 import           Control.Lens
 import qualified Control.Monad.Catch     as Ex
-import           Control.Monad.Logger
-import           Control.Monad.Trans
 import           Data.Data
 import           Data.Monoid
-import           Data.Pool
 import qualified Data.Text               as Text
-import           Database.Persist.Sqlite as SQLite
 import           Prelude                 hiding (id)
 import qualified Test.QuickCheck.Monadic as QC
 
@@ -30,26 +26,7 @@ import           Backend
 import qualified Persist.Schema          as DB
 import           Types
 
-withMemoryPool :: (Pool SqlBackend -> IO a) -> IO a
-withMemoryPool f = runNoLoggingT . withSqliteConn ":memory:" $ \con -> liftIO $ do
-  pool <- createPool (return con) (\_ -> return ()) 1 3600 1
-  f pool
-
-withRunAPI :: ((forall a. API a -> IO a) -> IO b) -> IO b
-withRunAPI f = withMemoryPool $ \pool -> do
-  let conf = Config { configTimeout           = 10
-                    , configOTPLength         = 6
-                    , configOTPTimeoutSeconds = 10
-                    , configTFARequired       = False
-                    , configTwilio            = Nothing
-                    , configUseTransactionLevels = False
-                    }
-  liftIO $ do
-    _ <- runSqlPool (runMigrationSilent DB.migrateAll) pool
-    f $ runAPI pool conf
-
-testApi :: API a -> IO a
-testApi f = withRunAPI $ \run -> run f
+import           Test.Common
 
 data AssertionFailed = AssertionFailed String deriving (Typeable)
 
