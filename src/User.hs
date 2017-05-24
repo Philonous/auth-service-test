@@ -5,10 +5,7 @@
 
 module User where
 
-import           Control.Applicative
-import           Control.Monad
 import           Control.Monad.Trans
-import qualified Data.List as List
 import           Data.Maybe
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -22,10 +19,10 @@ import           Types
 addUser :: [Text] -> API (Maybe UserID)
 addUser args = do
   case args of
-   (emailAddr : pwd : name : mbPhone) -> do
+   (emailAddr : pwd : name' : mbPhone) -> do
        createUser AddUser{ addUserEmail    = Email emailAddr
                          , addUserPassword = Password pwd
-                         , addUserName     = Name name
+                         , addUserName     = Name name'
                          , addUserPhone    = Phone <$> listToMaybe mbPhone
                          , addUserInstances = []
                          }
@@ -35,21 +32,21 @@ addUser args = do
        exitFailure
 
 
-getUser :: Email -> API DB.User
-getUser userEmail = do
+fetchUser :: Email -> API DB.User
+fetchUser userEmail = do
   mbUser <- getUserByEmail userEmail
   case mbUser of
    Nothing -> do
      liftIO $ hPutStrLn stderr "User not found"
      liftIO exitFailure
-   Just user -> return user
+   Just usr -> return usr
 
 changePassword :: [String] -> API ()
 changePassword args = do
   case Text.pack <$> args of
    [userEmail, pwd] -> do
-     user <- getUser (Email userEmail)
-     res <- changeUserPassword (DB.userUuid user) (Password pwd)
+     usr <- fetchUser (Email userEmail)
+     res <- changeUserPassword (DB.userUuid usr) (Password pwd)
      case res of
       Nothing -> liftIO $ do
           hPutStrLn stderr "chpass: Could not create password hash"
