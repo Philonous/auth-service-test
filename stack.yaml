@@ -4,5 +4,5 @@ packages:
   - location: '.'
   - location:
       git: git@git.nejla.com:nejla-ab/common.git
-      commit: 71352bb662a5a8b81285a29dc211aa6ecfa20866
+      commit: 738cdfd4ac677e01a20bb686c74f74352d3a17d5
     extra-dep: true

@@ -88,5 +88,27 @@ test-suite unit-tests
   ghc-options:       -Wall
   default-language: Haskell2010
 
+test-suite api-tests
+  type:              exitcode-stdio-1.0
+  hs-source-dirs:    test
+  main-is:           Api.hs
+  other-modules:     Test.Common
+  build-depends:     base
+                   , QuickCheck
+                   , auth-service
+                   , exceptions >= 0.8
+                   , hspec
+                   , hspec-expectations
+                   , hspec-wai
+                   , hspec-wai-json
+                   , lens
+                   , monad-logger >= 0.3
+                   , mtl >= 2.2
+                   , persistent-sqlite
+                   , resource-pool
+                   , text
+                   , uuid
+                   , wai
+                   , wai-extra
   ghc-options:       -Wall
   default-language: Haskell2010

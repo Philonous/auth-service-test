@@ -16,8 +16,8 @@ withMemoryPool f = runNoLoggingT . withSqliteConn ":memory:" $ \con -> liftIO $ 
   pool <- createPool (return con) (\_ -> return ()) 1 3600 1
   f pool
 
-withRunAPI :: ((forall a. API a -> IO a) -> IO b) -> IO b
-withRunAPI f = withMemoryPool $ \pool -> do
+withApiData :: (Pool SqlBackend -> Config -> IO a) -> IO a
+withApiData f = withMemoryPool $ \pool -> do
   let conf = Config { configTimeout           = 10
                     , configOTPLength         = 6
                     , configOTPTimeoutSeconds = 10
@@ -27,7 +27,10 @@ withRunAPI f = withMemoryPool $ \pool -> do
                     }
   liftIO $ do
     _ <- runSqlPool (runMigrationSilent DB.migrateAll) pool
-    f $ runAPI pool conf
+    f pool conf
+
+withRunAPI :: ((forall a. API a -> IO a) -> IO b) -> IO b
+withRunAPI f = withApiData $ \pool conf -> f $  runAPI pool conf
 
 testApi :: API a -> IO a
 testApi f = withRunAPI $ \run -> run f

@@ -136,6 +136,33 @@ serveGetUserInfoAPI pool conf tok =  do
    Nothing -> throwError err403
    Just rui -> return rui
 
+--------------------------------------------------------------------------------
+-- Admin interface -------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+type CreateUserAPI = "users" :> ReqBody '[JSON] AddUser :> Post '[JSON] ReturnUser
+
+serveCreateUserAPI :: ConnectionPool -> Config -> Server CreateUserAPI
+serveCreateUserAPI pool conf addUser = do
+  res <- lift . runAPI pool conf  $createUser addUser
+  case res of
+    Nothing -> throwError err500
+    Just uid -> return $ ReturnUser uid
+
+type AdminAPI = "admin" :> CreateUserAPI
+
+adminAPIPrx :: Proxy AdminAPI
+adminAPIPrx = Proxy
+
+serveAdminAPI :: ConnectionPool
+              -> Config
+              -> Server CreateUserAPI
+serveAdminAPI pool conf = serveCreateUserAPI pool conf
+
+--------------------------------------------------------------------------------
+-- Interface -------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
 apiPrx :: Proxy (    LoginAPI
                 :<|> CheckTokenAPI
                 :<|> PublicCheckTokenAPI
@@ -144,6 +171,7 @@ apiPrx :: Proxy (    LoginAPI
                 :<|> ChangePasswordAPI
                 :<|> GetUserInstancesAPI
                 :<|> GetUserInfoAPI
+                :<|> AdminAPI
                 )
 apiPrx = Proxy
 
@@ -156,3 +184,4 @@ serveAPI pool conf = serve apiPrx $ serveLogin pool conf
                                :<|> serveChangePassword pool conf
                                :<|> serveGetUserInstancesAPI pool conf
                                :<|> serveGetUserInfoAPI pool conf
+                               :<|> serveAdminAPI pool conf
