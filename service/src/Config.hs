@@ -13,24 +13,13 @@ module Config
 
 import           Control.Monad.Logger
 import           Control.Monad.Trans
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
-import           Data.Char
-import qualified Data.Configurator as Conf
 import qualified Data.Configurator.Types as Conf
-import           Data.Maybe (catMaybes)
-import           Data.Monoid
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import           System.Environment
 import qualified System.Exit as Exit
 
-import           Helpers
 import           Types
 
 import           NejlaCommon.Config hiding (Config)
-import qualified NejlaCommon.Config as Conf
+
 --------------------------------------------------------------------------------
 -- Configuration ---------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -44,15 +33,18 @@ getTwilioConfig conf = do
     mbSourceNumber <- getConfMaybe "TWILIO_SOURCE" "twilio.source" conf
     case (mbAccount, mbAuthToken, mbSourceNumber) of
         (Nothing, Nothing, Nothing) -> return Nothing
-        (Just account, Just authToken, Just sourceNumber) ->
-            return $ Just TwilioConfig { twilioConfigAccount = account
-                                       , twilioConfigAuthToken = authToken
-                                       , twilioConfigSourceNumber = sourceNumber
+        (Just acc, Just authT, Just sourceNo) ->
+            return $ Just TwilioConfig { twilioConfigAccount = acc
+                                       , twilioConfigAuthToken = authT
+                                       , twilioConfigSourceNumber = sourceNo
                                        }
         _ -> do
             $logError "Twilio config is incomplete"
             liftIO Exit.exitFailure
 
+get2FAConf :: (MonadLogger m, MonadIO m) =>
+              Conf.Config
+           -> m (Bool, Maybe TwilioConfig)
 get2FAConf conf = do
      tfaRequired <- getConfBool "TFA_REQUIRED" "tfa.required" (Right False) conf
      twilioConf <- getTwilioConfig conf
@@ -67,14 +59,14 @@ getAuthServiceConfig :: (MonadIO m, MonadLogger m) =>
                         Conf.Config
                      -> m Config
 getAuthServiceConfig conf = do
-    timeout <- getConf' "TOKEN_TIMEOUT" "token.timeout"
+    to <- getConf' "TOKEN_TIMEOUT" "token.timeout"
                  (Right 3600) {- 1 hour -} conf
     otpl <- getConf' "OTP_LENGTH" "otp.length"
                  (Right 4) conf
     otpt <- getConf' "OTP_TIMEOUT" "otp.timeout"
                  (Right 300) conf
     (tfaRequired, twilioConf) <- get2FAConf conf
-    return Config{ configTimeout = timeout
+    return Config{ configTimeout = to
                  , configOTPLength = otpl
                  , configOTPTimeoutSeconds = otpt
                  , configTFARequired = tfaRequired

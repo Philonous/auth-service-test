@@ -20,10 +20,8 @@ import           Types
 
 import           Logging
 
+import AuthService.Api
 
-type LoginAPI = "login"
-              :> ReqBody '[JSON] Login
-              :> Post '[JSON] (Headers '[Header "X-Token" B64Token] ReturnLogin)
 
 -- Will be transformed into X-Token header and token cookie by the nginx
 serveLogin :: ConnectionPool -> Config -> Server LoginAPI
@@ -42,9 +40,6 @@ serveLogin pool conf loginReq = loginHandler
                                   }
          Left _e -> throwError err403
 
-type LogoutAPI = "logout"
-               :> Capture "token" B64Token
-               :> Post '[JSON] ()
 
 serveLogout :: ConnectionPool -> Config -> Server LogoutAPI
 serveLogout pool conf tok = logoutHandler
@@ -52,20 +47,12 @@ serveLogout pool conf tok = logoutHandler
     logoutHandler = do
         lift . runAPI pool conf $ logOut tok
 
-type DisableSessionsAPI = "disable-sessions"
-                       :> Capture "token" B64Token
-                       :> Post '[JSON] ()
-
 serverDisableSessions :: ConnectionPool -> Config -> Server DisableSessionsAPI
 serverDisableSessions pool conf tok = disableSessionsHandler
   where
     disableSessionsHandler = do
       lift . runAPI pool conf $ closeOtherSessions tok
 
-type ChangePasswordAPI = "change-password"
-                       :> Capture "token" B64Token
-                       :> ReqBody '[JSON] ChangePassword
-                       :> Post '[JSON] ()
 
 serveChangePassword :: ConnectionPool -> Config -> Server ChangePasswordAPI
 serveChangePassword pool conf tok chpass = chPassHandler
@@ -77,12 +64,6 @@ serveChangePassword pool conf tok chpass = chPassHandler
        Left (ChangePasswordLoginError{}) -> throwError err403
        Left (ChangePasswordHashError{}) -> throwError err500
        Left (ChangePasswordTokenError{}) -> throwError err403
-
-type CheckTokenAPI = "check-token"
-                  :> Capture "token" B64Token
-                  :> Capture "instance" InstanceID
-                  :> Header "X-Original-URI" Text
-                  :> Get '[JSON] (Headers '[Header "X-User" UserID] ReturnUser)
 
 serveCheckToken :: ConnectionPool -> Config -> Server CheckTokenAPI
 serveCheckToken pool conf tok inst req = checkTokenHandler
@@ -96,10 +77,6 @@ serveCheckToken pool conf tok inst req = checkTokenHandler
          Nothing -> throwError err403
          Just usr -> return $ (addHeader usr $ ReturnUser usr)
 
-type PublicCheckTokenAPI = "check-token"
-                        :> Capture "token" B64Token
-                        :> Get '[JSON] ()
-
 servePublicCheckToken :: ConnectionPool -> Config -> Server PublicCheckTokenAPI
 servePublicCheckToken pool conf tok = checkTokenHandler
   where
@@ -112,20 +89,11 @@ servePublicCheckToken pool conf tok = checkTokenHandler
          Just _usr -> return ()
 
 
-type GetUserInstancesAPI = "user-instances"
-                         :> Capture "user" UserID
-                         :> Get '[JSON] [ReturnInstance]
-
 serveGetUserInstancesAPI :: ConnectionPool
                          -> Config
                          -> Server GetUserInstancesAPI
 serveGetUserInstancesAPI pool conf usr =
   lift . runAPI pool conf $ getUserInstances usr
-
-
-type GetUserInfoAPI = "user-info-by-token"
-                    :> Capture "token" B64Token
-                    :> Get '[JSON] ReturnUserInfo
 
 serveGetUserInfoAPI :: ConnectionPool
                     -> Config
@@ -140,16 +108,12 @@ serveGetUserInfoAPI pool conf tok =  do
 -- Admin interface -------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-type CreateUserAPI = "users" :> ReqBody '[JSON] AddUser :> Post '[JSON] ReturnUser
-
 serveCreateUserAPI :: ConnectionPool -> Config -> Server CreateUserAPI
 serveCreateUserAPI pool conf addUser = do
   res <- lift . runAPI pool conf  $createUser addUser
   case res of
     Nothing -> throwError err500
     Just uid -> return $ ReturnUser uid
-
-type AdminAPI = "admin" :> CreateUserAPI
 
 adminAPIPrx :: Proxy AdminAPI
 adminAPIPrx = Proxy
@@ -163,16 +127,7 @@ serveAdminAPI pool conf = serveCreateUserAPI pool conf
 -- Interface -------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-apiPrx :: Proxy (    LoginAPI
-                :<|> CheckTokenAPI
-                :<|> PublicCheckTokenAPI
-                :<|> LogoutAPI
-                :<|> DisableSessionsAPI
-                :<|> ChangePasswordAPI
-                :<|> GetUserInstancesAPI
-                :<|> GetUserInfoAPI
-                :<|> AdminAPI
-                )
+apiPrx :: Proxy Api
 apiPrx = Proxy
 
 serveAPI :: ConnectionPool -> Config -> Application

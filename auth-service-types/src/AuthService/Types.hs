@@ -10,7 +10,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RankNTypes #-}
 
-module AuthServiceTypes where
+module AuthService.Types where
 
 import           Control.Lens
 import           Data.Aeson

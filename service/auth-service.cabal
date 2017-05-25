@@ -25,7 +25,6 @@ library
   ghc-options:       -Wall -O2
   exposed-modules:   Api
                    , AuthService
-                   , AuthServiceTypes
                    , Backend
                    , Config
                    , Logging
@@ -35,8 +34,8 @@ library
                    , Twilio
                    , Types
                    , User
-  other-modules:     Helpers
   build-depends:     base >= 4 && < 5
+                   , auth-service-types
                    , aeson
                    , base64-bytestring >= 1.0
                    , bcrypt

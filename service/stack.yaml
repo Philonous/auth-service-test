@@ -2,6 +2,8 @@ resolver: lts-8.15
 
 packages:
   - location: '.'
+  - location: '../auth-service-types'
+    extra-dep: true
   - location:
       git: git@git.nejla.com:nejla-ab/common.git
       commit: 738cdfd4ac677e01a20bb686c74f74352d3a17d5

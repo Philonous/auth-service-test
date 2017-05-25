@@ -11,15 +11,15 @@ module Logging
   ( module Logging
   ) where
 
-import           Control.Monad.Logger
-import           Control.Monad.Trans
-import           Data.Aeson.TH
-import           Data.Int
-import           Data.Text (Text)
-import           Helpers
-import           NejlaCommon
-import           NejlaCommon.Helpers
-import           Types
+import Control.Monad.Logger
+import Control.Monad.Trans
+import Data.Aeson.TH
+import Data.Int
+import Data.Text            (Text)
+import NejlaCommon
+import NejlaCommon.Helpers
+
+import Types
 
 logDebug, logInfo, logWarn, logError :: MonadLogger m => Text -> m ()
 logDebug = logDebugNS "auth-service"
@@ -92,9 +92,10 @@ instance IsLogEvent Event where
     eventDetails "password_changed" v
 
 deriveJSON (defaultOptions{constructorTagModifier =
-                              cctu "_" . dropPrefix "AuthFailedReason"
+                              cctu "_" . downcase . withoutPrefix "AuthFailedReason"
                           }
            ) ''AuthFailedReason
+
 
 deriveJSON defaultOptions{ sumEncoding = TaggedObject "type" "contents"
                          , constructorTagModifier =

@@ -15,7 +15,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Types
-  ( module AuthServiceTypes
+  ( module AuthService.Types
   , module Types
   ) where
 
@@ -26,7 +26,7 @@ import           Data.Text (Text)
 import           Database.Persist.Sql
 import qualified NejlaCommon as NC
 
-import           AuthServiceTypes
+import           AuthService.Types
 
 --------------------------------------------------------------------------------
 -- Error -----------------------------------------------------------------------

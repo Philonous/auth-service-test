@@ -27,7 +27,7 @@ import           Network.HTTP.Conduit
 import           Network.HTTP.Types
 import           Web.PathPieces
 
-import           AuthServiceTypes
+import           AuthService.Types
 
 data AuthServiceException
     = AuthServiceHttpException HttpException

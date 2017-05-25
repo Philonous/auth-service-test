@@ -7,7 +7,7 @@ services:
       - auth-service
 
   auth-service:
-    build: .
+    build: service
     links:
       - database
     environment:
