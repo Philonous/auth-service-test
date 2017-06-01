@@ -50,6 +50,6 @@ RUN cd /opt/auth-service && \
 
 ENV PATH /root/.local/bin:$PATH
 
-COPY run.sh /run.sh
+COPY docker/add/run.sh /run.sh
 
 CMD ["sh", "/run.sh"]

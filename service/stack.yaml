@@ -8,3 +8,10 @@ packages:
       git: git@git.nejla.com:nejla-ab/common.git
       commit: 738cdfd4ac677e01a20bb686c74f74352d3a17d5
     extra-dep: true
+
+image:
+  container:
+    name: "auth-service"
+    base: "auth-service-baseimage"
+    add:
+      docker/add: /app

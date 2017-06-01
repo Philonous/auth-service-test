@@ -15,6 +15,7 @@ fi
 # You need to have jq in path
 
 AUTHSERVICE_CONTAINER=authservice_auth-service_1
+DB_CONTAINER=authservice_database_1
 DB_HOST=database
 DB_USER=postgres
 DB_DATABASE=postgres
@@ -44,7 +45,7 @@ authservice () {
 
 db () {
     docker exec \
-           -i $AUTHSERVICE_CONTAINER psql \
+           -i $DB_CONTAINER psql \
            -h $DB_HOST \
            -U $DB_USER \
            $DB_DATABASE $@
@@ -396,10 +397,9 @@ docker_test() {
 
 docker_rebuild() {
     set -e
-    docker-compose stop
-    docker-compose rm -f
-    docker-compose build
-    docker-compose up
+    cd ..
+    make down
+    make run
 }
 
 case $1 in

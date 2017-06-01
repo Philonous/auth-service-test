@@ -7,7 +7,7 @@ services:
       - auth-service
 
   auth-service:
-    build: service
+    image: registry.nejla.com/nejla-ab/auth-service
     links:
       - database
     environment:
@@ -15,14 +15,15 @@ services:
       - TWILIO_ACCOUNT=AC7d2148c9391bf9133843462b8cd6f271
       - TWILIO_TOKEN=bad524c865476855c0c66830617e9e27
       - TWILIO_SOURCE=+15005550006
-    logging:
-      driver: gelf
-      options:
-        gelf-address: udp://localhost:12201
+    # logging:
+    #   driver: gelf
+    #   options:
+    #     gelf-address: udp://localhost:12201
     networks:
       - auth-service
+    command: /app/run.sh
 
-  # One or more application container
+  # One or more application container`
   upstream:
     image: nginx:latest
     volumes:
