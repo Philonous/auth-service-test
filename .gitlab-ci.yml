@@ -21,5 +21,10 @@ build:
 
 push:
   stage: push
+  before_script:
+    - [[ -n $CI_REGISTRY_NAME ]] || fail "CI_REGISTRY_NAME is undefined"
+    - [[ -n $CI_BUILD_TOKEN ]] || fail "CI_BUILD_TOKE is undefined"
+    - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY_IMAGE
+
   script:
     - make push
