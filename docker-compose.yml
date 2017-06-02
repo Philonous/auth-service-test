@@ -35,8 +35,6 @@ services:
 
   auth-web:
     build: web
-    volumes:
-      - ./frontend/auth.html:/www/auth.html
     links:
       - auth-service
       # Link upstream containers to their instance IDs
@@ -46,6 +44,10 @@ services:
       - COOKIE=permanent
     networks:
       - auth-service
+    # This volume is NOT necessary, it is only to make the tests go through. The
+    # actual auth.html is backed into the image
+    volumes:
+      - ./frontend/auth.html:/www/auth.html
 
   frontend:
     image: nginx:latest

@@ -10,7 +10,6 @@ WEB_IMAGE=$(REGISTRY)/$(WEB_IMAGE_NAME)
 
 all: service-container auth-web-container
 
-.PHONY: build
 build:
 	cd service &&\
 	stack build --install-ghc
@@ -25,7 +24,7 @@ auth-web-container:
 	docker build -t $(WEB_IMAGE) web
 	docker tag $(WEB_IMAGE):latest $(WEB_IMAGE):$(TAG)
 
-.PHONY: run
+
 run: all
 	docker-compose up
 
@@ -37,3 +36,9 @@ down:
 
 stack-deployimage:
 	scripts/docker-build docker/stack-deployimage
+
+push:
+	docker push $(WEB_IMAGE):$(TAG)
+	docker push $(SERVICE_IMAGE):$(TAG)
+
+.PHONY: all build run up down push stack-deployimage service-container auth-web-container
