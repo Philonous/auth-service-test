@@ -22,6 +22,7 @@ service-container: build stack-deployimage
 
 auth-web-container:
 	docker build -t $(WEB_IMAGE) web
+	docker tag $(WEB_IMAGE):latest $(WEB_IMAGE):latest
 	docker tag $(WEB_IMAGE):latest $(WEB_IMAGE):$(TAG)
 
 
@@ -39,6 +40,8 @@ stack-deployimage:
 
 push:
 	docker push $(WEB_IMAGE):$(TAG)
+	docker push $(WEB_IMAGE):latest
 	docker push $(SERVICE_IMAGE):$(TAG)
+	docker push $(SERVICE_IMAGE):latest
 
 .PHONY: all build run up down push stack-deployimage service-container auth-web-container
