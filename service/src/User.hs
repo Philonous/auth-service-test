@@ -20,7 +20,8 @@ addUser :: [Text] -> API (Maybe UserID)
 addUser args = do
   case args of
    (emailAddr : pwd : name' : mbPhone) -> do
-       createUser AddUser{ addUserEmail    = Email emailAddr
+       createUser AddUser{ addUserUuid     = Nothing
+                         , addUserEmail    = Email emailAddr
                          , addUserPassword = Password pwd
                          , addUserName     = Name name'
                          , addUserPhone    = Phone <$> listToMaybe mbPhone

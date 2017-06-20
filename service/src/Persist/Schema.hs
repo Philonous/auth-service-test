@@ -17,7 +17,10 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Persist.Schema where
+module Persist.Schema
+  ( module Persist.Schema
+  , uuid
+  ) where
 
 import Control.Lens
 import Data.Text (Text)

@@ -14,16 +14,18 @@ module AuthService.Types where
 
 import           Control.Lens
 import           Data.Aeson
+import           Data.Aeson.Types
 import           Data.Aeson.TH
-import           Data.ByteString (ByteString)
+import           Data.ByteString            (ByteString)
 import           Data.ByteString.Conversion
 import           Data.Data
 import           Data.Monoid
 import           Data.String
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.UUID as UUID
+import           Data.Text                  (Text)
+import qualified Data.Text                  as Text
+import qualified Data.Text.Encoding         as Text
+import           Data.UUID                  (UUID)
+import qualified Data.UUID                  as UUID
 import           Web.HttpApiData
 import           Web.PathPieces
 
@@ -147,8 +149,15 @@ deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "unB64"} ''B64Token
 --------------------------------------------------------------------------------
 -- User ------------------------------------------------------------------------
 --------------------------------------------------------------------------------
+instance FromJSON UUID.UUID where
+    parseJSON = withText "UUID" $
+        maybe (fail "Invalid UUID") pure . UUID.fromText
 
-data AddUser = AddUser { addUserEmail     :: !Email
+instance ToJSON UUID.UUID where
+    toJSON = toJSON . UUID.toText
+
+data AddUser = AddUser { addUserUuid      :: !(Maybe UUID)
+                       , addUserEmail     :: !Email
                        , addUserPassword  :: !Password
                        , addUserName      :: !Name
                        , addUserPhone     :: !(Maybe Phone)

@@ -12,7 +12,6 @@ import           Backend
 import           Control.Monad.Except
 import           Data.Maybe (fromMaybe)
 import           Data.Monoid
-import           Data.Text (Text)
 import           Database.Persist.Sql
 import           Network.Wai
 import           Servant
@@ -110,7 +109,7 @@ serveGetUserInfoAPI pool conf tok =  do
 
 serveCreateUserAPI :: ConnectionPool -> Config -> Server CreateUserAPI
 serveCreateUserAPI pool conf addUser = do
-  res <- lift . runAPI pool conf  $createUser addUser
+  res <- lift . runAPI pool conf $ createUser addUser
   case res of
     Nothing -> throwError err500
     Just uid -> return $ ReturnUser uid
