@@ -56,9 +56,9 @@ hashPassword (Password pwd) = liftIO $
 
 createUser :: AddUser -> API (Maybe UserID)
 createUser usr = do
-    uid <- UserID <$> case usr ^. uuid of
-                        Nothing -> liftIO UUID.nextRandom
-                        Just u -> return u
+    uid <- case usr ^. uuid of
+             Nothing -> UserID <$> liftIO UUID.nextRandom
+             Just u -> return u
     mbHash <- hashPassword $ usr ^. password
     case mbHash of
      Nothing -> return Nothing

@@ -149,14 +149,8 @@ deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "unB64"} ''B64Token
 --------------------------------------------------------------------------------
 -- User ------------------------------------------------------------------------
 --------------------------------------------------------------------------------
-instance FromJSON UUID.UUID where
-    parseJSON = withText "UUID" $
-        maybe (fail "Invalid UUID") pure . UUID.fromText
 
-instance ToJSON UUID.UUID where
-    toJSON = toJSON . UUID.toText
-
-data AddUser = AddUser { addUserUuid      :: !(Maybe UUID)
+data AddUser = AddUser { addUserUuid      :: !(Maybe UserID)
                        , addUserEmail     :: !Email
                        , addUserPassword  :: !Password
                        , addUserName      :: !Name
