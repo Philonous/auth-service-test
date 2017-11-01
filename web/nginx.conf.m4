@@ -127,7 +127,7 @@ http {
 
         # Locations to redirect /auth.html
 
-        location = /auth.html {
+        location = /authentication/index.html {
             # Serve auth.html instead of a 404 page when auth fails
             error_page 403 =200 /authenticatehtml;
             auth_request /auth;
@@ -141,6 +141,12 @@ http {
             # Can use alias to serve a static file instead (will work correctly)
             # alias /www/skip.html;
         }
+
+        location /authentication/ {
+            root /www/ ;
+            index index.html;
+        }
+
         # Auxiliary location to redirect to / in case of success
         location @toroot {
             return 303 /;
@@ -150,7 +156,7 @@ http {
             internal;
             add_header Content-Type text/html;
             expires -1;
-            alias /www/auth.html;
+            alias /www/authentication/index.html;
         }
 
 

@@ -40,7 +40,7 @@ fail () {
 }
 
 authservice () {
-   docker exec $AUTHSERVICE_CONTAINER auth-service $@
+   docker exec $AUTHSERVICE_CONTAINER auth-service "$@"
 }
 
 db () {
@@ -48,7 +48,7 @@ db () {
            -i $DB_CONTAINER psql \
            -h $DB_HOST \
            -U $DB_USER \
-           $DB_DATABASE $@
+           $DB_DATABASE "$@"
 }
 
 run_db () {
@@ -56,7 +56,7 @@ run_db () {
            -it $AUTHSERVICE_CONTAINER psql \
            -h $DB_HOST \
            -U $DB_USER \
-           $DB_DATABASE $@
+           $DB_DATABASE "$@"
 }
 
 
@@ -152,7 +152,7 @@ call() {
     shift
     RES=$($CURL -XPOST \
                 -o /dev/null \
-                -w %{http_code} \
+                -w "%{http_code}" \
                 -H "X-Instance: $INSTANCE" \
                 -H "X-Token: $TOKEN" \
                 "$@" \
@@ -188,8 +188,8 @@ runtest() {
        echo "Could not login"
        exit 1
     fi
-    RES=$($CURL http://$HOST/check-token/$INSTANCE/$TOKEN)
-    echo $RES
+    RES=$($CURL "http://$HOST/check-token/$INSTANCE/$TOKEN")
+    echo "$RES"
 }
 
 docker_test() {
@@ -198,7 +198,7 @@ docker_test() {
     login || fail "could not log in"
     testing "Checking token"
     RES=$($CURL -o /dev/null \
-                --write-out %{http_code}\
+                --write-out "%{http_code}"\
                 -H "X-Token: $TOKEN" \
                 http://$API/check-token)
     [[ $RES == "200" ]] || fail "Could not verify token got $RES"
@@ -211,14 +211,14 @@ docker_test() {
 
     testing "Trying to reach upstream resource without token"
     RES=$($CURL -o /dev/null \
-                -w %{http_code} \
+                -w "%{http_code}" \
                 -H "X-Instance: $INSTANCE" \
                 http://$API/index.htm)
     [[ $RES == "403" ]] || fail "Did not get authorization denied, instead got $RES"
 
     testing "Trying to reach upstream resource with bogus token"
     RES=$($CURL -o /dev/null \
-                -w %{http_code} \
+                -w "%{http_code}" \
                 -H "X-Instance: $INSTANCE" \
                 -H "X-Token: bogus$TOKEN" \
                 http://$API/index.htm)
@@ -228,16 +228,16 @@ docker_test() {
     RES=$($CURL http://$WEB_HOST/ )
     [[ $RES == "Authenticate!" ]]  || fail "Did not get redirect , instead got $RES"
 
-    testing "Trying /auth.html"
-    RES=$($CURL http://$WEB_HOST/auth.html)
+    testing "Trying /auth/index.html"
+    RES=$($CURL http://$WEB_HOST/auth/index.html)
     [[ $RES == "Authenticate!" ]] || fail "Did not get auth.html, instead got $RES"
 
-    testing "Trying /auth.html with token"
+    testing "Trying /auth/index.html with token"
     RES=$($CURL -o /dev/null \
-                -w %{http_code} \
+                -w "%{http_code}" \
                 -H "X-Instance: $INSTANCE" \
                 --cookie "token=$TOKEN" \
-                http://$WEB_HOST/auth.html)
+                http://$WEB_HOST/auth/index.html)
     [[ $RES == "303" ]] || fail "Did not get redirect, instead got $RES"
 
     testing "Trying to get user info"
@@ -264,7 +264,7 @@ docker_test() {
                 -H "X-Instance: $INSTANCE" \
                 -H "If-Modified-Since: $LASTMOD" \
                 -o /dev/null \
-                -w %{http_code} \
+                -w "%{http_code}" \
                 http://$WEB_HOST/index.html
        )
     [[ $RES == "304" ]] || fail "If-Modified-Since did not result in 304, got $RES instead"
@@ -274,7 +274,7 @@ docker_test() {
                 -H "X-Instance: $INSTANCE" \
                 -H "If-None-Match: $ETAG" \
                 -o /dev/null \
-                -w %{http_code} \
+                -w "%{http_code}" \
                 http://$WEB_HOST/index.html
        )
     [[ $RES == "304" ]] || fail "If-None-Match did not result in 304, got $RES instead"
@@ -284,7 +284,7 @@ docker_test() {
                 -H "X-Instance: $INSTANCE" \
                 -H "If-None-Match: \"bogus\"" \
                 -o /dev/null \
-                -w %{http_code} \
+                -w "%{http_code}" \
                 http://$WEB_HOST/index.html
        )
     [[ $RES == "200" ]] || fail "If-None-Match did not result in 304, got $RES instead"
@@ -295,7 +295,7 @@ docker_test() {
                 -H "If-Modified-Since: $LASTMOD" \
                 -H "If-None-Match: $ETAG" \
                 -o /dev/null \
-                -w %{http_code} \
+                -w "%{http_code}" \
                 http://$WEB_HOST/index.html
        )
     [[ $RES == "304" ]] || fail "If-Modified-Since + If-None-Match did not result in 304, got $RES instead"
@@ -315,7 +315,7 @@ docker_test() {
                 -H "If-Modified-Since: $LASTMOD" \
                 -H "If-None-Match: $ETAG" \
                 -o /dev/null \
-                -w %{http_code} \
+                -w "%{http_code}" \
                 http://$WEB_HOST/index.html
        )
     [[ $RES == "304" ]] || fail "If-Modified-Since + If-None-Match did not result in 304, got $RES instead"
@@ -323,7 +323,7 @@ docker_test() {
     testing "Trying index.html without instance"
     RES=$($CURL --cookie "token=$TOKEN" \
                 -o /dev/null \
-                -w %{http_code} \
+                -w "%{http_code}" \
                 http://$WEB_HOST/index.html
        )
     [[ $RES == "200" ]] || fail "Could not get index.html without instance"
@@ -332,7 +332,7 @@ docker_test() {
     RES=$($CURL -H "X-Instance: $NOTINSTANCE" \
                 --cookie "token=$TOKEN" \
                 -o /dev/null \
-                -w %{http_code} \
+                -w "%{http_code}" \
                 http://$API/index.html
        )
     [[ $RES == "403" ]] || fail "Did not get 403, got $RES instead"
@@ -370,7 +370,7 @@ docker_test() {
     RES=$($CURL -H "X-Instance: $INSTANCE" \
                 -H "X-Token: $TOKEN" \
                 -o /dev/null \
-                -w %{http_code} \
+                -w "%{http_code}" \
                 http://$API/foo/index.html)
     [[ $RES == "403" ]] || fail "Accessing resource after logout didn't lead to 403, returned $RES instead"
 
@@ -414,7 +414,7 @@ case $1 in
         ;;
     login)
         shift
-        login $@
+        login "$@"
         ;;
     nginx_rebuild_conf)
         nginx_build_conf
@@ -429,7 +429,7 @@ case $1 in
         footest
         ;;
     db)
-        run_db
+        run_db "$@"
         ;;
     *)
         echo "usage: test.sh dockertest|docker|login|nginx_rebuild_conf|nginx_logs|nginx_enter"
