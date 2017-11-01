@@ -1,6 +1,7 @@
 stages:
   - prepare
   - build
+  - test
   - push
 
 prepare:
@@ -18,6 +19,15 @@ build:
       || (echo "$NEJLA_GIT_HOSTKEY" >> ~/.ssh/known_hosts)
   script:
     - make all
+
+test:
+  stage: test
+  before_script:
+    - docker-compose up -d
+  script:
+    - cd tests && bash ./test dockertest
+  after_script:
+    - docker-compose down --remove-orphans -v
 
 push:
   stage: push
