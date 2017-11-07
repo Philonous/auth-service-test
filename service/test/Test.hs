@@ -28,7 +28,7 @@ import           Types
 
 import           Test.Common
 
-data AssertionFailed = AssertionFailed String deriving (Typeable)
+newtype AssertionFailed = AssertionFailed String deriving (Typeable)
 
 instance Show AssertionFailed where
   show (AssertionFailed e) = "Assertion Failed: " <>  e
@@ -43,7 +43,8 @@ assertFailure = Ex.throwM  . AssertionFailed
 --------------------------------------------------------------------------------
 
 testUser :: AddUser
-testUser = AddUser { addUserEmail = Email "no@spam.please"
+testUser = AddUser { addUserUuid = Nothing
+                   , addUserEmail = Email "no@spam.please"
                    , addUserPassword = Password "pwd"
                    , addUserName = "Jon Doe"
                    , addUserPhone = Nothing
@@ -87,7 +88,7 @@ case_user_check_password_wrong = withUser testUser $ \_uid run -> do
 case_user_change_password :: IO ()
 case_user_change_password = withUser testUser $ \uid run -> do
   res1 <- run $ changeUserPassword uid (Password "newPassword")
-  res1 `shouldBe` (Just ())
+  res1 `shouldBe` Just ()
   res <- run $ checkUserPassword (testUser ^. email) (Password "newPassword")
   case res of
     Left _e -> assertFailure "check password fails"
@@ -96,7 +97,7 @@ case_user_change_password = withUser testUser $ \uid run -> do
 case_user_change_password_old_password :: IO ()
 case_user_change_password_old_password = withUser testUser $ \uid run -> do
   res1 <- run $ changeUserPassword uid (Password "newpassword")
-  res1 `shouldBe` (Just ())
+  res1 `shouldBe` Just ()
   res <- run $ checkUserPassword (testUser ^. email) (testUser ^. password)
   case res of
     Left _e -> return ()
@@ -171,7 +172,7 @@ withUserToken usr f = withUser usr $ \uid run -> do
 case_checkToken :: IO ()
 case_checkToken = withUserToken testUser $ \tok uid run -> do
   res <- run $ checkToken tok
-  res `shouldBe` (Just uid)
+  res `shouldBe` Just uid
 
 case_checkToken_bogus :: IO ()
 case_checkToken_bogus = withUser testUser $ \_uid run -> do
@@ -184,7 +185,7 @@ case_checkTokenInstance = withUserToken testUser $ \tok uid run -> do
   iid <- run $ addInstance Nothing "testInstance"
   run $ addUserInstance uid iid
   res <- run $ checkTokenInstance "" tok iid
-  res `shouldBe` (Just uid)
+  res `shouldBe` Just uid
 
 case_checkTokenInstance_not_member :: IO ()
 case_checkTokenInstance_not_member = withUserToken testUser $ \tok _uid run -> do
@@ -201,7 +202,7 @@ case_logout = withUserToken testUser $ \tok _uid run -> do
 
 case_closeOtherSesions :: IO ()
 case_closeOtherSesions = withUserToken testUser $ \tok _uid run -> do
-  tok2 <- (view token) <$> runLogin run testUser
+  tok2 <- view token <$> runLogin run testUser
   run $ closeOtherSessions tok2
   res <- run $ checkToken tok
   res `shouldBe` Nothing
@@ -209,10 +210,10 @@ case_closeOtherSesions = withUserToken testUser $ \tok _uid run -> do
 case_closeOtherSesions_same_session :: IO ()
 case_closeOtherSesions_same_session =
   withUserToken testUser $ \_tok uid run -> do
-    tok2 <- (view token) <$> runLogin run testUser
+    tok2 <- view token <$> runLogin run testUser
     run $ closeOtherSessions tok2
     res <- run $ checkToken tok2
-    res `shouldBe` (Just uid)
+    res `shouldBe` Just uid
 
 
 main :: IO ()

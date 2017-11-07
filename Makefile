@@ -12,7 +12,11 @@ all: service-container auth-web-container
 
 build:
 	cd service &&\
-	stack build --install-ghc
+	stack build --install-ghc --test --no-run-tests
+
+test:
+	cd service &&\
+	stack test
 
 service-container: build stack-deployimage
 	cd service && \

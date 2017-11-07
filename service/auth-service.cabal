@@ -75,6 +75,7 @@ test-suite unit-tests
                    , auth-service
                    , exceptions >= 0.8
                    , hspec-expectations
+                   , hspec-wai
                    , lens
                    , monad-logger >= 0.3
                    , mtl >= 2.2
@@ -90,7 +91,7 @@ test-suite unit-tests
 test-suite api-tests
   type:              exitcode-stdio-1.0
   hs-source-dirs:    test
-  main-is:           Api.hs
+  main-is:           Test/Api.hs
   other-modules:     Test.Common
   build-depends:     base
                    , QuickCheck
@@ -103,6 +104,7 @@ test-suite api-tests
                    , lens
                    , monad-logger >= 0.3
                    , mtl >= 2.2
+                   , nejla-common
                    , persistent-sqlite
                    , resource-pool
                    , text

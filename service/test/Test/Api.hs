@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Test.Api where
+module Main where
 
 
 import           Data.UUID           (UUID)

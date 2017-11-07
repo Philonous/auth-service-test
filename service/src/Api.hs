@@ -21,13 +21,15 @@ import           Logging
 
 import AuthService.Api
 
+liftHandler :: IO a -> Handler a
+liftHandler = Handler . lift
 
 -- Will be transformed into X-Token header and token cookie by the nginx
 serveLogin :: ConnectionPool -> Config -> Server LoginAPI
 serveLogin pool conf loginReq = loginHandler
   where
     loginHandler = do
-        mbReturnLogin <- lift . runAPI pool conf $ login loginReq
+        mbReturnLogin <- liftHandler . runAPI pool conf $ login loginReq
         case mbReturnLogin of
          Right rl -> return (addHeader (returnLoginToken rl) rl)
          Left LoginErrorOTPRequired ->
@@ -44,20 +46,20 @@ serveLogout :: ConnectionPool -> Config -> Server LogoutAPI
 serveLogout pool conf tok = logoutHandler
   where
     logoutHandler = do
-        lift . runAPI pool conf $ logOut tok
+        liftHandler . runAPI pool conf $ logOut tok
 
 serverDisableSessions :: ConnectionPool -> Config -> Server DisableSessionsAPI
 serverDisableSessions pool conf tok = disableSessionsHandler
   where
     disableSessionsHandler = do
-      lift . runAPI pool conf $ closeOtherSessions tok
+      liftHandler . runAPI pool conf $ closeOtherSessions tok
 
 
 serveChangePassword :: ConnectionPool -> Config -> Server ChangePasswordAPI
 serveChangePassword pool conf tok chpass = chPassHandler
   where
     chPassHandler = do
-      mbError <- lift . runAPI pool conf $ changePassword tok chpass
+      mbError <- liftHandler . runAPI pool conf $ changePassword tok chpass
       case mbError of
        Right _ -> return ()
        Left (ChangePasswordLoginError{}) -> throwError err403
@@ -68,7 +70,7 @@ serveCheckToken :: ConnectionPool -> Config -> Server CheckTokenAPI
 serveCheckToken pool conf tok inst req = checkTokenHandler
   where
     checkTokenHandler = do
-        res <- lift . runAPI pool conf $ do
+        res <- liftHandler . runAPI pool conf $ do
             logDebug $ "Checking token " <> showText tok
                        <> " for instance " <> showText inst
             checkTokenInstance (fromMaybe "" req) tok inst
@@ -80,7 +82,7 @@ servePublicCheckToken :: ConnectionPool -> Config -> Server PublicCheckTokenAPI
 servePublicCheckToken pool conf tok = checkTokenHandler
   where
     checkTokenHandler = do
-        res <- lift . runAPI pool conf $ do
+        res <- liftHandler . runAPI pool conf $ do
             logDebug $ "Checking token " <> showText tok
             checkToken tok
         case res of
@@ -92,13 +94,13 @@ serveGetUserInstancesAPI :: ConnectionPool
                          -> Config
                          -> Server GetUserInstancesAPI
 serveGetUserInstancesAPI pool conf usr =
-  lift . runAPI pool conf $ getUserInstances usr
+  liftHandler . runAPI pool conf $ getUserInstances usr
 
 serveGetUserInfoAPI :: ConnectionPool
                     -> Config
                     -> Server GetUserInfoAPI
 serveGetUserInfoAPI pool conf tok =  do
-  mbRUI <- lift . runAPI pool conf $ getUserInfo tok
+  mbRUI <- liftHandler . runAPI pool conf $ getUserInfo tok
   case mbRUI of
    Nothing -> throwError err403
    Just rui -> return rui
@@ -109,7 +111,7 @@ serveGetUserInfoAPI pool conf tok =  do
 
 serveCreateUserAPI :: ConnectionPool -> Config -> Server CreateUserAPI
 serveCreateUserAPI pool conf addUser = do
-  res <- lift . runAPI pool conf $ createUser addUser
+  res <- liftHandler . runAPI pool conf $ createUser addUser
   case res of
     Nothing -> throwError err500
     Just uid -> return $ ReturnUser uid
