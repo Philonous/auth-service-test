@@ -17,7 +17,6 @@ import           Control.Monad.Trans
 import           Data.Data
 import           Data.Monoid
 import qualified Data.Text               as Text
-import qualified Data.Text.Lazy.IO       as TextL
 import           Data.Time.Clock
 import           Prelude                 hiding (id)
 import qualified Test.QuickCheck.Monadic as QC
@@ -99,7 +98,7 @@ case_user_check_password_wrong = withUser testUser $ \_uid run -> do
 
 case_user_change_password :: IO ()
 case_user_change_password = withUser testUser $ \uid run -> do
-  res1 <- run $ changeUserPassword uid (Password "newPassword")
+  _ <- run $ changeUserPassword uid (Password "newPassword")
   res <- run $ checkUserPassword (testUser ^. email) (Password "newPassword")
   case res of
     Left _e -> assertFailure "check password fails"
@@ -107,7 +106,7 @@ case_user_change_password = withUser testUser $ \uid run -> do
 
 case_user_change_password_old_password :: IO ()
 case_user_change_password_old_password = withUser testUser $ \uid run -> do
-  res1 <- run $ changeUserPassword uid (Password "newpassword")
+  _ <- run $ changeUserPassword uid (Password "newpassword")
   res <- run $ checkUserPassword (testUser ^. email) (testUser ^. password)
   case res of
     Left _e -> return ()
@@ -120,14 +119,14 @@ case_user_change_password_old_password = withUser testUser $ \uid run -> do
 case_reset_password :: IO ()
 case_reset_password = withUser testUser $ \uid run -> do
   tok <- run $ createResetToken Nothing uid
-  run $ resetPassword uid tok "newPwd"
+  _ <- run $ resetPassword uid tok "newPwd"
   _ <- run $ checkUserPassword (testUser ^. email) "newPwd"
   return ()
 
 case_reset_password_wrong_token :: IO ()
 case_reset_password_wrong_token =
   withUser testUser $ \uid run -> do
-    tok <- run $ createResetToken Nothing uid
+    _ <- run $ createResetToken Nothing uid
     run (resetPassword uid (B64Token "BogusToken") "newPwd") `shouldThrow`
       (== ChangePasswordTokenError)
     return ()

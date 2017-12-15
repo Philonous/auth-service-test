@@ -100,12 +100,6 @@ createResetToken expires usr = do
       }
   return tok
 
-printTokens = do
-  tks <- fmap entityVal <$> (db' $ P.selectList [] []) :: API [DB.PasswordResetToken]
-  liftIO $ mapM_ print tks
-  return ()
-
-
 resetPassword :: UserID -> B64Token -> Password -> API ()
 resetPassword user token password = do
   now <- liftIO getCurrentTime
