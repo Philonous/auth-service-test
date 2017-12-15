@@ -45,13 +45,12 @@ serveLogin pool conf loginReq = loginHandler
 serveLogout :: ConnectionPool -> Config -> Server LogoutAPI
 serveLogout pool conf tok = logoutHandler
   where
-    logoutHandler = do
-        liftHandler . runAPI pool conf $ logOut tok
+    logoutHandler = liftHandler . runAPI pool conf $ logOut tok
 
 serverDisableSessions :: ConnectionPool -> Config -> Server DisableSessionsAPI
 serverDisableSessions pool conf tok = disableSessionsHandler
   where
-    disableSessionsHandler = do
+    disableSessionsHandler =
       liftHandler . runAPI pool conf $ closeOtherSessions tok
 
 
@@ -65,6 +64,7 @@ serveChangePassword pool conf tok chpass = chPassHandler
        Left (ChangePasswordLoginError{}) -> throwError err403
        Left (ChangePasswordHashError{}) -> throwError err500
        Left (ChangePasswordTokenError{}) -> throwError err403
+       Left (ChangePasswordUserDoesNotExistError{}) -> throwError err403
 
 serveCheckToken :: ConnectionPool -> Config -> Server CheckTokenAPI
 serveCheckToken pool conf tok inst req = checkTokenHandler
@@ -76,7 +76,7 @@ serveCheckToken pool conf tok inst req = checkTokenHandler
             checkTokenInstance (fromMaybe "" req) tok inst
         case res of
          Nothing -> throwError err403
-         Just usr -> return $ (addHeader usr $ ReturnUser usr)
+         Just usr -> return . addHeader usr $ ReturnUser usr
 
 servePublicCheckToken :: ConnectionPool -> Config -> Server PublicCheckTokenAPI
 servePublicCheckToken pool conf tok = checkTokenHandler
@@ -122,7 +122,7 @@ adminAPIPrx = Proxy
 serveAdminAPI :: ConnectionPool
               -> Config
               -> Server CreateUserAPI
-serveAdminAPI pool conf = serveCreateUserAPI pool conf
+serveAdminAPI = serveCreateUserAPI
 
 --------------------------------------------------------------------------------
 -- Interface -------------------------------------------------------------------

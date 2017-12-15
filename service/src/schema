@@ -36,3 +36,12 @@ Token
   expires UTCTime Maybe
   lastUse UTCTime Maybe
   deactivated UTCTime Maybe
+
+PasswordResetToken
+  token B64Token
+  UniquePasswordResetToken token
+  user UserID
+  Foreign User fkUser user
+  created UTCTime
+  expires UTCTime Maybe
+  used UTCTime Maybe

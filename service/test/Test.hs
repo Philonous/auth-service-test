@@ -1,3 +1,4 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -11,11 +12,16 @@ module Main where
 
 import           Control.Lens
 import qualified Control.Monad.Catch     as Ex
+import           Control.Monad.Logger
+import           Control.Monad.Trans
 import           Data.Data
 import           Data.Monoid
 import qualified Data.Text               as Text
+import qualified Data.Text.Lazy.IO       as TextL
+import           Data.Time.Clock
 import           Prelude                 hiding (id)
 import qualified Test.QuickCheck.Monadic as QC
+import qualified Text.Microstache        as Mustache
 
 import           Test.Hspec.Expectations
 import           Test.Tasty.HUnit        hiding (assertFailure)
@@ -23,6 +29,8 @@ import           Test.Tasty.QuickCheck
 import           Test.Tasty.TH
 
 import           Backend
+import           Config                  (defaultTemplate)
+import           PasswordReset
 import qualified Persist.Schema          as DB
 import           Types
 
@@ -85,10 +93,13 @@ case_user_check_password_wrong = withUser testUser $ \_uid run -> do
     Left _e -> return ()
     Right _ -> assertFailure "Accepted bogus password"
 
+--------------------------------------------------------------------------------
+-- Password Changes ------------------------------------------------------------
+--------------------------------------------------------------------------------
+
 case_user_change_password :: IO ()
 case_user_change_password = withUser testUser $ \uid run -> do
   res1 <- run $ changeUserPassword uid (Password "newPassword")
-  res1 `shouldBe` Just ()
   res <- run $ checkUserPassword (testUser ^. email) (Password "newPassword")
   case res of
     Left _e -> assertFailure "check password fails"
@@ -97,11 +108,90 @@ case_user_change_password = withUser testUser $ \uid run -> do
 case_user_change_password_old_password :: IO ()
 case_user_change_password_old_password = withUser testUser $ \uid run -> do
   res1 <- run $ changeUserPassword uid (Password "newpassword")
-  res1 `shouldBe` Just ()
   res <- run $ checkUserPassword (testUser ^. email) (testUser ^. password)
   case res of
     Left _e -> return ()
     Right _ -> assertFailure "Could still use olf password"
+
+--------------------------------------------------------------------------------
+-- Reset Password --------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+case_reset_password :: IO ()
+case_reset_password = withUser testUser $ \uid run -> do
+  tok <- run $ createResetToken Nothing uid
+  run $ resetPassword uid tok "newPwd"
+  _ <- run $ checkUserPassword (testUser ^. email) "newPwd"
+  return ()
+
+case_reset_password_wrong_token :: IO ()
+case_reset_password_wrong_token =
+  withUser testUser $ \uid run -> do
+    tok <- run $ createResetToken Nothing uid
+    run (resetPassword uid (B64Token "BogusToken") "newPwd") `shouldThrow`
+      (== ChangePasswordTokenError)
+    return ()
+
+case_reset_password_double_use :: IO ()
+case_reset_password_double_use =
+  withUser testUser $ \uid run -> do
+    tok <- run $ createResetToken Nothing uid
+    run $ resetPassword uid tok "newPwd"
+    run (resetPassword uid tok "newPwd2") `shouldThrow`
+      (== ChangePasswordTokenError)
+    return ()
+
+case_reset_password_with_timeout :: IO ()
+case_reset_password_with_timeout =
+  withUser testUser $ \uid run -> do
+    now <- liftIO getCurrentTime
+    let future = addUTCTime 60 now -- 60 seconds in the future
+    tok <- run $ createResetToken (Just future) uid
+    run $ resetPassword uid tok "newPwd"
+    _ <- run $ checkUserPassword (testUser ^. email) "newPwd"
+    return ()
+
+case_reset_password_expired :: IO ()
+case_reset_password_expired =
+  withUser testUser $ \uid run -> do
+    now <- liftIO getCurrentTime
+    let past = addUTCTime (-60) now -- 60 seconds in the past
+    tok <- run $ createResetToken (Just past) uid
+    run (resetPassword uid tok "newPwd") `shouldThrow`
+      (== ChangePasswordTokenError)
+    return ()
+
+testEmailData =
+  EmailData
+  { emailDataAddress = "no@spam.please"
+  , emailDataLink = "http://localhost/reset/abc"
+  , emailDataSiteName = "test.site.com"
+  , emailDataExpirationTime = "24 hours"
+  }
+
+case_password_reset_render_email :: IO ()
+case_password_reset_render_email = do
+  renderedEmail <- runNoLoggingT $ renderEmail testEmailConfig testEmailData
+  renderedEmail `shouldBe` "no@spam.please please click on http://localhost/reset/abc"
+
+-- | Check that the render functions throws an exception when there are errors
+-- during render
+case_password_reset_render_email_errors :: IO ()
+case_password_reset_render_email_errors = do
+  let Right tmpl = Mustache.compileMustacheText "test" "{{bogus}}"
+      cfg = testEmailConfig{emailConfigTemplate = tmpl}
+  runNoLoggingT (renderEmail cfg testEmailData) `shouldThrow` (==EmailRenderError)
+
+-- Check that we can render the default template (i.e. there are no missing
+-- variables)
+case_password_reset_default_template :: IO ()
+case_password_reset_default_template = do
+  _ <-
+    runStderrLoggingT $
+    renderEmail
+      testEmailConfig {emailConfigTemplate = defaultTemplate}
+      testEmailData
+  return ()
 
 --------------------------------------------------------------------------------
 -- Instances -------------------------------------------------------------------

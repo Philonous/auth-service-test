@@ -1,6 +1,7 @@
 -- Copyright (c) 2015 Lambdatrade AB
 -- All rights reserved
 
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -8,30 +9,31 @@ module Backend
   (module Backend
   ) where
 
-import           Control.Arrow ((***))
+import           Control.Arrow        ((***))
 import           Control.Lens
 import           Control.Monad
+import qualified Control.Monad.Catch  as Ex
 import           Control.Monad.Except
-import qualified Crypto.BCrypt as BCrypt
-import           Data.Maybe (listToMaybe)
+import qualified Crypto.BCrypt        as BCrypt
+import           Data.Maybe           (listToMaybe)
 import           Data.Monoid
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
+import           Data.Text            (Text)
+import qualified Data.Text            as Text
+import qualified Data.Text.Encoding   as Text
 import           Data.Time.Clock
-import qualified Data.Traversable as Traversable
-import qualified Data.UUID.V4 as UUID
-import qualified Database.Esqueleto as E
-import           Database.Esqueleto hiding ((^.), from)
-import qualified Database.Persist as P
+import qualified Data.Traversable     as Traversable
+import qualified Data.UUID.V4         as UUID
+import qualified Database.Esqueleto   as E
+import           Database.Esqueleto   hiding ((^.), from)
+import qualified Database.Persist     as P
 import qualified Database.Persist.Sql as P
 import           System.Random
 import qualified Twilio
 
-import           NejlaCommon (whereL)
+import           NejlaCommon
 
-import qualified Logging as Log
-import qualified Persist.Schema as DB
+import qualified Logging              as Log
+import qualified Persist.Schema       as DB
 import           Types
 
 unOtpKey :: Key DB.UserOtp -> Log.OtpRef
@@ -70,7 +72,7 @@ createUser usr = do
                             , DB.userPhone = usr ^. phone
                             }
        _ <- runDB $ P.insert dbUser
-       Log.logES $ Log.UserCreated{ Log.user = usr ^. email}
+       Log.logES Log.UserCreated{ Log.user = usr ^. email}
        _ <- runDB . P.insertMany $ for (usr ^. instances) $ \iid ->
            DB.UserInstance { DB.userInstanceUser = uid
                            , DB.userInstanceInstanceId = iid
@@ -78,18 +80,62 @@ createUser usr = do
        return $ Just uid
 
 getUserByEmail :: Email -> API (Maybe DB.User)
-getUserByEmail name' = do
-    fmap (fmap entityVal) . runDB $ P.getBy (DB.UniqueUserEmail name')
+getUserByEmail name' =
+  fmap (fmap entityVal) . runDB $ P.getBy (DB.UniqueUserEmail name')
 
-changeUserPassword :: UserID -> Password -> API (Maybe ())
+createResetToken :: Maybe UTCTime -> UserID -> API B64Token
+createResetToken expires usr = do
+  tok <-
+    unprivileged $ mkUniqueRandomHrID B64Token 20 DB.PasswordResetTokenToken
+  now <- liftIO getCurrentTime
+  _ <-
+    db' $
+    P.insert
+      DB.PasswordResetToken
+      { DB.passwordResetTokenToken = tok
+      , DB.passwordResetTokenUser = usr
+      , DB.passwordResetTokenCreated = now
+      , DB.passwordResetTokenExpires = expires
+      , DB.passwordResetTokenUsed = Nothing
+      }
+  return tok
+
+
+
+resetPassword :: UserID -> B64Token -> Password -> API ()
+resetPassword user token password = do
+  now <- liftIO getCurrentTime
+  -- Set token to "used", return number of tokens this updated (0 or 1)
+  cnt <- db'. updateCount $ \(tok :: SV DB.PasswordResetToken) -> do
+    E.set tok [DB.PasswordResetTokenUsed E.=. val (Just now)]
+    whereL [ tok E.^. DB.PasswordResetTokenToken E.==. val token
+           , tok E.^. DB.PasswordResetTokenUser E.==. val user
+           , orL [isNothing $ tok E.^. DB.PasswordResetTokenExpires
+                 , tok E.^. DB.PasswordResetTokenExpires E.<=. val (Just now)
+                 ]
+           , isNothing $ tok E.^. DB.PasswordResetTokenUsed
+           ]
+  -- If there was a valid token, cnt should be 1
+  if cnt > 0
+    then changeUserPassword user password
+    else Ex.throwM ChangePasswordTokenError
+
+
+changeUserPassword :: UserID -> Password -> API ()
 changeUserPassword user' password' = do
-    mbHash <- hashPassword password'
-    case mbHash of
-     Nothing -> return Nothing
-     Just hash -> do
-         updates <- runDB $ P.updateWhere [DB.UserUuid P.==. user']
-                                          [DB.UserPasswordHash P.=. hash]
-         return $ Just updates
+  mbHash <- hashPassword password'
+  cnt <- case mbHash of
+    Nothing -> Ex.throwM ChangePasswordHashError
+    Just hash -> do
+      updates <-
+        runDB $
+        P.updateWhereCount
+          [DB.UserUuid P.==. user']
+          [DB.UserPasswordHash P.=. hash]
+      return updates
+  if cnt > 0
+    then return ()
+    else Ex.throwM ChangePasswordUserDoesNotExistError
 
 --------------------------------------------------------------------------------
 -- Instances -------------------------------------------------------------------
@@ -319,12 +365,13 @@ changePassword tok ChangePassword { changePasswordOldPasword = oldPwd
       Log.logES Log.PasswordChangeFailed{ Log.user = usr ^. email}
       throwError $ ChangePasswordLoginError e
     Right _ -> Log.logES Log.PasswordChanged{ Log.user = usr ^. email}
-  mbError' <- lift $ changeUserPassword (usr ^. DB.uuid) newPwd
+  mbError' <- Ex.try . lift $ changeUserPassword (usr ^. DB.uuid) newPwd
+
   case mbError' of
-    Nothing -> do
+    Left e -> do
       Log.logES Log.PasswordChangeFailed{ Log.user = usr ^. email}
-      throwError ChangePasswordHashError
-    Just _ -> return ()
+      throwError e
+    Right{} -> return ()
 
 
 getUserByToken :: B64Token -> API (Maybe (Log.TokenRef, DB.User))

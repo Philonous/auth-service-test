@@ -1,21 +1,22 @@
 -- Copyright (c) 2015 Lambdatrade AB
 -- All rights reserved
 
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Twilio where
 
-import           Control.Monad.Catch as Ex
+import           Control.Monad.Catch    as Ex
 import           Control.Monad.Trans
-import qualified Data.ByteString as BS
+import qualified Data.ByteString        as BS
 import qualified Data.ByteString.Base64 as B64
-import qualified Data.ByteString.Lazy as BSL
+import qualified Data.ByteString.Lazy   as BSL
 import           Data.Monoid
-import           Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import           Network.HTTP.Conduit
+import           Data.Text              (Text)
+import qualified Data.Text              as Text
+import qualified Data.Text.Encoding     as Text
+import           Network.HTTP.Conduit   as HTTP
 import           Network.HTTP.Types
 
 import           Logging
@@ -47,8 +48,8 @@ sendMessage account' authToken' from to msg = do
                , ("Body", Text.encodeUtf8 msg)
                ]
         req = urlEncodedBody body $
-                    request'{ path   = urlPath
-                            , requestHeaders = [mkAuth username password'
+                    request'{ HTTP.path   = urlPath
+                            , HTTP.requestHeaders = [mkAuth username password'
                                                ]
                             }
     mbResponse <- Ex.try $ httpLbs req manager

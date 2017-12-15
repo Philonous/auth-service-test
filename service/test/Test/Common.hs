@@ -4,9 +4,11 @@
 module Test.Common where
 
 import           Control.Monad.Logger
+import           Data.Default
 import           Data.Pool
 import           Database.Persist.Sqlite as SQLite
 import           Test.Hspec.Wai
+import qualified Text.Microstache        as Mustache
 
 import qualified Persist.Schema          as DB
 import           Types
@@ -16,6 +18,29 @@ withMemoryPool f = runNoLoggingT . withSqliteConn ":memory:" $ \con -> liftIO $ 
   pool <- createPool (return con) (\_ -> return ()) 1 3600 1
   f pool
 
+testEmailConfig :: EmailConfig
+testEmailConfig =
+  EmailConfig
+  { emailConfigHost     = "localhost"
+  , emailConfigFrom     = "testuser@localhost"
+  , emailConfigUser     = "testuser"
+  , emailConfigPassword = "pwd"
+  , emailConfigTemplate = tmpl
+  , emailConfigSendmail =
+      SendmailConfig
+      { sendmailConfigPath = "/usr/bin/cat"
+      , sendmailConfigArguments = []
+      }
+  , emailConfigSiteName = "Test Site"
+  , emailConfigResetLinkExpirationTime = "24 hours"
+  }
+  where
+    Right tmpl =
+      Mustache.compileMustacheText
+        "email template"
+        "{{address}} please click on {{link}}"
+
+
 withApiData :: (Pool SqlBackend -> Config -> IO a) -> IO a
 withApiData f = withMemoryPool $ \pool -> do
   let conf = Config { configTimeout           = 10
@@ -24,6 +49,7 @@ withApiData f = withMemoryPool $ \pool -> do
                     , configTFARequired       = False
                     , configTwilio            = Nothing
                     , configUseTransactionLevels = False
+                    , configEmail = Just testEmailConfig
                     }
   liftIO $ do
     _ <- runSqlPool (runMigrationSilent DB.migrateAll) pool
