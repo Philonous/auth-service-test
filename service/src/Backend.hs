@@ -83,7 +83,7 @@ getUserByEmail :: Email -> API (Maybe DB.User)
 getUserByEmail name' =
   fmap (fmap entityVal) . runDB $ P.getBy (DB.UniqueUserEmail name')
 
-createResetToken :: Maybe UTCTime -> UserID -> API B64Token
+createResetToken :: UTCTime -> UserID -> API B64Token
 createResetToken expires usr = do
   tok <-
     unprivileged $ mkUniqueRandomHrID B64Token 20 DB.PasswordResetTokenToken
@@ -108,9 +108,7 @@ resetPassword user token password = do
     E.set tok [DB.PasswordResetTokenUsed E.=. val (Just now)]
     whereL [ tok E.^. DB.PasswordResetTokenToken E.==. val token
            , tok E.^. DB.PasswordResetTokenUser E.==. val user
-           , orL [isNothing $ tok E.^. DB.PasswordResetTokenExpires
-                 , tok E.^. DB.PasswordResetTokenExpires E.>=. val (Just now)
-                 ]
+           , tok E.^. DB.PasswordResetTokenExpires E.>=. val now
            , isNothing $ tok E.^. DB.PasswordResetTokenUsed
            ]
   -- If there was a valid token, cnt should be 1
@@ -122,15 +120,14 @@ resetPassword user token password = do
 changeUserPassword :: UserID -> Password -> API ()
 changeUserPassword user' password' = do
   mbHash <- hashPassword password'
-  cnt <- case mbHash of
-    Nothing -> Ex.throwM ChangePasswordHashError
-    Just hash -> do
-      updates <-
+  cnt <-
+    case mbHash of
+      Nothing -> Ex.throwM ChangePasswordHashError
+      Just hash ->
         runDB $
         P.updateWhereCount
           [DB.UserUuid P.==. user']
           [DB.UserPasswordHash P.=. hash]
-      return updates
   if cnt > 0
     then return ()
     else Ex.throwM ChangePasswordUserDoesNotExistError
@@ -213,28 +210,28 @@ tokenChars = concat [ ['a' .. 'z']
 
 checkUserPassword :: Email -> Password -> API (Either LoginError DB.User)
 checkUserPassword userEmail pwd = do
-    mbUser <- runDB $ P.getBy (DB.UniqueUserEmail userEmail)
-    case mbUser of
-     Nothing -> return $ Left LoginErrorFailed
-     Just (Entity _ usr) -> do
-         let hash = usr ^. DB.passwordHash
-             userId = usr ^. DB.uuid
-         case checkPassword hash pwd of
-           True -> do
-               unless (hashUsesPolicy hash) $ rehash userId
-               return $ Right usr
-           False -> return $ Left LoginErrorFailed
+  mbUser <- runDB $ P.getBy (DB.UniqueUserEmail userEmail)
+  case mbUser of
+    Nothing -> return $ Left LoginErrorFailed
+    Just (Entity _ usr) -> do
+      let hash = usr ^. DB.passwordHash
+          userId = usr ^. DB.uuid
+      if checkPassword hash pwd
+        then do
+          unless (hashUsesPolicy hash) $ rehash userId
+          return $ Right usr
+        else return $ Left LoginErrorFailed
   where
     checkPassword (PasswordHash hash) (Password pwd') =
-        BCrypt.validatePassword hash (Text.encodeUtf8 pwd')
-    hashUsesPolicy (PasswordHash hash) =
-        BCrypt.hashUsesPolicy policy hash
+      BCrypt.validatePassword hash (Text.encodeUtf8 pwd')
+    hashUsesPolicy (PasswordHash hash) = BCrypt.hashUsesPolicy policy hash
     rehash userId = do
-        mbNewHash <- hashPassword pwd
-        case mbNewHash of
-         Nothing -> return () -- TODO: log error
-         Just newHash -> runDB $ P.update (DB.UserKey userId)
-                                          [DB.UserPasswordHash P.=. newHash]
+      mbNewHash <- hashPassword pwd
+      case mbNewHash of
+        Nothing -> return () -- TODO: log error
+        Just newHash ->
+          runDB $
+          P.update (DB.UserKey userId) [DB.UserPasswordHash P.=. newHash]
 
 deactivateOtpWhere :: [P.Filter DB.UserOtp] -> API ()
 deactivateOtpWhere selector = do

@@ -48,6 +48,6 @@ PasswordResetToken
   user UserID
   Foreign User fkUser user
   created UTCTime
-  expires UTCTime Maybe
+  expires UTCTime
   used UTCTime Maybe
   deriving Show

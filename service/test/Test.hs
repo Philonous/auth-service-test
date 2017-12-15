@@ -118,7 +118,8 @@ case_user_change_password_old_password = withUser testUser $ \uid run -> do
 
 case_reset_password :: IO ()
 case_reset_password = withUser testUser $ \uid run -> do
-  tok <- run $ createResetToken Nothing uid
+  later <- addUTCTime 60 <$> getCurrentTime -- with timeout
+  tok <- run $ createResetToken later uid
   _ <- run $ resetPassword uid tok "newPwd"
   _ <- run $ checkUserPassword (testUser ^. email) "newPwd"
   return ()
@@ -126,7 +127,6 @@ case_reset_password = withUser testUser $ \uid run -> do
 case_reset_password_wrong_token :: IO ()
 case_reset_password_wrong_token =
   withUser testUser $ \uid run -> do
-    _ <- run $ createResetToken Nothing uid
     run (resetPassword uid (B64Token "BogusToken") "newPwd") `shouldThrow`
       (== ChangePasswordTokenError)
     return ()
@@ -134,20 +134,11 @@ case_reset_password_wrong_token =
 case_reset_password_double_use :: IO ()
 case_reset_password_double_use =
   withUser testUser $ \uid run -> do
-    tok <- run $ createResetToken Nothing uid
+    later <- addUTCTime 60 <$> getCurrentTime
+    tok <- run $ createResetToken later uid
     run $ resetPassword uid tok "newPwd"
     run (resetPassword uid tok "newPwd2") `shouldThrow`
       (== ChangePasswordTokenError)
-    return ()
-
-case_reset_password_with_timeout :: IO ()
-case_reset_password_with_timeout =
-  withUser testUser $ \uid run -> do
-    now <- liftIO getCurrentTime
-    let future = addUTCTime 60 now -- 60 seconds in the future
-    tok <- run $ createResetToken (Just future) uid
-    run $ resetPassword uid tok "newPwd"
-    _ <- run $ checkUserPassword (testUser ^. email) "newPwd"
     return ()
 
 case_reset_password_expired :: IO ()
@@ -155,7 +146,7 @@ case_reset_password_expired =
   withUser testUser $ \uid run -> do
     now <- liftIO getCurrentTime
     let past = addUTCTime (-60) now -- 60 seconds in the past
-    tok <- run $ createResetToken (Just past) uid
+    tok <- run $ createResetToken past uid
     run (resetPassword uid tok "newPwd") `shouldThrow`
       (== ChangePasswordTokenError)
     return ()
