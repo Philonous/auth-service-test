@@ -161,6 +161,7 @@ case_reset_password_expired =
       (== ChangePasswordTokenError)
     return ()
 
+testEmailData :: EmailData
 testEmailData =
   EmailData
   { emailDataAddress = "no@spam.please"

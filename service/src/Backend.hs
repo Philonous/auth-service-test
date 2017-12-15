@@ -100,6 +100,10 @@ createResetToken expires usr = do
       }
   return tok
 
+printTokens = do
+  tks <- fmap entityVal <$> (db' $ P.selectList [] []) :: API [DB.PasswordResetToken]
+  liftIO $ mapM_ print tks
+  return ()
 
 
 resetPassword :: UserID -> B64Token -> Password -> API ()
@@ -111,7 +115,7 @@ resetPassword user token password = do
     whereL [ tok E.^. DB.PasswordResetTokenToken E.==. val token
            , tok E.^. DB.PasswordResetTokenUser E.==. val user
            , orL [isNothing $ tok E.^. DB.PasswordResetTokenExpires
-                 , tok E.^. DB.PasswordResetTokenExpires E.<=. val (Just now)
+                 , tok E.^. DB.PasswordResetTokenExpires E.>=. val (Just now)
                  ]
            , isNothing $ tok E.^. DB.PasswordResetTokenUsed
            ]
