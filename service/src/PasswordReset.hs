@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -11,7 +12,7 @@
 module PasswordReset where
 
 import qualified Control.Exception    as Ex (ErrorCall(..))
-import           Control.Lens
+import           Control.Lens         hiding (from)
 import qualified Control.Monad.Catch  as Ex
 import qualified Control.Monad.Logger as Log
 import           Control.Monad.Trans
@@ -20,8 +21,11 @@ import           Data.Monoid
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
 import qualified Data.Text.Lazy       as LText
+import           Data.Time.Clock
+import qualified Data.Traversable     as Traversable
 import           NejlaCommon          (viewState)
 import qualified Network.Mail.Mime    as Mail
+import           Prelude              hiding (id)
 import qualified Text.Microstache     as Mustache
 
 import           Backend
@@ -31,8 +35,7 @@ import           Types
 -- | Create an Aeson object from password reset email data
 fromEmailData :: EmailData -> Aeson.Value
 fromEmailData emailData =
-  Aeson.object [ "address" .= (emailData ^. address)
-               , "link" .= (emailData ^. link)
+  Aeson.object [ "link" .= (emailData ^. link)
                , "expirationTime" .= emailData ^. expirationTime
                , "siteName" .= emailData ^. siteName
                ]
@@ -40,15 +43,20 @@ fromEmailData emailData =
     infix 0 .=
     (.=) = (Aeson..=)
 
-
 renderEmail ::
-     (Ex.MonadThrow m, Log.MonadLogger m)
+     (Log.MonadLogger m, Ex.MonadThrow m)
   => EmailConfig
-  -> EmailData
+  -> Mustache.Template
+  -> Maybe PWResetToken
   -> m LText.Text
-renderEmail conf emailData =
-  let (warnings, result) =
-        Mustache.renderMustacheW (conf ^. template) $ fromEmailData emailData
+renderEmail cfg tmpl mbToken =
+  let emailData =
+        EmailData
+        { emailDataSiteName = cfg ^. siteName
+        , emailDataExpirationTime =  cfg ^.resetLinkExpirationTime
+        , emailDataLink = maybe "" (cfg ^. mkLink) mbToken
+        }
+      (warnings, result) = Mustache.renderMustacheW tmpl $ fromEmailData emailData
   in case warnings of
        [] -> return result
        (_:_) -> do
@@ -59,29 +67,22 @@ renderEmail conf emailData =
   where
     (.=) = (Aeson..=)
 
-sendPasswordResetEmail ::
-     (Ex.MonadThrow m, Log.MonadLogger m, MonadIO m) =>
+sendEmail ::
      EmailConfig
-  -> Text -- ^ Email address
-  -> m Bool
-sendPasswordResetEmail cfg toAddress = do
+  -> Mustache.Template
+  -> Email
+  -> Text
+  -> Maybe PWResetToken
+  -> API Bool
+sendEmail cfg tmpl (Email toAddress) subject token = do
   let sendmailCfg = cfg ^. sendmail
-  logES $ PasswordResetRequested (Email toAddress)
-  body <-
-    renderEmail
-      cfg
-      EmailData
-      { emailDataSiteName = cfg ^. siteName
-      , emailDataExpirationTime =  cfg ^.resetLinkExpirationTime
-      , emailDataAddress = toAddress
-      , emailDataLink = "" -- @TODO
-      }
-  let subject = "Password reset"
-      plainBody = "Please see the HTML attachment."
+  body <- renderEmail cfg tmpl token
+  let plainBody = "Please see the HTML attachment."
       to = Mail.Address Nothing toAddress
   let mail =
         Mail.addPart [Mail.plainPart plainBody, Mail.htmlPart body] $
-        (Mail.emptyMail to) {Mail.mailHeaders = [("Subject", subject)]}
+        (Mail.emptyMail (cfg ^. from))
+          {Mail.mailHeaders = [("Subject", subject)], Mail.mailTo = [to]}
   mbError <-
     liftIO . Ex.try $
     Mail.renderSendMailCustom
@@ -95,10 +96,28 @@ sendPasswordResetEmail cfg toAddress = do
     Left e -> Ex.throwM e
     Right () -> return True
 
--- passwordResetRequest user = do
---   emailCfg <- viewState $ config . email >>= \case
---     Nothing -> Ex.throwM ChangeP
---   mbUser <- getUserByEmail user
---   case mbUser of
---     Just user -> sendPasswordResetEmail emailCfg (user ^. email)
---     Nothing -> Ex.throwM ChangePasswordUserDoesNotExistError
+sendPasswordResetEmail :: EmailConfig -> Email -> PWResetToken -> API Bool
+sendPasswordResetEmail cfg toAddress token = do
+  logES $ PasswordResetRequested toAddress
+  sendEmail cfg (cfg ^. pWResetTemplate) toAddress "Password reset" (Just token)
+
+sendPasswordResetUnknownEmail :: EmailConfig -> Email -> API Bool
+sendPasswordResetUnknownEmail cfg toAddress = do
+  logES $ PasswordResetRequested toAddress
+  sendEmail cfg (cfg ^. pWResetUnknownTemplate) toAddress "Password reset" Nothing
+
+passwordResetRequest :: Email -> API Bool
+passwordResetRequest userMail =
+  viewState (config . email) >>= \case
+    Nothing -> Ex.throwM EmailErrorNotConfigured
+    Just cfg -> do
+      mbUser <- getUserByEmail userMail
+      mbToken <-
+        Traversable.forM mbUser $ \uid ->
+          createResetToken (hours 24) (uid ^. uuid)
+      case mbToken of
+        Nothing -> sendPasswordResetUnknownEmail cfg userMail
+        Just tok -> sendPasswordResetEmail cfg userMail tok
+  where
+    hours :: Int -> NominalDiffTime
+    hours hs = fromIntegral $ hs * 6 * 60

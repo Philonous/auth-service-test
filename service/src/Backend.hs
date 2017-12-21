@@ -10,7 +10,7 @@ module Backend
   ) where
 
 import           Control.Arrow        ((***))
-import           Control.Lens
+import           Control.Lens         hiding (from)
 import           Control.Monad
 import qualified Control.Monad.Catch  as Ex
 import           Control.Monad.Except
@@ -83,7 +83,7 @@ getUserByEmail :: Email -> API (Maybe DB.User)
 getUserByEmail name' =
   fmap (fmap entityVal) . runDB $ P.getBy (DB.UniqueUserEmail name')
 
-createResetToken :: UTCTime -> UserID -> API B64Token
+createResetToken :: NominalDiffTime -> UserID -> API B64Token
 createResetToken expires usr = do
   tok <-
     unprivileged $ mkUniqueRandomHrID B64Token 20 DB.PasswordResetTokenToken
@@ -95,14 +95,24 @@ createResetToken expires usr = do
       { DB.passwordResetTokenToken = tok
       , DB.passwordResetTokenUser = usr
       , DB.passwordResetTokenCreated = now
-      , DB.passwordResetTokenExpires = expires
+      , DB.passwordResetTokenExpires = addUTCTime expires now
       , DB.passwordResetTokenUsed = Nothing
       }
   return tok
 
-resetPassword :: UserID -> B64Token -> Password -> API ()
-resetPassword user token password = do
+resetPassword :: B64Token -> Password -> API ()
+resetPassword token password = do
   now <- liftIO getCurrentTime
+  users <- db' . E.select . E.from $ \((tok :: SV DB.PasswordResetToken)
+                                       `InnerJoin` (usr :: SV DB.User)
+                                      ) -> do
+    whereL [ tok E.^. DB.PasswordResetTokenToken E.==. val token
+           , foreignKey tok usr
+           ]
+    return (usr E.^. DB.UserUuid)
+  user <- case users of
+            [] -> Ex.throwM ChangePasswordTokenError
+            (E.Value user : _) -> return $ user
   -- Set token to "used", return number of tokens this updated (0 or 1)
   cnt <- db'. updateCount $ \(tok :: SV DB.PasswordResetToken) -> do
     E.set tok [DB.PasswordResetTokenUsed E.=. val (Just now)]

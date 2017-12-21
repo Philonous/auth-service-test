@@ -39,6 +39,7 @@ import           AuthService.Types
 
 data EmailError = EmailErrorNotConfigured
                 | EmailRenderError
+                | EmailAddressUnknownError
                 deriving (Show, Eq, Typeable)
 
 instance Ex.Exception EmailError
@@ -64,9 +65,7 @@ makePrisms ''ChangePasswordError
 --------------------------------------------------------------------------------
 -- Config ----------------------------------------------------------------------
 --------------------------------------------------------------------------------
-
--- data Emailconfig = EmailConfig { emailConfig
---                                }
+type PWResetToken = B64Token
 
 data TwilioConfig = TwilioConfig
   { twilioConfigAccount      :: Text
@@ -94,14 +93,17 @@ instance Default SendmailConfig where
 
 data EmailConfig = EmailConfig
   { emailConfigHost :: Text
+  , emailConfigPort :: Int
   , emailConfigFrom :: Address
   , emailConfigUser :: Text
   , emailConfigPassword :: Text
-  , emailConfigTemplate :: Mustache.Template
+  , emailConfigPWResetTemplate :: Mustache.Template
+  , emailConfigPWResetUnknownTemplate :: Mustache.Template
   , emailConfigSendmail :: SendmailConfig
   , emailConfigSiteName :: Text
   , emailConfigResetLinkExpirationTime :: Text
-  } deriving (Show)
+  , emailConfigMkLink :: B64Token -> Text -- ^ Generate a link from a token
+  }
 
 makeLensesWith camelCaseFields ''EmailConfig
 
@@ -113,17 +115,16 @@ data Config = Config
   , configTwilio               :: Maybe TwilioConfig
   , configUseTransactionLevels :: Bool
   , configEmail                :: Maybe EmailConfig
-  } deriving (Show)
+  }
 
 makeLensesWith camelCaseFields ''Config
 
 -- | Necessary data to fill in a password reset email
 data EmailData =
   EmailData
-  { emailDataSiteName :: Text
-  , emailDataAddress  :: Text
-  , emailDataLink     ::  Text
-  , emailDataExpirationTime    :: Text
+  { emailDataSiteName       :: Text
+  , emailDataLink           :: Text
+  , emailDataExpirationTime :: Text
   } deriving (Show)
 
 makeLensesWith camelCaseFields ''EmailData

@@ -10,11 +10,23 @@ services:
     image: registry.nejla.com/nejla-ab/auth-service/auth-service
     links:
       - database
+      - mail
     environment:
       - log=true
       - TWILIO_ACCOUNT=AC7d2148c9391bf9133843462b8cd6f271
       - TWILIO_TOKEN=bad524c865476855c0c66830617e9e27
       - TWILIO_SOURCE=+15005550006
+      - EMAIL_FROM=authservicetest@no.email
+      - EMAIL_USER=testuser
+      - EMAIL_SMTP=mail
+      - EMAIL_PORT=1025
+      - EMAIL_PASSWORD=nopasswd
+      - EMAIL_LINK_TEMPLATE=http://localhost/pwreset?token=%s
+      - EMAIL_TLS=false
+      - EMAIL_AUTH=false
+      - SITE_NAME=authservice-test.com
+      - RESET_LINK_EXPIRATION_TIME=24 hours
+
     # logging:
     #   driver: gelf
     #   options:
@@ -23,7 +35,7 @@ services:
       - auth-service
     command: /app/run.sh
 
-  # One or more application container`
+  # One or more application containers
   upstream:
     image: nginx:latest
     volumes:
@@ -63,6 +75,16 @@ services:
       - auth-web
     networks:
       - auth-service
+
+  mail:
+    image: mailhog/mailhog
+    networks:
+      - auth-service
+    environment:
+      - MH_SMTP_BIND_ADDR=0.0.0.0:1025
+      - MH_HOSTNAME=authservice.test
+    ports:
+      - 8025:8025
 
 networks:
   auth-service:

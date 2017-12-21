@@ -13,11 +13,9 @@ module Main where
 import           Control.Lens
 import qualified Control.Monad.Catch     as Ex
 import           Control.Monad.Logger
-import           Control.Monad.Trans
 import           Data.Data
 import           Data.Monoid
 import qualified Data.Text               as Text
-import           Data.Time.Clock
 import           Prelude                 hiding (id)
 import qualified Test.QuickCheck.Monadic as QC
 import qualified Text.Microstache        as Mustache
@@ -28,7 +26,7 @@ import           Test.Tasty.QuickCheck
 import           Test.Tasty.TH
 
 import           Backend
-import           Config                  (defaultTemplate)
+import           Config                  (defaultPwResetTemplate)
 import           PasswordReset
 import qualified Persist.Schema          as DB
 import           Types
@@ -118,70 +116,79 @@ case_user_change_password_old_password = withUser testUser $ \uid run -> do
 
 case_reset_password :: IO ()
 case_reset_password = withUser testUser $ \uid run -> do
-  later <- addUTCTime 60 <$> getCurrentTime -- with timeout
-  tok <- run $ createResetToken later uid
-  _ <- run $ resetPassword uid tok "newPwd"
+  tok <- run $ createResetToken 60 uid
+  _ <- run $ resetPassword tok "newPwd"
   _ <- run $ checkUserPassword (testUser ^. email) "newPwd"
   return ()
 
 case_reset_password_wrong_token :: IO ()
 case_reset_password_wrong_token =
-  withUser testUser $ \uid run -> do
-    run (resetPassword uid (B64Token "BogusToken") "newPwd") `shouldThrow`
+  withRunAPI $ \run -> do
+    run (resetPassword (B64Token "BogusToken") "newPwd") `shouldThrow`
       (== ChangePasswordTokenError)
     return ()
 
 case_reset_password_double_use :: IO ()
 case_reset_password_double_use =
   withUser testUser $ \uid run -> do
-    later <- addUTCTime 60 <$> getCurrentTime
-    tok <- run $ createResetToken later uid
-    run $ resetPassword uid tok "newPwd"
-    run (resetPassword uid tok "newPwd2") `shouldThrow`
+    tok <- run $ createResetToken 60 uid
+    run $ resetPassword tok "newPwd"
+    run (resetPassword tok "newPwd2") `shouldThrow`
       (== ChangePasswordTokenError)
     return ()
 
 case_reset_password_expired :: IO ()
 case_reset_password_expired =
   withUser testUser $ \uid run -> do
-    now <- liftIO getCurrentTime
-    let past = addUTCTime (-60) now -- 60 seconds in the past
-    tok <- run $ createResetToken past uid
-    run (resetPassword uid tok "newPwd") `shouldThrow`
+    tok <- run $ createResetToken (-60) uid
+    run (resetPassword tok "newPwd") `shouldThrow`
       (== ChangePasswordTokenError)
     return ()
 
 testEmailData :: EmailData
 testEmailData =
   EmailData
-  { emailDataAddress = "no@spam.please"
-  , emailDataLink = "http://localhost/reset/abc"
+  { emailDataLink = "http://localhost/reset/abc"
   , emailDataSiteName = "test.site.com"
   , emailDataExpirationTime = "24 hours"
   }
 
 case_password_reset_render_email :: IO ()
 case_password_reset_render_email = do
-  renderedEmail <- runNoLoggingT $ renderEmail testEmailConfig testEmailData
-  renderedEmail `shouldBe` "no@spam.please please click on http://localhost/reset/abc"
+  renderedEmail <-
+    runNoLoggingT $
+    renderEmail
+      testEmailConfig
+      (testEmailConfig ^. pWResetTemplate)
+      (Just $ B64Token "tok123abc")
+  renderedEmail `shouldBe`
+    "please click on http://localhost/reset?token=tok123abc"
+
+case_password_reset_render_error_email :: IO ()
+case_password_reset_render_error_email = do
+  renderedEmail <-
+    runNoLoggingT $
+    renderEmail
+      testEmailConfig
+      (testEmailConfig ^. pWResetUnknownTemplate)
+      Nothing
+  renderedEmail `shouldBe`
+    "Your email is unknown"
 
 -- | Check that the render functions throws an exception when there are errors
 -- during render
 case_password_reset_render_email_errors :: IO ()
 case_password_reset_render_email_errors = do
   let Right tmpl = Mustache.compileMustacheText "test" "{{bogus}}"
-      cfg = testEmailConfig{emailConfigTemplate = tmpl}
-  runNoLoggingT (renderEmail cfg testEmailData) `shouldThrow` (==EmailRenderError)
+  runNoLoggingT (renderEmail testEmailConfig tmpl Nothing)
+    `shouldThrow` (== EmailRenderError)
 
 -- Check that we can render the default template (i.e. there are no missing
 -- variables)
 case_password_reset_default_template :: IO ()
 case_password_reset_default_template = do
   _ <-
-    runStderrLoggingT $
-    renderEmail
-      testEmailConfig {emailConfigTemplate = defaultTemplate}
-      testEmailData
+    runStderrLoggingT $ renderEmail testEmailConfig defaultPwResetTemplate Nothing
   return ()
 
 --------------------------------------------------------------------------------

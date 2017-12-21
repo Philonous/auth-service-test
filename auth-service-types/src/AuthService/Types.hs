@@ -9,6 +9,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE StrictData #-}
 
 module AuthService.Types where
 
@@ -215,3 +216,42 @@ data ChangePassword = ChangePassword { changePasswordOldPasword :: !Password
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "changePassword"}
            ''ChangePassword
 makeLensesWith camelCaseFields ''ChangePassword
+
+--------------------------------------------------------------------------------
+-- Password Reset --------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+data PasswordResetRequest =
+  PasswordResetRequest
+  { passwordResetRequestEmail :: !Email
+  } deriving (Show)
+
+makeLensesWith camelCaseFields ''PasswordResetRequest
+
+deriveJSON
+  defaultOptions {fieldLabelModifier = dropPrefix "passwordResetRequest"}
+  ''PasswordResetRequest
+
+data ResetTokenInfo =
+  ResetTokenInfo
+  { resetTokenInfoEmail :: Email
+  } deriving (Show)
+
+makeLensesWith camelCaseFields ''ResetTokenInfo
+
+deriveJSON
+  defaultOptions {fieldLabelModifier = dropPrefix "resetTokenInfo"}
+  ''ResetTokenInfo
+
+data PasswordReset =
+  PasswordReset
+  { passwordResetToken :: B64Token
+  , passwordResetNewPassword :: Password
+  } deriving (Show)
+
+
+makeLensesWith camelCaseFields ''PasswordReset
+
+deriveJSON
+  defaultOptions {fieldLabelModifier = dropPrefix "passwordReset"}
+  ''PasswordReset

@@ -54,7 +54,7 @@ http {
                 proxy_set_header X-Original-URI $request_uri;
         }
 
-        define(`expire', `ifelse(COOKIE, `permanent', `; Expires=Fri, 01-Jan-2038 00:00:01 GMT;')')
+        define(`EXPIRE', `ifelse(COOKIE, `permanent', `; Expires=Fri, 01-Jan-2038 00:00:01 GMT;')')
         location = /login {
                 proxy_pass http://AUTH_SERVICE/login/;
                 proxy_set_header X-Original-URI $request_uri;
@@ -123,6 +123,25 @@ http {
                 proxy_pass_request_body off;
                 proxy_set_header Content-Length "";
                 proxy_set_header X-Original-URI $request_uri;
+        }
+
+        location = /request-password-reset {
+                proxy_pass http://AUTH_SERVICE/request-password-reset/;
+                proxy_set_header X-Original-URI $request_uri;
+        }
+
+        location = /reset-password {
+                proxy_pass http://AUTH_SERVICE/reset-password/;
+                proxy_set_header X-Original-URI $request_uri;
+                add_header Set-Cookie "token=$upstream_http_x_token; Path=/EXPIRE";
+        }
+
+        location = /reset-password-info {
+                proxy_pass http://AUTH_SERVICE/password-reset-info/;
+                proxy_pass_request_body off;
+                proxy_set_header Content-Length "";
+                proxy_set_header X-Original-URI $request_uri;
+                add_header Set-Cookie "token=$upstream_http_x_token; Path=/EXPIRE";
         }
 
         # Locations to redirect /auth.html

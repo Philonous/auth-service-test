@@ -4,8 +4,9 @@
 module Test.Common where
 
 import           Control.Monad.Logger
-import           Data.Default
+import           Data.Monoid
 import           Data.Pool
+import           Data.Time.Clock
 import           Database.Persist.Sqlite as SQLite
 import           Test.Hspec.Wai
 import qualified Text.Microstache        as Mustache
@@ -22,10 +23,12 @@ testEmailConfig :: EmailConfig
 testEmailConfig =
   EmailConfig
   { emailConfigHost     = "localhost"
+  , emailConfigPort     = 25
   , emailConfigFrom     = "testuser@localhost"
   , emailConfigUser     = "testuser"
   , emailConfigPassword = "pwd"
-  , emailConfigTemplate = tmpl
+  , emailConfigPWResetTemplate = tmpl
+  , emailConfigPWResetUnknownTemplate = tmpl2
   , emailConfigSendmail =
       SendmailConfig
       { sendmailConfigPath = "/usr/bin/cat"
@@ -33,12 +36,17 @@ testEmailConfig =
       }
   , emailConfigSiteName = "Test Site"
   , emailConfigResetLinkExpirationTime = "24 hours"
+  , emailConfigMkLink = \(B64Token tok) -> "http://localhost/reset?token=" <> tok
   }
   where
     Right tmpl =
       Mustache.compileMustacheText
         "email template"
-        "{{address}} please click on {{link}}"
+        "please click on {{link}}"
+    Right tmpl2 =
+      Mustache.compileMustacheText
+        "email template"
+        "Your email is unknown"
 
 
 withApiData :: (Pool SqlBackend -> Config -> IO a) -> IO a
@@ -60,3 +68,6 @@ withRunAPI f = withApiData $ \pool conf -> f $  runAPI pool conf
 
 testApi :: API a -> IO a
 testApi f = withRunAPI $ \run -> run f
+
+seconds :: Integer -> NominalDiffTime
+seconds s = fromIntegral s

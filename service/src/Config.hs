@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 -- Copyright (c) 2015 Lambdatrade AB
 -- All Rights Reserved
 
@@ -15,26 +16,25 @@ module Config
   , module Config
   ) where
 
+import           Control.Lens            ((^.))
 import           Control.Monad.Logger
 import           Control.Monad.Trans
-import qualified Data.ByteString            as BS
-import qualified Data.Configurator.Types    as Conf
-import           Data.Default               (def)
-import           Data.Text                  (Text)
-import qualified Data.Text                  as Text
-import qualified Data.Text.Encoding         as Text
-import qualified Language.Haskell.TH        as TH
-import qualified Language.Haskell.TH.Syntax as TH
-import qualified Network.Mail.Mime          as Mail
-import qualified System.Exit                as Exit
-import qualified Text.Microstache           as Mustache
-import           Text.StringTemplate
-import           Text.StringTemplate.QQ
+import qualified Data.Aeson              as Aeson
+import qualified Data.Configurator.Types as Conf
+import           Data.Default            (def)
+import           Data.Monoid
+import qualified Data.Text               as Text
+import qualified Data.Text.Lazy          as LText
+import qualified Data.Text.Lazy.IO       as LText
+import qualified Network.Mail.Mime       as Mail
+import qualified System.Exit             as Exit
+import           System.IO               (stderr, hFlush)
+import qualified Text.Microstache        as Mustache
 
 import           Types
 import           Util
 
-import           NejlaCommon.Config         hiding (Config)
+import           NejlaCommon.Config      hiding (Config)
 
 --------------------------------------------------------------------------------
 -- Configuration ---------------------------------------------------------------
@@ -93,14 +93,14 @@ getAuthServiceConfig conf = do
                  }
 
 -- Default template loaded from src/password-reset-email-template.html.mustache
-defaultTemplate :: Mustache.Template
-defaultTemplate =
-  $(do
-       let templatePath = "src/html/password-reset-email-template.html.mustache"
-       TH.addDependentFile templatePath
-       template <- TH.runIO $ Mustache.compileMustacheFile templatePath
-       TH.lift template
-   )
+defaultPwResetTemplate :: Mustache.Template
+defaultPwResetTemplate =
+  $(htmlTemplate "password-reset-email-template.html.mustache")
+
+defaultPwResetUnknownTemplate :: Mustache.Template
+defaultPwResetUnknownTemplate =
+  $(htmlTemplate "password-reset-unknown-email-template.html.mustache")
+
 
 setEmailConf :: (MonadIO m, MonadLogger m) => Conf.Config -> m (Maybe EmailConfig)
 setEmailConf conf =
@@ -111,6 +111,8 @@ setEmailConf conf =
       let emailConfigFrom = Mail.Address fromName fromAddress
       emailConfigHost <-
         getConf "EMAIL_SMTP" "email.smtp" (Left "email host") conf
+      emailConfigPort <-
+        getConf' "EMAIL_PORT" "email.port" (Right 25) conf
       emailConfigUser <-
         getConf "EMAIL_USER" "email.user" (Left "email user") conf
       emailConfigPassword <-
@@ -118,48 +120,108 @@ setEmailConf conf =
       emailConfigSiteName <-
         getConf "SITE_NAME" "site-name" (Left "site name") conf
       emailConfigResetLinkExpirationTime <-
-        getConf "RESET_LINK_EXPIRATION_TIME" "email.link-expiration-time"
-                 (Left "Human-readable reset link expiration time") conf
-      mbEmailConfigTemplatefile <-
-        getConfMaybe
-          "EMAIL_TEMPLATE"
-          "email.template"
+        getConf
+          "RESET_LINK_EXPIRATION_TIME"
+          "email.link-expiration-time"
+          (Left "Human-readable reset link expiration time")
           conf
-      emailConfigTemplate <-
+      mbEmailConfigTemplatefile <-
+        getConfMaybe "EMAIL_TEMPLATE" "email.template" conf
+      emailConfigPWResetTemplate <-
         case mbEmailConfigTemplatefile of
-          Nothing -> return defaultTemplate
-          Just filename -> liftIO . Mustache.compileMustacheFile $
-                             Text.unpack filename
-      let
-        emailConfigSendmail = def
-        ecfg = EmailConfig {..}
-      liftIO $ writeMsmtprc ecfg
+          Nothing -> return defaultPwResetTemplate
+          Just filename ->
+            liftIO . Mustache.compileMustacheFile $ Text.unpack filename
+      mbEmailConfigUnknownTemplatefile <-
+        getConfMaybe "EMAIL_UNKNOWN_TEMPLATE" "email.unknown-template" conf
+      emailConfigPWResetUnknownTemplate <-
+        case mbEmailConfigUnknownTemplatefile of
+          Nothing -> return defaultPwResetUnknownTemplate
+          Just filename ->
+            liftIO . Mustache.compileMustacheFile $ Text.unpack filename
+      emailConfigLinkTemplate <-
+        getConf
+          "EMAIL_LINK_TEMPLATE"
+          "email.link-template"
+          (Left "Password reset email link template")
+          conf
+      let emailConfigMkLink =
+            \(B64Token tok) -> Text.replace "%s" tok emailConfigLinkTemplate
+      sendmailCommand <-
+        getConfMaybe "SENDMAIL_PROGRAM" "email.sendmail-program" conf
+      emailConfigTls <- getConfBool "EMAIL_TLS" "email.tls" (Right True) conf
+      emailConfigAuth <- getConfBool "EMAIL_AUTH" "email.auth" (Right True) conf
+      let emailConfigSendmail =
+            case sendmailCommand of
+              Just cmd
+                | (prg:args) <- Text.splitOn " " cmd
+                , not (Text.null prg) ->
+                  SendmailConfig
+                  { sendmailConfigPath = Text.unpack $ prg
+                  , sendmailConfigArguments = Text.unpack <$> args
+                  }
+              _ -> def
+          ecfg = EmailConfig {..}
+      writeMsmtprc ecfg emailConfigTls emailConfigAuth
       return $ Just ecfg
 
-writeMsmtprc ::  EmailConfig -> IO ()
-writeMsmtprc emailConfig =
-  BS.writeFile "/etc/msmtprc" bs
-  where bs = Text.encodeUtf8 $ renderMsmtprc emailConfig
+writeMsmtprc ::
+     (MonadLogger m, MonadIO m) => EmailConfig -> Bool -> Bool -> m ()
+writeMsmtprc emailConfig tls auth = do
+  txt <- renderMsmtprc emailConfig tls auth
+  liftIO $ LText.hPutStrLn stderr txt
+  liftIO $ hFlush stderr
+  liftIO $ LText.writeFile "/etc/msmtprc" txt
 
-
-renderMsmtprc :: EmailConfig -> Text
-renderMsmtprc EmailConfig{..} =
-  let Mail.Address _ fromAddress = emailConfigFrom
-  in render $ [stmp|
+renderMsmtprc ::
+     (MonadIO m, MonadLogger m)
+  => EmailConfig
+  -> Bool
+  -> Bool
+  -> m LText.Text
+renderMsmtprc cfg tls auth =
+  let Mail.Address _ fromAddress = cfg ^. from
+      dt = Aeson.object [ "host" .= (cfg ^. host)
+                        , "port" .= (cfg ^. port)
+                        , "fromAddress" .= fromAddress
+                        , "password" .= cfg ^. password
+                        , "tls" .= tls
+                        , "auth" .= auth
+                        , "user" .= cfg ^. user
+                        ]
+  in case Mustache.renderMustacheW template dt of
+       ([], txt) -> return txt
+       (warnings, _) -> do
+         $logError $ "Could not render msmtprc: " <> (Text.pack $ show warnings)
+         liftIO Exit.exitFailure
+  where
+    infix 0 .=
+    (.=) = (Aeson..=)
+    template = [mustache|
 defaults
 
+{{#tls}}
 tls on
 tls_trust_file /etc/ssl/certs/ca-certificates.crt
+{{/tls}}
+{{^tls}}
+tls off
+{{/tls}}
 
 timeout 30
 
 account defaultaccount
-host $`emailConfigHost`$
-port 587
-from $`fromAddress`$
+host {{host}}
+port {{port}}
+from {{fromAddress}}
+{{#auth}}
 auth on
-user $`emailConfigUser`$
-password $`emailConfigPassword`$
+user {{user}}
+password {{password}}
+{{/auth}}
+{{^auth}}
+auth off
+{{/auth}}
 
 account default : defaultaccount
 |]

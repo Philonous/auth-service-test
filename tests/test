@@ -20,13 +20,16 @@ DB_HOST=database
 DB_USER=postgres
 DB_DATABASE=postgres
 WEB_HOST=localhost:8000
+EMAIL_HOST=localhost:8025
 API=$WEB_HOST/api
+EMAIL_API=$EMAIL_HOST/api/v1
 USER=no@spam.please
 PASSWORD=pwd123
 USER2=no2@spam.please
 PASSWORD2=pwd1234
 NAME="JohnDoe"
 INSTANCE="de305d54-75b4-431b-adb2-eb6b9e546014"
+
 
 NOTINSTANCE="deadbeef-75b4-431b-adb2-eb6b9e546014"
 
@@ -175,9 +178,35 @@ check_upstream() {
                 -H "X-Token: $TOKEN" \
                 http://$API/foo/index.html)
     [[ $RES == "foo!" ]]
+
 }
 
+email() {
+    endpoint=$1
+    shift
+    $CURL "$@" "http://$EMAIL_API/$endpoint"
+}
 
+clearEmail() {
+    email messages -XDELETE -o /dev/null
+}
+
+emailGetToken() {
+    tmpfile=$(mktemp --tmpdir auth-service.tmp.XXXXX) || fail "Could not make temporary file"
+    trap "rm -r $tmpfile" EXIT
+    res=$($CURL --silent -w "%{http_code}" "http://$EMAIL_API/messages" -o "$tmpfile")
+    if [[ $res -lt 200 || $res -gt 300 ]]; then
+       fail "Failed with error code $res"
+    fi
+    token=$(< "$tmpfile" \
+      jq -r '.[0] | .MIME.Parts | .[1] | .Body' \
+      | perl -n -e '/\?token=3D([[:alnum:]]+)/ && print $1')
+
+    [[ -n "$token" ]] || fail "could not get token"
+
+    # This is a bit hacky, we rely on the email to contain a link of the form
+    # "?token=<token>" the "3D" is there fore MIME reasons
+}
 
 # run _local_ test
 runtest() {
@@ -393,6 +422,20 @@ docker_test() {
     logout
     login $USER $PASSWORD2 || fail "Could not login with new password"
     login && fail "could still log on with old credentials"
+
+    testing "Password reset email"
+    clearEmail
+    docker_setup &> /dev/null
+    call "request-password-reset" \
+         -H "Content-Type: application/json" \
+         -d "{\"email\": \"$USER\"}"
+    emailGetToken
+
+    testing "Password reset with unknown email"
+    call "request-password-reset" \
+         -H "Content-Type: application/json" \
+         -d "{\"email\": \"unknown_user@no-address.abc\"}"
+
 }
 
 docker_rebuild() {
@@ -430,6 +473,11 @@ case $1 in
         ;;
     db)
         run_db "$@"
+        ;;
+    call)
+        # for debugging
+        shift
+        "$@"
         ;;
     *)
         echo "usage: test.sh dockertest|docker|login|nginx_rebuild_conf|nginx_logs|nginx_enter"
