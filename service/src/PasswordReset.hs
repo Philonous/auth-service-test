@@ -47,7 +47,7 @@ renderEmail ::
      (Log.MonadLogger m, Ex.MonadThrow m)
   => EmailConfig
   -> Mustache.Template
-  -> Maybe PWResetToken
+  -> Maybe PwResetToken
   -> m LText.Text
 renderEmail cfg tmpl mbToken =
   let emailData =
@@ -72,7 +72,7 @@ sendEmail ::
   -> Mustache.Template
   -> Email
   -> Text
-  -> Maybe PWResetToken
+  -> Maybe PwResetToken
   -> API Bool
 sendEmail cfg tmpl (Email toAddress) subject token = do
   let sendmailCfg = cfg ^. sendmail
@@ -96,7 +96,7 @@ sendEmail cfg tmpl (Email toAddress) subject token = do
     Left e -> Ex.throwM e
     Right () -> return True
 
-sendPasswordResetEmail :: EmailConfig -> Email -> PWResetToken -> API Bool
+sendPasswordResetEmail :: EmailConfig -> Email -> PwResetToken -> API Bool
 sendPasswordResetEmail cfg toAddress token = do
   logES $ PasswordResetRequested toAddress
   sendEmail cfg (cfg ^. pWResetTemplate) toAddress "Password reset" (Just token)

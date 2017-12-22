@@ -43,7 +43,7 @@ Token
   deriving Show
 
 PasswordResetToken
-  token B64Token
+  token PwResetToken
   UniquePasswordResetToken token
   user UserID
   Foreign User fkUser user

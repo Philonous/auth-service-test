@@ -52,8 +52,8 @@ type PasswordResetAPI =  "reset-password"
                       :> ReqBody '[JSON] PasswordReset
                       :> Post '[JSON] NoContent
 
-type PasswordResetTokenInfo =  "reset-password"
-                             :> Capture "token" B64Token
+type PasswordResetInfoAPI =  "reset-password-info"
+                             :> QueryParam "token" Text
                              :> Get '[JSON] ResetTokenInfo
 
 
@@ -80,4 +80,4 @@ type Api = LoginAPI
            :<|> AdminAPI
            :<|> RequestPasswordResetAPI
            :<|> PasswordResetAPI
-           :<|> PasswordResetTokenInfo
+           :<|> PasswordResetInfoAPI

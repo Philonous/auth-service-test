@@ -245,7 +245,7 @@ deriveJSON
 
 data PasswordReset =
   PasswordReset
-  { passwordResetToken :: B64Token
+  { passwordResetToken :: Text
   , passwordResetNewPassword :: Password
   } deriving (Show)
 

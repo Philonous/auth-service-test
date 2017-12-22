@@ -137,7 +137,7 @@ http {
         }
 
         location = /reset-password-info {
-                proxy_pass http://AUTH_SERVICE/password-reset-info/;
+                proxy_pass http://AUTH_SERVICE/reset-password-info/;
                 proxy_pass_request_body off;
                 proxy_set_header Content-Length "";
                 proxy_set_header X-Original-URI $request_uri;
@@ -145,7 +145,6 @@ http {
         }
 
         # Locations to redirect /auth.html
-
         location = /authentication/index.html {
             # Serve auth.html instead of a 404 page when auth fails
             error_page 403 =200 /authenticatehtml;

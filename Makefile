@@ -9,6 +9,7 @@ SERVICE_IMAGE=$(REGISTRY)/$(APP_IMAGE_NAME)
 WEB_IMAGE=$(REGISTRY)/$(WEB_IMAGE_NAME)
 
 all: service-container auth-web-container
+	docker-compose build
 
 build:
 	cd service &&\

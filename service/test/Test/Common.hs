@@ -36,7 +36,7 @@ testEmailConfig =
       }
   , emailConfigSiteName = "Test Site"
   , emailConfigResetLinkExpirationTime = "24 hours"
-  , emailConfigMkLink = \(B64Token tok) -> "http://localhost/reset?token=" <> tok
+  , emailConfigMkLink = \tok -> "http://localhost/reset?token=" <> tok
   }
   where
     Right tmpl =

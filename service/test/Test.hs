@@ -124,7 +124,7 @@ case_reset_password = withUser testUser $ \uid run -> do
 case_reset_password_wrong_token :: IO ()
 case_reset_password_wrong_token =
   withRunAPI $ \run -> do
-    run (resetPassword (B64Token "BogusToken") "newPwd") `shouldThrow`
+    run (resetPassword "BogusToken" "newPwd") `shouldThrow`
       (== ChangePasswordTokenError)
     return ()
 
@@ -160,7 +160,7 @@ case_password_reset_render_email = do
     renderEmail
       testEmailConfig
       (testEmailConfig ^. pWResetTemplate)
-      (Just $ B64Token "tok123abc")
+      (Just "tok123abc")
   renderedEmail `shouldBe`
     "please click on http://localhost/reset?token=tok123abc"
 

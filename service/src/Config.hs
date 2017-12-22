@@ -146,7 +146,7 @@ setEmailConf conf =
           (Left "Password reset email link template")
           conf
       let emailConfigMkLink =
-            \(B64Token tok) -> Text.replace "%s" tok emailConfigLinkTemplate
+            \tok -> Text.replace "%s" tok emailConfigLinkTemplate
       sendmailCommand <-
         getConfMaybe "SENDMAIL_PROGRAM" "email.sendmail-program" conf
       emailConfigTls <- getConfBool "EMAIL_TLS" "email.tls" (Right True) conf

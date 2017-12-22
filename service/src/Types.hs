@@ -65,7 +65,7 @@ makePrisms ''ChangePasswordError
 --------------------------------------------------------------------------------
 -- Config ----------------------------------------------------------------------
 --------------------------------------------------------------------------------
-type PWResetToken = B64Token
+type PwResetToken = Text
 
 data TwilioConfig = TwilioConfig
   { twilioConfigAccount      :: Text
@@ -102,7 +102,7 @@ data EmailConfig = EmailConfig
   , emailConfigSendmail :: SendmailConfig
   , emailConfigSiteName :: Text
   , emailConfigResetLinkExpirationTime :: Text
-  , emailConfigMkLink :: B64Token -> Text -- ^ Generate a link from a token
+  , emailConfigMkLink :: PwResetToken -> Text -- ^ Generate a link from a token
   }
 
 makeLensesWith camelCaseFields ''EmailConfig

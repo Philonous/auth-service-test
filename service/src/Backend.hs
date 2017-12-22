@@ -2,6 +2,7 @@
 -- All rights reserved
 
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -27,6 +28,7 @@ import qualified Database.Esqueleto   as E
 import           Database.Esqueleto   hiding ((^.), from)
 import qualified Database.Persist     as P
 import qualified Database.Persist.Sql as P
+import           System.IO
 import           System.Random
 import qualified Twilio
 
@@ -83,10 +85,10 @@ getUserByEmail :: Email -> API (Maybe DB.User)
 getUserByEmail name' =
   fmap (fmap entityVal) . runDB $ P.getBy (DB.UniqueUserEmail name')
 
-createResetToken :: NominalDiffTime -> UserID -> API B64Token
+createResetToken :: NominalDiffTime -> UserID -> API PwResetToken
 createResetToken expires usr = do
   tok <-
-    unprivileged $ mkUniqueRandomHrID B64Token 20 DB.PasswordResetTokenToken
+    unprivileged $ mkUniqueRandomHrID (Prelude.id) 20 DB.PasswordResetTokenToken
   now <- liftIO getCurrentTime
   _ <-
     db' $
@@ -100,31 +102,56 @@ createResetToken expires usr = do
       }
   return tok
 
-resetPassword :: B64Token -> Password -> API ()
-resetPassword token password = do
+resetTokenActive ::
+     UTCTime -> SqlExpr (Entity DB.PasswordResetToken) -> SqlExpr (Value Bool)
+resetTokenActive now token =
+  andL [ token E.^. DB.PasswordResetTokenExpires >. val now
+       , E.isNothing $ token E.^. DB.PasswordResetTokenUsed
+       ]
+
+
+getUserByResetPwToken :: PwResetToken -> API DB.User
+getUserByResetPwToken token = do
   now <- liftIO getCurrentTime
   users <- db' . E.select . E.from $ \((tok :: SV DB.PasswordResetToken)
                                        `InnerJoin` (usr :: SV DB.User)
                                       ) -> do
+    onForeignKey tok usr
     whereL [ tok E.^. DB.PasswordResetTokenToken E.==. val token
-           , foreignKey tok usr
+           , resetTokenActive now tok
            ]
-    return (usr E.^. DB.UserUuid)
-  user <- case users of
-            [] -> Ex.throwM ChangePasswordTokenError
-            (E.Value user : _) -> return $ user
-  -- Set token to "used", return number of tokens this updated (0 or 1)
+    return usr
+  case users of
+    [] -> do
+      liftIO $ hPutStrLn stderr "#1"
+      liftIO $ hFlush stderr
+      Log.logInfo $ "Failed reset password attempt: " <> token
+      Ex.throwM ChangePasswordTokenError
+    (user : _) -> return $ entityVal user
+
+
+-- | Reset password using the token from a password reset email
+resetPassword :: PwResetToken -> Password -> API ()
+resetPassword token password = do
+  now <- liftIO getCurrentTime
+  uid <- DB.userUuid <$> getUserByResetPwToken token
+ -- Set token to "used", return number of tokens this updated (0 or 1)
   cnt <- db'. updateCount $ \(tok :: SV DB.PasswordResetToken) -> do
     E.set tok [DB.PasswordResetTokenUsed E.=. val (Just now)]
     whereL [ tok E.^. DB.PasswordResetTokenToken E.==. val token
-           , tok E.^. DB.PasswordResetTokenUser E.==. val user
-           , tok E.^. DB.PasswordResetTokenExpires E.>=. val now
-           , isNothing $ tok E.^. DB.PasswordResetTokenUsed
+           , tok E.^. DB.PasswordResetTokenUser E.==. val uid
+           , resetTokenActive now tok
            ]
   -- If there was a valid token, cnt should be 1
   if cnt > 0
-    then changeUserPassword user password
-    else Ex.throwM ChangePasswordTokenError
+    then changeUserPassword uid password
+    else do
+    liftIO $ hPutStrLn stderr "#1"
+    liftIO $ hFlush stderr
+
+    Log.logInfo $ "Failed reset password attempt (token not found): " <> token
+    Ex.throwM ChangePasswordTokenError
+
 
 
 changeUserPassword :: UserID -> Password -> API ()
@@ -362,7 +389,10 @@ changePassword tok ChangePassword { changePasswordOldPasword = oldPwd
                                   } = runExceptT $ do
   mbUser <- lift $ getUserByToken tok
   (_tokenID, usr) <- case mbUser of
-    Nothing -> throwError ChangePasswordTokenError
+    Nothing -> do
+
+      Log.logInfo $ "Failure while trying to change passowrd " <> (unB64Token tok)
+      throwError ChangePasswordTokenError
     Just usr -> return usr
   mbError <- lift $ checkUserPassword (DB.userEmail usr) oldPwd
   case mbError of
