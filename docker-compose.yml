@@ -13,9 +13,9 @@ services:
       - mail
     environment:
       - log=true
-      - TWILIO_ACCOUNT=AC7d2148c9391bf9133843462b8cd6f271
-      - TWILIO_TOKEN=bad524c865476855c0c66830617e9e27
-      - TWILIO_SOURCE=+15005550006
+      - TWILIO_ACCOUNT=
+      - TWILIO_TOKEN=
+      - TWILIO_SOURCE=
       - EMAIL_FROM=authservicetest@no.email
       - EMAIL_USER=testuser
       - EMAIL_SMTP=mail
