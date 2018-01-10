@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 -- Copyright (c) 2015 Lambdatrade AB
 -- All rights reserved
 
@@ -123,8 +124,6 @@ getUserByResetPwToken token = do
     return usr
   case users of
     [] -> do
-      liftIO $ hPutStrLn stderr "#1"
-      liftIO $ hFlush stderr
       Log.logInfo $ "Failed reset password attempt: " <> token
       Ex.throwM ChangePasswordTokenError
     (user : _) -> return $ entityVal user
@@ -146,9 +145,6 @@ resetPassword token password = do
   if cnt > 0
     then changeUserPassword uid password
     else do
-    liftIO $ hPutStrLn stderr "#1"
-    liftIO $ hFlush stderr
-
     Log.logInfo $ "Failed reset password attempt (token not found): " <> token
     Ex.throwM ChangePasswordTokenError
 
@@ -280,106 +276,120 @@ deactivateTokenWhere selector = do
   now <- liftIO getCurrentTime
   runDB $ P.updateWhere selector [DB.TokenDeactivated P.=. Just now]
 
-login :: Login -> API (Either LoginError ReturnLogin)
-login Login{ loginUser = userEmail
-           , loginPassword = pwd
-           , loginOtp      = mbOtp
-           } = do
-    mbError <- checkUserPassword userEmail pwd
-    case mbError of
-     Left e -> do
-       Log.logES $ Log.AuthFailed{ Log.user = userEmail
-                                 , Log.reason =
-                                     Log.AuthFailedReasonWrongPassword
-                                 }
-       return $ Left e
-     Right usr -> do
-         let userId = usr ^. DB.uuid
-         case mbOtp of
-          Nothing -> do
-              mbTwilioConf <- getConfig twilio
-              case mbTwilioConf of
-               Nothing -> do
-                 (tid, rl) <- createToken userId
-                 Log.logES Log.AuthSuccess{ Log.user = userEmail
-                                          , Log.tokenId = tid
-                                          }
-                 return $ Right rl
-               Just twilioConf ->
-                   case DB.userPhone usr of
+-- | Create and send one time password for a user
+createOTP :: TwilioConfig -> Phone -> Email -> UserID -> API ()
+createOTP twilioConf p userEmail userId = do
+  otp' <- mkRandomOTP
+  now <- liftIO getCurrentTime
+  key <-
+    runDB $
+    insert
+      DB.UserOtp
+      { DB.userOtpUser = userId
+      , DB.userOtpPassword = otp'
+      , DB.userOtpCreated = now
+      , DB.userOtpDeactivated = Nothing
+      }
+  sendOTP twilioConf userEmail p otp'
+  Log.logES
+    Log.OTPSent
+    { Log.user = userEmail
+    , Log.otp = P.unSqlBackendKey $ DB.unUserOtpKey key
+    }
+  return ()
+
+-- | Check that one time password is valid for user
+checkOTP :: UserID -> Password -> API (Either LoginError (Entity DB.UserOtp))
+checkOTP userId (Password otpC) = do
+  let otp' = Password $ Text.toUpper otpC
+  otpTime <- fromIntegral . negate <$> getConfig oTPTimeoutSeconds
+  now <- liftIO getCurrentTime
+  let cutoff = otpTime `addUTCTime` now
+  deactivateOtpWhere [DB.UserOtpCreated P.<=. cutoff]
+  checkOTP <-
+    runDB $
+    P.selectList
+      [ DB.UserOtpUser P.==. userId
+      , DB.UserOtpPassword P.==. otp'
+      , DB.UserOtpDeactivated P.==. Nothing
+      ]
+      []
+  case checkOTP of
+    (k:_) -> do
+      deactivateOtpWhere
+        [DB.UserOtpUser P.==. userId, DB.UserOtpPassword P.==. otp']
+      return $ Right k
+    [] -> return $ Left LoginErrorFailed
+
+handleOTP ::
+     DB.User
+  -> Maybe Password
+  -> API (Either LoginError (Maybe (Entity DB.UserOtp)))
+handleOTP usr mbOtp = do
+      let userId = usr ^. DB.uuid
+      case mbOtp of
+        Nothing -> do
+          mbTwilioConf <- getConfig twilio
+          case mbTwilioConf of
+            Nothing -> return $ Right Nothing
+            Just twilioConf ->
+              case DB.userPhone usr
                     -- No phone number for two-factor auth
-                    Nothing -> do
-                      (tid, rl) <- createToken userId
-                      Log.logES Log.AuthSuccess{ Log.user = userEmail
-                                               , Log.tokenId = tid
-                                               }
-                      return $ Right rl
-                    Just p  -> do
-                        createOTP twilioConf p userId
-                        return $ Left LoginErrorOTPRequired
-          Just (Password otpC) -> do
-              let otp' = Password $ Text.toUpper otpC
-              otpTime <- fromIntegral . negate <$> getConfig oTPTimeoutSeconds
-              now <- liftIO getCurrentTime
-              let cutoff = otpTime `addUTCTime` now
-              deactivateOtpWhere [DB.UserOtpCreated P.<=. cutoff]
-              checkOTP <- runDB $ P.selectList [ DB.UserOtpUser P.==. userId
-                                               , DB.UserOtpPassword P.==. otp'
-                                               , DB.UserOtpDeactivated
-                                                 P.==. Nothing
-                                               ] []
-              case checkOTP of
-               (k:_) -> do
-                   deactivateOtpWhere [ DB.UserOtpUser P.==. userId
-                                      , DB.UserOtpPassword P.==. otp'
-                                      ]
-                   (tid,  rl) <- createToken userId
-                   Log.logES Log.AuthSuccessOTP
-                     { Log.user = userEmail
-                     , Log.tokenId = tid
-                     , Log.otp = P.unSqlBackendKey . DB.unUserOtpKey
-                                   $ entityKey k
-                     }
-                   return $ Right rl
-               [] -> do
-                 Log.logES $ Log.AuthFailed{ Log.user = userEmail
-                                           , Log.reason =
-                                               Log.AuthFailedReasonWrongOtp
-                                           }
-                 return $ Left LoginErrorFailed
+                    of
+                Nothing -> return $ Right Nothing
+                Just p -> do
+                  createOTP twilioConf p (usr ^. email) userId
+                  return $ Left LoginErrorOTPRequired
+        Just otpC ->
+          checkOTP userId otpC >>= \case
+            Left e -> do
+              Log.logES $
+                Log.AuthFailed
+                { Log.user = usr ^. email
+                , Log.reason = Log.AuthFailedReasonWrongOtp
+                }
+              return $ Left e
+            Right k -> do
+              return . Right $ Just k
+
+
+login :: Login -> API (Either LoginError ReturnLogin)
+login Login {loginUser = userEmail, loginPassword = pwd, loginOtp = mbOtp} = do
+  mbError <- checkUserPassword userEmail pwd
+  case mbError of
+    Left e -> do
+      Log.logES $
+        Log.AuthFailed
+        {Log.user = userEmail, Log.reason = Log.AuthFailedReasonWrongPassword}
+      return $ Left e
+    Right usr -> do
+      handleOTP usr mbOtp >>= \case
+        Left e -> return $ Left e
+        Right _r -> do
+          (tid, rl) <- createToken (usr ^. DB.uuid)
+          Log.logES Log.AuthSuccess {Log.user = userEmail, Log.tokenId = tid}
+          return $ Right rl
   where
     createToken userId = do
-        now <- liftIO $ getCurrentTime
+      now <- liftIO $ getCurrentTime
         -- token <- liftIO $ b64Token <$> getEntropy 16 -- 128 bits
-        token' <- B64Token <$> mkRandomString tokenChars 22 -- > 128 bit
-        key <- runDB . P.insert $ DB.Token { DB.tokenToken = token'
-                                           , DB.tokenUser = userId
-                                           , DB.tokenCreated = now
-                                           , DB.tokenExpires = Nothing
-                                           , DB.tokenLastUse = Nothing
-                                           , DB.tokenDeactivated = Nothing
-                                           }
-        let tokenId = P.unSqlBackendKey $ DB.unTokenKey key
-        instances' <- getUserInstances userId
-        return ( tokenId
-               , ReturnLogin{ returnLoginToken = token'
-                            , returnLoginInstances = instances'
-                            }
-               )
-    createOTP twilioConf p userId = do
-        otp' <- mkRandomOTP
-        now <- liftIO getCurrentTime
-        key <- runDB $ insert DB.UserOtp { DB.userOtpUser = userId
-                                         , DB.userOtpPassword = otp'
-                                         , DB.userOtpCreated = now
-                                         , DB.userOtpDeactivated = Nothing
-                                         }
-        sendOTP twilioConf userEmail p otp'
-        Log.logES Log.OTPSent{ Log.user = userEmail
-                             , Log.otp = P.unSqlBackendKey $
-                                          DB.unUserOtpKey key
-                             }
-        return ()
+      token' <- B64Token <$> mkRandomString tokenChars 22 -- > 128 bit
+      key <-
+        runDB . P.insert $
+        DB.Token
+        { DB.tokenToken = token'
+        , DB.tokenUser = userId
+        , DB.tokenCreated = now
+        , DB.tokenExpires = Nothing
+        , DB.tokenLastUse = Nothing
+        , DB.tokenDeactivated = Nothing
+        }
+      let tokenId = P.unSqlBackendKey $ DB.unTokenKey key
+      instances' <- getUserInstances userId
+      return
+        ( tokenId
+        , ReturnLogin
+          {returnLoginToken = token', returnLoginInstances = instances'})
 
 changePassword :: B64Token
                -> ChangePassword
