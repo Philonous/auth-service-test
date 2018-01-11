@@ -244,7 +244,22 @@ runtest() {
     echo "$RES"
 }
 
+check_connection() {
+    res=$(curl "$WEB_HOST" --silent -o /dev/null -w "%{http_code}")
+    [[ $res = 200 ]]
+}
+
 docker_test() {
+
+    if ! check_connection; then
+      echo -n "Waiting for server to start"
+      until check_connection; do
+          sleep 1
+          echo -n "."
+      done
+      echo
+    fi
+
     docker_setup &> /dev/null
     testing "Trying log in"
     login || fail "could not log in"

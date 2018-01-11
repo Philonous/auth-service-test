@@ -33,7 +33,7 @@ test:
     - mkdir -p $PWD/.stack-cache
     - '[[ -d $HOME/.stack ]] || ln -s $PWD/.stack-cache $HOME/.stack'
   script:
-    - make test
+    - make unittests
 
 push:
   stage: push
