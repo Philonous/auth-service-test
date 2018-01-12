@@ -29,9 +29,7 @@ import qualified Database.Esqueleto   as E
 import           Database.Esqueleto   hiding ((^.), from)
 import qualified Database.Persist     as P
 import qualified Database.Persist.Sql as P
-import           System.IO
 import           System.Random
-import qualified Twilio
 
 import           NejlaCommon
 
@@ -223,17 +221,13 @@ mkRandomOTP = do
     Password <$> mkRandomString otpIDChars len
 
 
-sendOTP :: TwilioConfig -> Email -> Phone -> Password -> API ()
-sendOTP twilioConf (Email user') (Phone p) (Password otp') = do
+sendOTP :: OtpHandler -> Email -> Phone -> Password -> API ()
+sendOTP otpHandler (Email user') p (Password otp') = do
     Log.logInfo $ mconcat [ "Sending OTP for user " , user'
-                          , "(", p , ")"
+                          , "(", unPhone p , ")"
                           , ": " <> otp'
                           ]
-    Twilio.sendMessage (twilioConf ^. account)
-                       (twilioConf ^. authToken)
-                       (twilioConf ^. sourceNumber)
-                       p
-                       otp'
+    otpHandler p otp'
 
 tokenChars :: [Char]
 tokenChars = concat [ ['a' .. 'z']
@@ -277,8 +271,8 @@ deactivateTokenWhere selector = do
   runDB $ P.updateWhere selector [DB.TokenDeactivated P.=. Just now]
 
 -- | Create and send one time password for a user
-createOTP :: TwilioConfig -> Phone -> Email -> UserID -> API ()
-createOTP twilioConf p userEmail userId = do
+createOTP :: OtpHandler -> Phone -> Email -> UserID -> API ()
+createOTP otpHandler p userEmail userId = do
   otp' <- mkRandomOTP
   now <- liftIO getCurrentTime
   key <-
@@ -290,7 +284,7 @@ createOTP twilioConf p userEmail userId = do
       , DB.userOtpCreated = now
       , DB.userOtpDeactivated = Nothing
       }
-  sendOTP twilioConf userEmail p otp'
+  sendOTP otpHandler userEmail p otp'
   Log.logES
     Log.OTPSent
     { Log.user = userEmail
@@ -323,13 +317,13 @@ checkOTP userId (Password otpC) = do
 
 handleOTP ::
      DB.User
-  -> Maybe Password
+  -> Maybe Password -- ^ Provided One Time Password (if any)
   -> API (Either LoginError (Maybe (Entity DB.UserOtp)))
 handleOTP usr mbOtp = do
       let userId = usr ^. DB.uuid
       case mbOtp of
         Nothing -> do
-          mbTwilioConf <- getConfig twilio
+          mbTwilioConf <- getConfig otp
           case mbTwilioConf of
             Nothing -> return $ Right Nothing
             Just twilioConf ->

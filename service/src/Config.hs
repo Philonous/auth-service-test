@@ -30,6 +30,7 @@ import qualified Network.Mail.Mime       as Mail
 import qualified System.Exit             as Exit
 import           System.IO               (stderr, hFlush)
 import qualified Text.Microstache        as Mustache
+import qualified Twilio
 
 import           Types
 import           Util
@@ -83,11 +84,12 @@ getAuthServiceConfig conf = do
                  (Right 300) conf
     (tfaRequired, twilioConf) <- get2FAConf conf
     haveEmail <- setEmailConf conf
+    let configOtp = fmap Twilio.sendMessage twilioConf
     return Config{ configTimeout = to
                  , configOTPLength = otpl
                  , configOTPTimeoutSeconds = otpt
                  , configTFARequired = tfaRequired
-                 , configTwilio = twilioConf
+                 , configOtp = configOtp
                  , configUseTransactionLevels = True
                  , configEmail = haveEmail
                  }

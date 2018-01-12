@@ -73,16 +73,12 @@ data TwilioConfig = TwilioConfig
   , twilioConfigSourceNumber :: Text
   } deriving (Show)
 
-makeLensesWith camelCaseFields ''TwilioConfig
-
 
 data SendmailConfig =
   SendmailConfig
   { sendmailConfigPath :: String
   , sendmailConfigArguments :: [String]
   } deriving Show
-
-makeLensesWith camelCaseFields ''SendmailConfig
 
 instance Default SendmailConfig where
   def =
@@ -105,19 +101,17 @@ data EmailConfig = EmailConfig
   , emailConfigMkLink :: PwResetToken -> Text -- ^ Generate a link from a token
   }
 
-makeLensesWith camelCaseFields ''EmailConfig
+type OtpHandler = Phone -> Text -> API ()
 
 data Config = Config
   { configTimeout              :: Integer -- token timeout in seconds
   , configOTPLength            :: Int
   , configOTPTimeoutSeconds    :: Integer
   , configTFARequired          :: Bool
-  , configTwilio               :: Maybe TwilioConfig
+  , configOtp                  :: Maybe OtpHandler
   , configUseTransactionLevels :: Bool
   , configEmail                :: Maybe EmailConfig
   }
-
-makeLensesWith camelCaseFields ''Config
 
 -- | Necessary data to fill in a password reset email
 data EmailData =
@@ -127,16 +121,12 @@ data EmailData =
   , emailDataExpirationTime :: Text
   } deriving (Show)
 
-makeLensesWith camelCaseFields ''EmailData
-
 --------------------------------------------------------------------------------
 -- Monad -----------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
 newtype ApiState = ApiState { apiStateConfig :: Config
                             }
-
-makeLensesWith camelCaseFields ''ApiState
 
 type API a = NC.App ApiState 'NC.Privileged 'NC.ReadCommitted a
 
@@ -146,6 +136,13 @@ type API a = NC.App ApiState 'NC.Privileged 'NC.ReadCommitted a
 
 runDB :: ReaderT SqlBackend IO a -> API a
 runDB = NC.db'
+
+makeLensesWith camelCaseFields ''ApiState
+makeLensesWith camelCaseFields ''EmailData
+makeLensesWith camelCaseFields ''Config
+makeLensesWith camelCaseFields ''EmailConfig
+makeLensesWith camelCaseFields ''SendmailConfig
+makeLensesWith camelCaseFields ''TwilioConfig
 
 getConfig ::  Lens' Config a -> API a
 getConfig g = NC.viewState $ config . g

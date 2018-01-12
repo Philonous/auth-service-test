@@ -8,6 +8,7 @@
 module Twilio where
 
 import           Control.Monad.Catch    as Ex
+import qualified Control.Monad.Logger   as Logger
 import           Control.Monad.Trans
 import qualified Data.ByteString        as BS
 import qualified Data.ByteString.Base64 as B64
@@ -25,13 +26,16 @@ import           Types
 apiVersion :: BS.ByteString
 apiVersion = "2010-04-01"
 
-sendMessage :: Text
-            -> Text
-            -> Text
-            -> Text
-            -> Text
-            -> API ()
-sendMessage account' authToken' from to msg = do
+sendMessage ::
+     (Logger.MonadLogger m, MonadCatch m, MonadIO m)
+  => TwilioConfig
+  -> Phone
+  -> Text
+  -> m ()
+sendMessage TwilioConfig{ twilioConfigAccount = account'
+                        , twilioConfigAuthToken = authToken'
+                        , twilioConfigSourceNumber = from
+                        } (Phone to) msg = do
     let accountSid = Text.encodeUtf8 account'
         username = accountSid
         password' = Text.encodeUtf8 authToken'

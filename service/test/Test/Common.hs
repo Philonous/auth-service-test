@@ -55,7 +55,7 @@ withApiData f = withMemoryPool $ \pool -> do
                     , configOTPLength         = 6
                     , configOTPTimeoutSeconds = 10
                     , configTFARequired       = False
-                    , configTwilio            = Nothing
+                    , configOtp               = Nothing
                     , configUseTransactionLevels = False
                     , configEmail = Just testEmailConfig
                     }
