@@ -66,8 +66,5 @@ withApiData f = withMemoryPool $ \pool -> do
 withRunAPI :: ((forall a. API a -> IO a) -> IO b) -> IO b
 withRunAPI f = withApiData $ \pool conf -> f $  runAPI pool conf
 
-testApi :: API a -> IO a
-testApi f = withRunAPI $ \run -> run f
-
 seconds :: Integer -> NominalDiffTime
 seconds s = fromIntegral s
