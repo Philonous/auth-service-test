@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -13,9 +14,12 @@ module Main where
 import           Control.Lens
 import qualified Control.Monad.Catch     as Ex
 import           Control.Monad.Logger
+import           Control.Monad.Trans
 import           Data.Data
+import           Data.IORef
 import           Data.Monoid
 import qualified Data.Text               as Text
+import           Data.Text               (Text)
 import           Prelude                 hiding (id)
 import qualified Test.QuickCheck.Monadic as QC
 import qualified Text.Microstache        as Mustache
@@ -56,12 +60,33 @@ testUser = AddUser { addUserUuid = Nothing
                    , addUserInstances = []
                    }
 
+testUserOtp :: AddUser
+testUserOtp = testUser & phone .~ (Just $ Phone "12345")
+
 withUser :: AddUser -> (UserID -> (forall a. API a -> IO a) -> IO ()) -> IO ()
-withUser usr f = withRunAPI $ \run -> do
+withUser usr f = withRunAPI Nothing $ \run -> do
   mbRes <- run $ createUser usr
   case mbRes of
     Nothing -> assertFailure "could not create user"
     Just uid -> f uid run
+
+withUserOTP ::
+     AddUser
+  -> (UserID -> IO (Maybe Text) -> (forall a. API a -> IO a) -> IO ())
+  -> IO ()
+withUserOTP usr f = do
+  otpRef <- newIORef Nothing
+  let otpHandler _ = liftIO . writeIORef otpRef . Just
+      readOTP = do
+        res <- readIORef otpRef
+        writeIORef otpRef Nothing
+        return res
+  withRunAPI (Just otpHandler) $ \run -> do
+    mbRes <- run $ createUser usr
+    case mbRes of
+      Nothing -> assertFailure "could not create user"
+      Just uid -> f uid readOTP run
+
 
 checkUser :: DB.User -> AddUser -> IO ()
 checkUser dbUser addUser = do
@@ -123,7 +148,7 @@ case_reset_password = withUser testUser $ \uid run -> do
 
 case_reset_password_wrong_token :: IO ()
 case_reset_password_wrong_token =
-  withRunAPI $ \run -> do
+  withRunAPI Nothing $ \run -> do
     run (resetPassword "BogusToken" "newPwd") `shouldThrow`
       (== ChangePasswordTokenError)
     return ()
@@ -248,6 +273,51 @@ case_login :: IO ()
 case_login = withUser testUser $ \_uid run -> do
   _ <- runLogin run testUser
   return ()
+
+case_login_otp :: IO ()
+case_login_otp =
+  withUserOTP testUserOtp $ \_uid getOtp run -> do
+    res <- run $ login Login { loginUser = testUserOtp ^. email
+                             , loginPassword = testUserOtp ^. password
+                             , loginOtp = Nothing
+                             }
+    res `shouldBe` Left LoginErrorOTPRequired
+    Just otp <- getOtp
+    res' <- run $ login Login { loginUser = testUserOtp ^. email
+                              , loginPassword = testUserOtp ^. password
+                              , loginOtp = Just $ Password otp
+                              }
+    case res' of
+      Left e -> assertFailure $ "Failed login with OTP " <> (show e)
+      Right _ -> return ()
+
+case_login_otp_wrong_user :: IO ()
+case_login_otp_wrong_user =
+  withUserOTP testUserOtp $ \_uid getOtp run -> do
+    _ <- run . createUser $ testUserOtp & email .~ "user2@spam.please"
+
+    -- First, log in alternative user and get OTP
+    res <- run $ login Login { loginUser = "user2@spam.please"
+                             , loginPassword = testUserOtp ^. password
+                             , loginOtp = Nothing
+                             }
+    res `shouldBe` Left LoginErrorOTPRequired
+    Just otpUser2 <- getOtp
+    -- Now log in test user, ignore OTP
+    res <- run $ login Login { loginUser = testUserOtp ^. email
+                             , loginPassword = testUserOtp ^. password
+                             , loginOtp = Nothing
+                             }
+    res `shouldBe` Left LoginErrorOTPRequired
+
+
+    -- Finally, try to log in test user with alternative user's OTP
+    res' <- run $ login Login { loginUser = testUserOtp ^. email
+                              , loginPassword = testUserOtp ^. password
+                              , loginOtp = Just $ Password otpUser2
+                              }
+
+    res' `shouldBe` (Left LoginErrorFailed)
 
 withUserToken :: AddUser
               -> (B64Token -> UserID -> (forall a. API a -> IO a) -> IO ())

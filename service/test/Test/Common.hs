@@ -49,13 +49,13 @@ testEmailConfig =
         "Your email is unknown"
 
 
-withApiData :: (Pool SqlBackend -> Config -> IO a) -> IO a
-withApiData f = withMemoryPool $ \pool -> do
+withApiData :: Maybe OtpHandler -> (Pool SqlBackend -> Config -> IO a) -> IO a
+withApiData mbHandleOtp f = withMemoryPool $ \pool -> do
   let conf = Config { configTimeout           = 10
                     , configOTPLength         = 6
                     , configOTPTimeoutSeconds = 10
-                    , configTFARequired       = False
-                    , configOtp               = Nothing
+                    , configTFARequired       = True
+                    , configOtp               = mbHandleOtp
                     , configUseTransactionLevels = False
                     , configEmail = Just testEmailConfig
                     }
@@ -63,8 +63,9 @@ withApiData f = withMemoryPool $ \pool -> do
     _ <- runSqlPool (runMigrationSilent DB.migrateAll) pool
     f pool conf
 
-withRunAPI :: ((forall a. API a -> IO a) -> IO b) -> IO b
-withRunAPI f = withApiData $ \pool conf -> f $  runAPI pool conf
+withRunAPI :: Maybe OtpHandler -> ((forall a. API a -> IO a) -> IO b) -> IO b
+withRunAPI mbOtpHandler f = withApiData mbOtpHandler
+                            $ \pool conf -> f $  runAPI pool conf
 
 seconds :: Integer -> NominalDiffTime
 seconds s = fromIntegral s
