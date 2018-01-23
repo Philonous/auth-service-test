@@ -17,7 +17,16 @@ events {
     worker_connections 1024;
 }
 
+
 http {
+    limit_req_zone $binary_remote_addr zone=login:10m rate=2r/m;
+    limit_req_zone $binary_remote_addr zone=service:10m rate=5r/s;
+    limit_req zone=service burst=10;
+    # Make sure we see the real address so we can rate limit according to it
+    set_real_ip_from 0.0.0.0/0;
+    real_ip_header  X-Forwarded-For;
+    limit_req_status 429; # Too Many Requests
+
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
     sendfile on;
@@ -56,6 +65,7 @@ http {
 
         define(`EXPIRE', `ifelse(COOKIE, `permanent', `; Expires=Fri, 01-Jan-2038 00:00:01 GMT;')')
         location = /login {
+                limit_req zone=login burst=10 nodelay;
                 proxy_pass http://AUTH_SERVICE/login/;
                 proxy_set_header X-Original-URI $request_uri;
                 add_header Set-Cookie "token=$upstream_http_x_token; Path=/expire";
@@ -80,6 +90,7 @@ http {
 
         }
         location = /change-password {
+                limit_req zone=login burst=10 nodelay;
                 set $token $cookie_token;
                 if ($token = '') {
                   set $token $http_x_token;
@@ -131,12 +142,14 @@ http {
         }
 
         location = /reset-password {
+                limit_req zone=login burst=3 nodelay;
                 proxy_pass http://AUTH_SERVICE/reset-password/;
                 proxy_set_header X-Original-URI $request_uri;
                 add_header Set-Cookie "token=$upstream_http_x_token; Path=/EXPIRE";
         }
 
         location = /reset-password-info {
+                limit_req zone=login burst=3 nodelay;
                 proxy_pass http://AUTH_SERVICE/reset-password-info/;
                 proxy_pass_request_body off;
                 proxy_set_header Content-Length "";
