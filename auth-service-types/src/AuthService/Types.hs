@@ -151,26 +151,26 @@ deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "unB64"} ''B64Token
 -- User ------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-data AddUser = AddUser { addUserUuid      :: !(Maybe UserID)
-                       , addUserEmail     :: !Email
-                       , addUserPassword  :: !Password
-                       , addUserName      :: !Name
-                       , addUserPhone     :: !(Maybe Phone)
-                       , addUserInstances :: ![InstanceID]
+data AddUser = AddUser { addUserUuid      :: Maybe UserID
+                       , addUserEmail     :: Email
+                       , addUserPassword  :: Password
+                       , addUserName      :: Name
+                       , addUserPhone     :: Maybe Phone
+                       , addUserInstances :: [InstanceID]
                        } deriving (Show)
 
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "addUser"} ''AddUser
 makeLensesWith camelCaseFields ''AddUser
 
-data ReturnUser = ReturnUser { returnUserUser :: !UserID }
+data ReturnUser = ReturnUser { returnUserUser :: UserID }
                     deriving (Show, Eq)
 
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "returnUser"}
     ''ReturnUser
 makeLensesWith camelCaseFields ''ReturnUser
 
-data ReturnInstance = ReturnInstance { returnInstanceName :: !Text
-                                     , returnInstanceId :: !InstanceID
+data ReturnInstance = ReturnInstance { returnInstanceName :: Text
+                                     , returnInstanceId :: InstanceID
                                      } deriving ( Show, Read, Eq, Ord
                                                 , Typeable, Data )
 
@@ -179,11 +179,11 @@ makeLensesWith camelCaseFields ''ReturnInstance
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "returnInstance"}
     ''ReturnInstance
 
-data ReturnUserInfo = ReturnUserInfo { returnUserInfoId :: !UserID
-                                     , returnUserInfoEmail :: !Email
-                                     , returnUserInfoName :: !Name
-                                     , returnUserInfoPhone :: !(Maybe Phone)
-                                     , returnUserInfoInstances :: ![ReturnInstance]
+data ReturnUserInfo = ReturnUserInfo { returnUserInfoId :: UserID
+                                     , returnUserInfoEmail :: Email
+                                     , returnUserInfoName :: Name
+                                     , returnUserInfoPhone :: Maybe Phone
+                                     , returnUserInfoInstances :: [ReturnInstance]
                                      }
 
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "returnUserInfo"}
@@ -191,16 +191,16 @@ deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "returnUserInfo"}
 makeLensesWith camelCaseFields ''ReturnUserInfo
 
 
-data Login = Login { loginUser     :: !Email
-                   , loginPassword :: !Password
-                   , loginOtp      :: !(Maybe Password)
+data Login = Login { loginUser     :: Email
+                   , loginPassword :: Password
+                   , loginOtp      :: Maybe Password
                    } deriving ( Show, Eq, Ord, Typeable, Data )
 
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "login"} ''Login
 makeLensesWith camelCaseFields ''Login
 
-data ReturnLogin = ReturnLogin { returnLoginToken :: !B64Token
-                               , returnLoginInstances :: ![ReturnInstance]
+data ReturnLogin = ReturnLogin { returnLoginToken :: B64Token
+                               , returnLoginInstances :: [ReturnInstance]
                                } deriving ( Show, Read, Eq, Ord
                                           , Typeable, Data )
 
@@ -209,8 +209,9 @@ makeLensesWith camelCaseFields ''ReturnLogin
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "returnLogin"}
     ''ReturnLogin
 
-data ChangePassword = ChangePassword { changePasswordOldPasword :: !Password
-                                     , changePasswordNewPassword :: !Password
+data ChangePassword = ChangePassword { changePasswordOldPasword :: Password
+                                     , changePasswordNewPassword :: Password
+                                     , changePasswordOtp :: Maybe Password
                                      } deriving ( Show, Eq, Ord, Typeable, Data )
 
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "changePassword"}
@@ -223,7 +224,7 @@ makeLensesWith camelCaseFields ''ChangePassword
 
 data PasswordResetRequest =
   PasswordResetRequest
-  { passwordResetRequestEmail :: !Email
+  { passwordResetRequestEmail :: Email
   } deriving (Show)
 
 makeLensesWith camelCaseFields ''PasswordResetRequest
@@ -246,6 +247,7 @@ deriveJSON
 data PasswordReset =
   PasswordReset
   { passwordResetToken :: Text
+  , passwordResetOtp   :: Maybe Password
   , passwordResetNewPassword :: Password
   } deriving (Show)
 

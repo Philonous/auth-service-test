@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE DeriveDataTypeable #-}
@@ -94,6 +95,26 @@ checkUser dbUser addUser = do
   dbUser ^. name `shouldBe`  addUser ^. name
   dbUser ^. phone `shouldBe` addUser ^. phone
 
+loginOTP ::
+     (API (Either LoginError ReturnLogin) -> IO (Either LoginError ReturnLogin))
+  -> IO (Maybe Text)
+  -> AddUser
+  -> IO B64Token
+loginOTP run getOtp AddUser{..} = do
+    res <- run $ login Login { loginUser = addUserEmail
+                             , loginPassword = addUserPassword
+                             , loginOtp = Nothing
+                             }
+    res `shouldBe` Left LoginErrorOTPRequired
+    Just otp <- getOtp
+    res' <- run $ login Login { loginUser = addUserEmail
+                              , loginPassword = addUserPassword
+                              , loginOtp = Just $ Password otp
+                              }
+    case res' of
+      Left e -> assertFailure $ "Failed login with OTP " <> (show e)
+      Right r -> return $ returnLoginToken r
+
 case_create_user :: IO ()
 case_create_user = withUser testUser $ \_uid run -> do
   mbUsr <- run . getUserByEmail $ testUser ^. email
@@ -133,7 +154,35 @@ case_user_change_password_old_password = withUser testUser $ \uid run -> do
   res <- run $ checkUserPassword (testUser ^. email) (testUser ^. password)
   case res of
     Left _e -> return ()
-    Right _ -> assertFailure "Could still use olf password"
+    Right _ -> assertFailure "Could still use old password"
+
+case_changePassword_otp :: IO ()
+case_changePassword_otp =
+  withUserOTP testUserOtp $ \uid getOtp run -> do
+    tok <- loginOTP run getOtp testUserOtp
+    res <-
+      run $
+      changePassword
+        tok
+        ChangePassword
+        { changePasswordOldPasword = testUserOtp ^. password
+        , changePasswordNewPassword = "pwd2"
+        , changePasswordOtp = Nothing
+        }
+    res `shouldBe` Left (ChangePasswordLoginError LoginErrorOTPRequired)
+    Just otp <- getOtp
+
+    res' <-
+      run $
+      changePassword
+        tok
+        ChangePassword
+        { changePasswordOldPasword = testUserOtp ^. password
+        , changePasswordNewPassword = "pwd2"
+        , changePasswordOtp = Just $ Password otp
+        }
+    res' `shouldBe` Right()
+    return ()
 
 --------------------------------------------------------------------------------
 -- Reset Password --------------------------------------------------------------
@@ -142,23 +191,32 @@ case_user_change_password_old_password = withUser testUser $ \uid run -> do
 case_reset_password :: IO ()
 case_reset_password = withUser testUser $ \uid run -> do
   tok <- run $ createResetToken 60 uid
-  _ <- run $ resetPassword tok "newPwd"
+  _ <- run $ resetPassword tok "newPwd" Nothing
   _ <- run $ checkUserPassword (testUser ^. email) "newPwd"
   return ()
 
 case_reset_password_wrong_token :: IO ()
 case_reset_password_wrong_token =
   withRunAPI Nothing $ \run -> do
-    run (resetPassword "BogusToken" "newPwd") `shouldThrow`
+    run (resetPassword "BogusToken" "newPwd" Nothing) `shouldThrow`
       (== ChangePasswordTokenError)
     return ()
+
+case_reset_password_OTP :: IO ()
+case_reset_password_OTP = withUserOTP testUserOtp $ \uid getOtp run -> do
+  tok <- run $ createResetToken 60 uid
+  res <- run (resetPassword tok "newPwd" Nothing)
+  res `shouldBe` (Left $ ChangePasswordLoginError LoginErrorOTPRequired)
+  Just otp <- getOtp
+  run (resetPassword tok "newPwd" $ Just (Password otp))
+  return ()
 
 case_reset_password_double_use :: IO ()
 case_reset_password_double_use =
   withUser testUser $ \uid run -> do
     tok <- run $ createResetToken 60 uid
-    run $ resetPassword tok "newPwd"
-    run (resetPassword tok "newPwd2") `shouldThrow`
+    run $ resetPassword tok "newPwd" Nothing
+    run (resetPassword tok "newPwd2" Nothing) `shouldThrow`
       (== ChangePasswordTokenError)
     return ()
 
@@ -166,7 +224,7 @@ case_reset_password_expired :: IO ()
 case_reset_password_expired =
   withUser testUser $ \uid run -> do
     tok <- run $ createResetToken (-60) uid
-    run (resetPassword tok "newPwd") `shouldThrow`
+    run (resetPassword tok "newPwd" Nothing) `shouldThrow`
       (== ChangePasswordTokenError)
     return ()
 
@@ -275,8 +333,7 @@ case_login = withUser testUser $ \_uid run -> do
   return ()
 
 case_login_otp :: IO ()
-case_login_otp =
-  withUserOTP testUserOtp $ \_uid getOtp run -> do
+case_login_otp =  withUserOTP testUserOtp $ \_uid getOtp run -> do
     res <- run $ login Login { loginUser = testUserOtp ^. email
                              , loginPassword = testUserOtp ^. password
                              , loginOtp = Nothing

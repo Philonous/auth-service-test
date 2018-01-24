@@ -51,7 +51,7 @@ testEmailConfig =
 
 withApiData :: Maybe OtpHandler -> (Pool SqlBackend -> Config -> IO a) -> IO a
 withApiData mbHandleOtp f = withMemoryPool $ \pool -> do
-  let conf = Config { configTimeout           = 10
+  let conf = Config { configTimeout           = 9999
                     , configOTPLength         = 6
                     , configOTPTimeoutSeconds = 10
                     , configTFARequired       = True

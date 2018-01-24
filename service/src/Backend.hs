@@ -128,12 +128,19 @@ getUserByResetPwToken token = do
 
 
 -- | Reset password using the token from a password reset email
-resetPassword :: PwResetToken -> Password -> API ()
-resetPassword token password = do
+resetPassword :: PwResetToken
+              -> Password
+              -> Maybe Password
+              -> API (Either ChangePasswordError ())
+resetPassword token password mbOtp = runExceptT $ do
   now <- liftIO getCurrentTime
-  uid <- DB.userUuid <$> getUserByResetPwToken token
+  usr <- lift $ getUserByResetPwToken token
+  let uid = DB.userUuid usr
+  lift (handleOTP usr mbOtp) >>= \case
+    Left e -> throwError $ ChangePasswordLoginError e
+    Right _ -> return ()
  -- Set token to "used", return number of tokens this updated (0 or 1)
-  cnt <- db'. updateCount $ \(tok :: SV DB.PasswordResetToken) -> do
+  cnt <- lift . db'. updateCount $ \(tok :: SV DB.PasswordResetToken) -> do
     E.set tok [DB.PasswordResetTokenUsed E.=. val (Just now)]
     whereL [ tok E.^. DB.PasswordResetTokenToken E.==. val token
            , tok E.^. DB.PasswordResetTokenUser E.==. val uid
@@ -141,10 +148,10 @@ resetPassword token password = do
            ]
   -- If there was a valid token, cnt should be 1
   if cnt > 0
-    then changeUserPassword uid password
+    then lift $ changeUserPassword uid password
     else do
     Log.logInfo $ "Failed reset password attempt (token not found): " <> token
-    Ex.throwM ChangePasswordTokenError
+    throwError ChangePasswordTokenError
 
 
 
@@ -320,31 +327,31 @@ handleOTP ::
   -> Maybe Password -- ^ Provided One Time Password (if any)
   -> API (Either LoginError (Maybe (Entity DB.UserOtp)))
 handleOTP usr mbOtp = do
-      let userId = usr ^. DB.uuid
-      case mbOtp of
-        Nothing -> do
-          mbTwilioConf <- getConfig otp
-          case mbTwilioConf of
+  let userId = usr ^. DB.uuid
+  case mbOtp of
+    Nothing -> do
+      mbTwilioConf <- getConfig otp
+      case mbTwilioConf of
+        Nothing -> return $ Right Nothing
+        Just twilioConf ->
+          case DB.userPhone usr
+                -- No phone number for two-factor auth
+                of
             Nothing -> return $ Right Nothing
-            Just twilioConf ->
-              case DB.userPhone usr
-                    -- No phone number for two-factor auth
-                    of
-                Nothing -> return $ Right Nothing
-                Just p -> do
-                  createOTP twilioConf p (usr ^. email) userId
-                  return $ Left LoginErrorOTPRequired
-        Just otpC ->
-          checkOTP userId otpC >>= \case
-            Left e -> do
-              Log.logES $
-                Log.AuthFailed
-                { Log.user = usr ^. email
-                , Log.reason = Log.AuthFailedReasonWrongOtp
-                }
-              return $ Left e
-            Right k -> do
-              return . Right $ Just k
+            Just p -> do
+              createOTP twilioConf p (usr ^. email) userId
+              return $ Left LoginErrorOTPRequired
+    Just otpC ->
+      checkOTP userId otpC >>= \case
+        Left e -> do
+          Log.logES $
+            Log.AuthFailed
+            { Log.user = usr ^. email
+            , Log.reason = Log.AuthFailedReasonWrongOtp
+            }
+          return $ Left e
+        Right k -> do
+          return . Right $ Just k
 
 
 login :: Login -> API (Either LoginError ReturnLogin)
@@ -390,6 +397,7 @@ changePassword :: B64Token
                -> API (Either ChangePasswordError ())
 changePassword tok ChangePassword { changePasswordOldPasword = oldPwd
                                   , changePasswordNewPassword = newPwd
+                                  , changePasswordOtp = otp
                                   } = runExceptT $ do
   mbUser <- lift $ getUserByToken tok
   (_tokenID, usr) <- case mbUser of
@@ -404,6 +412,10 @@ changePassword tok ChangePassword { changePasswordOldPasword = oldPwd
       Log.logES Log.PasswordChangeFailed{ Log.user = usr ^. email}
       throwError $ ChangePasswordLoginError e
     Right _ -> Log.logES Log.PasswordChanged{ Log.user = usr ^. email}
+  lift (handleOTP usr otp) >>= \case
+    Left e -> throwError $ ChangePasswordLoginError e
+    Right _ -> return ()
+
   mbError' <- Ex.try . lift $ changeUserPassword (usr ^. DB.uuid) newPwd
 
   case mbError' of

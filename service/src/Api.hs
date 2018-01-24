@@ -157,10 +157,12 @@ serveRequestPasswordResetAPI pool conf req = do
 servePasswordResetAPI :: ConnectionPool -> Config -> Server PasswordResetAPI
 servePasswordResetAPI pool conf pwReset = do
   mbError <-
-    Ex.try . liftHandler . runAPI pool conf $
-      resetPassword (pwReset ^. token) (pwReset ^. newPassword)
+    liftHandler . runAPI pool conf $
+      resetPassword (pwReset ^. token) (pwReset ^. newPassword) (pwReset ^. Types.otp)
   case mbError of
-    Left ChangePasswordTokenError -> throwError err403
+    Left (ChangePasswordLoginError LoginErrorOTPRequired)
+      -> throwError err403
+    Left _ -> throwError err403
     Right () -> return NoContent
 
 servePasswordResetTokenInfo :: ConnectionPool -> Config -> Server PasswordResetInfoAPI
