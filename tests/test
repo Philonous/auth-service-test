@@ -470,7 +470,7 @@ docker_test() {
     emailGetToken
     call "reset-password" -H "Content-Type: application/json" \
          -d "{\"token\":\"$token\", \"newPassword\":\"newpwd\"}"
-    login "$USER" "newpwd"
+    login "$USER" "newpwd" || fail "Could not login"
     # Check that we can't login with the old credentials
     login && fail "password wasn't changed"
 

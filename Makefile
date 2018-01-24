@@ -21,7 +21,9 @@ unittests:
 	cd service &&\
 	stack test
 
-systemtests : up
+systemtests: export NORATELIMIT=true
+systemtests:
+	docker-compose up -d
 	tests/test dockertest
 	make down
 

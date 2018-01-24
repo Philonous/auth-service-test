@@ -54,10 +54,11 @@ services:
     environment:
   #   - COOKIE=session
       - COOKIE=permanent
+      - NORATELIMIT
     networks:
       - auth-service
     # This volume is NOT necessary, it is only to make the tests go through. The
-    # actual auth.html is backed into the image
+    # actual auth.html is bcked into the image
     volumes:
       - ./frontend/auth.html:/www/authentication/index.html
 
