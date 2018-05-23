@@ -1,5 +1,5 @@
 # @IMAGE auth-service-baseimage
-# @VERSION 20170601-01
+# @VERSION 20180523-01
 
 From ubuntu:xenial
 
@@ -18,3 +18,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
 ENV LC_ALL=en_US.UTF-8
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US.UTF-8
+
+EXPOSE 80
+
+CMD /app/run.sh
