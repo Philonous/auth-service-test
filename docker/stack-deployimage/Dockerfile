@@ -1,11 +1,12 @@
 # @IMAGE auth-service-baseimage
-# @VERSION 20180523-01
+# @VERSION 20180524-01
 
 From ubuntu:xenial
 
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update && \
     apt-get -y install \
+      build-essential \
       libgmp10 \
       libicu-dev \
       libpq-dev \
