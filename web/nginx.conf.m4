@@ -40,7 +40,7 @@ http {
         ifdef(`PORT',`listen PORT;',`listen 80;')
         server_name auth-service;
         rewrite_log on;
-        resolver 127.0.0.1;
+        resolver 127.0.0.11;
         location / {
             auth_request /auth;
             auth_request_set $user $upstream_http_x_user;
