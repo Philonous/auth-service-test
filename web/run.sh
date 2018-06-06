@@ -11,7 +11,6 @@ else
     exit 1
 fi
 
-PARAM_RATELIMIT=""
 if [ -n "$NORATELIMIT" ]; then
   PARAM_RATELIMIT="-DNORATELIMIT"
 else
