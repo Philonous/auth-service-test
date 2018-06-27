@@ -14,8 +14,8 @@ fi
 
 # You need to have jq in path
 
-AUTHSERVICE_CONTAINER=authservice_auth-service_1
-DB_CONTAINER=authservice_database_1
+AUTHSERVICE_CONTAINER=auth-service_auth-service_1
+DB_CONTAINER=auth-service_database_1
 DB_HOST=database
 DB_USER=postgres
 DB_DATABASE=postgres

@@ -30,7 +30,9 @@ type CheckTokenAPI = "check-token"
                   :> Capture "token" B64Token
                   :> Capture "instance" InstanceID
                   :> Header "X-Original-URI" Text
-                  :> Get '[JSON] (Headers '[Header "X-User" UserID] ReturnUser)
+                  :> Get '[JSON] (Headers '[ Header "X-User" UserID
+                                           , Header "X-Roles" Roles
+                                           ] ReturnUser)
 
 type PublicCheckTokenAPI = "check-token"
                         :> Capture "token" B64Token

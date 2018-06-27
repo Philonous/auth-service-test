@@ -59,6 +59,7 @@ testUser = AddUser { addUserUuid = Nothing
                    , addUserName = "Jon Doe"
                    , addUserPhone = Nothing
                    , addUserInstances = []
+                   , addUserRoles = []
                    }
 
 testUserOtp :: AddUser

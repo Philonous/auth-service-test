@@ -76,13 +76,23 @@ serveCheckToken :: ConnectionPool -> Config -> Server CheckTokenAPI
 serveCheckToken pool conf tok inst req = checkTokenHandler
   where
     checkTokenHandler = do
-        res <- liftHandler . runAPI pool conf $ do
-            logDebug $ "Checking token " <> showText tok
-                       <> " for instance " <> showText inst
-            checkTokenInstance (fromMaybe "" req) tok inst
-        case res of
-         Nothing -> throwError err403
-         Just usr -> return . addHeader usr $ ReturnUser usr
+      res <-
+        liftHandler . runAPI pool conf $ do
+          logDebug $
+            "Checking token " <> showText tok <> " for instance " <>
+            showText inst
+          mbUser <- checkTokenInstance (fromMaybe "" req) tok inst
+          forM mbUser $ \usr -> do
+            roles' <- getUserRoles usr
+            return (usr, roles')
+      case res of
+        Nothing -> throwError err403
+        Just (usr, roles') -> do
+          return . addHeader usr
+                 . addHeader (Roles roles')
+                 $ ReturnUser { returnUserUser = usr
+                              , returnUserRoles = roles'
+                              }
 
 servePublicCheckToken :: ConnectionPool -> Config -> Server PublicCheckTokenAPI
 servePublicCheckToken pool conf tok = checkTokenHandler
@@ -120,7 +130,9 @@ serveCreateUserAPI pool conf addUser = do
   res <- liftHandler . runAPI pool conf $ createUser addUser
   case res of
     Nothing -> throwError err500
-    Just uid -> return $ ReturnUser uid
+    Just uid -> return $ ReturnUser{ returnUserUser = uid
+                                   , returnUserRoles = addUser ^. roles
+                                   }
 
 adminAPIPrx :: Proxy AdminAPI
 adminAPIPrx = Proxy

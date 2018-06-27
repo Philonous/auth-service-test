@@ -171,8 +171,6 @@ writeMsmtprc ::
      (MonadLogger m, MonadIO m) => EmailConfig -> Bool -> Bool -> m ()
 writeMsmtprc emailConfig tls auth = do
   txt <- renderMsmtprc emailConfig tls auth
-  liftIO $ LText.hPutStrLn stderr txt
-  liftIO $ hFlush stderr
   liftIO $ LText.writeFile "/etc/msmtprc" txt
 
 renderMsmtprc ::

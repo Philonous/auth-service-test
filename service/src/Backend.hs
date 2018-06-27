@@ -1,7 +1,7 @@
-{-# LANGUAGE LambdaCase #-}
--- Copyright (c) 2015 Lambdatrade AB
+-- Copyright (c) 2015-2018 Lambdatrade AB
 -- All rights reserved
 
+{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -78,7 +78,28 @@ createUser usr = do
            DB.UserInstance { DB.userInstanceUser = uid
                            , DB.userInstanceInstanceId = iid
                            }
+       _ <- runDB. P.insertMany $ for (usr ^. roles) $ \role ->
+           DB.UserRole{ DB.userRoleUser = uid
+                      , DB.userRoleRole = role
+                      }
        return $ Just uid
+
+userAddRole :: UserID -> Text -> API ()
+userAddRole usr role = do
+  _ <- runDB $ P.insert DB.UserRole { DB.userRoleUser = usr
+                                    , DB.userRoleRole = role
+                                    }
+  return ()
+
+userRemoveRole :: UserID -> Text -> API ()
+userRemoveRole usr role = do
+  count <- runDB . E.deleteCount . E.from $ \(uRole :: SV DB.UserRole) -> do
+    whereL [ uRole E.^. DB.UserRoleUser ==. val usr
+           , uRole E.^. DB.UserRoleRole ==. val role
+           ]
+  case count of
+    0 -> notFound "User Role" (usr, role)
+    _ -> return ()
 
 getUserByEmail :: Email -> API (Maybe DB.User)
 getUserByEmail name' =
@@ -441,16 +462,25 @@ getUserByToken tokenId = do
                         [DB.TokenLastUse P.=. Just now]
   return . fmap (unTokenKey . unValue *** entityVal) $ listToMaybe user'
 
+getUserRoles :: UserID -> API [Text]
+getUserRoles uid =
+  fmap (unValue <$>) . runDB . select . E.from $ \(uRole :: SV DB.UserRole) -> do
+    whereL [ uRole E.^. DB.UserRoleUser ==. val uid]
+    orderBy [asc $ uRole E.^. DB.UserRoleRole]
+    return (uRole E.^. DB.UserRoleRole)
+
 getUserInfo :: B64Token -> API (Maybe ReturnUserInfo)
 getUserInfo token' = do
   mbUser <- getUserByToken token'
   Traversable.forM mbUser $ \(_tid, user') -> do
     instances' <- getUserInstances (user' ^. DB.uuid)
+    roles <- getUserRoles (user' ^. DB.uuid)
     return ReturnUserInfo { returnUserInfoId = user' ^. DB.uuid
                           , returnUserInfoEmail = user' ^. email
                           , returnUserInfoName = user' ^. name
                           , returnUserInfoPhone = user' ^. phone
                           , returnUserInfoInstances = instances'
+                          , returnUserInfoRoles = roles
                           }
 
 checkTokenInstance :: Text -> B64Token -> InstanceID -> API (Maybe UserID)
