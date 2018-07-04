@@ -84,6 +84,8 @@ EOF
 
     authservice newinstance "instance1" "$INSTANCE"
     authservice addinstance "$USER" "$INSTANCE"
+    authservice addrole "$USER" "testrole"
+    authservice addrole "$USER" "user"
 }
 
 get_otp () {
@@ -488,6 +490,14 @@ docker_test() {
     emailGetToken
     http "http://$API/reset-password-info?token=$token"
 
+    testing "Checking Roles"
+    docker_setup &> /dev/null
+    login
+    RES=$($CURL -H "X-Instance: $INSTANCE" \
+                -H "X-Token: $TOKEN" \
+                http://$API/roles \
+       )
+    [[ "$RES"  == "Roles:testrole,user" ]] || fail "Roles were not set"
 }
 
 
