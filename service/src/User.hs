@@ -76,7 +76,7 @@ addInstance' args = do
       uuid <- parseUUID uuidTxt
       addInstance (Just $ InstanceID uuid) name >>= liftIO . print
     _ -> liftIO $ do
-      hPutStrLn stderr $ "Usage: auth-service addinstance <name> [<uuid>]"
+      hPutStrLn stderr $ "Usage: auth-service newinstance <name> [<uuid>]"
       exitFailure
 
 userAddInstance :: [String] -> API ()
@@ -86,6 +86,9 @@ userAddInstance args = do
       usr <- fetchUser (Email email)
       instUuid <- parseUUID inst
       addUserInstance (DB.userUuid usr) (InstanceID instUuid)
+    _ -> liftIO $ do
+      hPutStrLn stderr "Usage: auth-service addinstance <email> <uuid>"
+      exitFailure
 
 userRemoveInstance :: [String] -> API ()
 userRemoveInstance args = do

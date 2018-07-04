@@ -82,11 +82,8 @@ EOF
     authservice adduser "$USER" "$PASSWORD" "$NAME"
     authservice adduser "$USER2" "$PASSWORD2" "$NAME" "12345"
 
-    db &> /dev/null <<EOF
-INSERT INTO "instance" VALUES ('${INSTANCE}', 'instance1');
-INSERT INTO "user_instance" VALUES ( (SELECT "uuid" FROM "user" WHERE "email" = '${USER}')
-                                   , (SELECT "uuid" FROM "instance" WHERE "name"='instance1'));
-EOF
+    authservice newinstance "instance1" "$INSTANCE"
+    authservice addinstance "$USER" "$INSTANCE"
 }
 
 get_otp () {

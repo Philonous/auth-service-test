@@ -1,9 +1,9 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 -- Copyright (c) 2015 Lambdatrade AB
 -- All rights reserved
 
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Run where
 
