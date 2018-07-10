@@ -45,7 +45,7 @@ addRole args = do
       usr <- fetchUser (Email emailAddr)
       userAddRole (DB.userUuid usr) role
     _ -> liftIO $ do
-      hPutStrLn stderr "Usage: auth-service addRole <email> <role>"
+      hPutStrLn stderr "Usage: auth-service addrole <email> <role>"
       exitFailure
 
 removeRole :: [String] -> API ()
@@ -55,7 +55,7 @@ removeRole args = do
       usr <- fetchUser (Email emailAddr)
       userRemoveRole (DB.userUuid usr) role
     _ -> liftIO $ do
-      hPutStrLn stderr "Usage: auth-service removeRole <email> <role>"
+      hPutStrLn stderr "Usage: auth-service rmrole <email> <role>"
       exitFailure
 
 parseUUID :: Text -> API UUID
