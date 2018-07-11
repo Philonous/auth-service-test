@@ -177,11 +177,11 @@ the `X-Roles` header
 You can modify a users roles by using the `addrole` and `removerole` commands:
 
 ```
-docker exec -it app_auth_1 auth-service addrole "me@email.com" myrole
+docker exec -it app_auth_1 auth-service addrole "my_email@example.com" myrole
 ```
 
 ```
-docker exec -it app_auth_1 auth-service rmrole "me@email.com" myrole
+docker exec -it app_auth_1 auth-service rmrole "my_email@example.com" myrole
 
 ```
 
