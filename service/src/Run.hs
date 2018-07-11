@@ -77,7 +77,7 @@ runMain = runStderrLoggingT . filterLogger (\_source level -> level >= LevelWarn
          ["run"] -> liftIO $ Warp.run 80 (logM $ serveAPI pool conf)
          _ -> liftIO $ do
              hPutStrLn stderr
-               "Usage: auth-service [run|adduser|chpass] [options]"
+               "Usage: auth-service [run|adduser|chpass|addrole|rmrole|newinstance|addinstance|removeinstance] [options]"
              exitFailure
 
 checkMigration :: IO ()
