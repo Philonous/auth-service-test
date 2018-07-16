@@ -103,6 +103,12 @@ data EmailConfig = EmailConfig
 
 type OtpHandler = Phone -> Text -> API ()
 
+data AccountCreationConfig =
+  AccountCreationConfig
+  { accountCreationConfigEnabled :: Bool
+  , accountCreationConfigDefaultInstances :: [InstanceID]
+  }
+
 data Config = Config
   { configTimeout              :: Integer -- token timeout in seconds
   , configOTPLength            :: Int
@@ -111,6 +117,8 @@ data Config = Config
   , configOtp                  :: Maybe OtpHandler
   , configUseTransactionLevels :: Bool
   , configEmail                :: Maybe EmailConfig
+
+  , configAccountCreation      :: AccountCreationConfig
   }
 
 -- | Necessary data to fill in a password reset email
@@ -139,6 +147,7 @@ runDB = NC.db'
 
 makeLensesWith camelCaseFields ''ApiState
 makeLensesWith camelCaseFields ''EmailData
+makeLensesWith camelCaseFields ''AccountCreationConfig
 makeLensesWith camelCaseFields ''Config
 makeLensesWith camelCaseFields ''EmailConfig
 makeLensesWith camelCaseFields ''SendmailConfig

@@ -26,6 +26,8 @@ services:
       - EMAIL_AUTH=false
       - SITE_NAME=authservice-test.com
       - RESET_LINK_EXPIRATION_TIME=24 hours
+      - ACCOUNT_CREATION=true
+      - DEFAULT_INSTANCE=de305d54-75b4-431b-adb2-eb6b9e546014
 
     # logging:
     #   driver: gelf

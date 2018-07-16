@@ -59,6 +59,10 @@ type PasswordResetInfoAPI =  "reset-password-info"
                              :> Get '[JSON] ResetTokenInfo
 
 
+type CreateAccountAPI = "create-account"
+                      :> ReqBody '[JSON] CreateAccount
+                      :> PostCreated '[JSON] NoContent
+
 --------------------------------------------------------------------------------
 -- Admin Interface -------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -83,3 +87,4 @@ type Api = LoginAPI
            :<|> RequestPasswordResetAPI
            :<|> PasswordResetAPI
            :<|> PasswordResetInfoAPI
+           :<|> CreateAccountAPI

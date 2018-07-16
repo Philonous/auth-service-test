@@ -159,6 +159,11 @@ Users can be added by running the `adduser` command in the `auth-service` contai
 docker exec -it app_auth_1 auth-service adduser "My Name" my_password my_email@example.com
 ```
 
+Users may create their own accounts using the `/api/create-account` endpoint if
+the `ACCOUNT_CREATION` environment variable is set to true. The instance of
+accounts created like this is determined by the `DEFAULT_INSTANCE` variable
+
+
 ## Changing user passwords
 
 Login passwords can be changed by calling `/api/change-password` :

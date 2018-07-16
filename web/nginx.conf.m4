@@ -170,6 +170,14 @@ http {
                 add_header Set-Cookie "token=$upstream_http_x_token; Path=/EXPIRE";
         }
 
+        location = /create-account {
+               ifdef(`NORATELIMIT', `', `
+                limit_req zone=login burst=3 nodelay;')
+                proxy_pass http://AUTH_SERVICE/create-account/;
+                proxy_set_header X-Original-URI $request_uri;
+        }
+
+
         # Locations to redirect /auth.html
         location = /authentication/index.html {
             # Serve auth.html instead of a 404 page when auth fails
@@ -202,7 +210,6 @@ http {
             expires -1;
             alias /www/authentication/index.html;
         }
-
 
     }
 }

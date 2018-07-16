@@ -177,7 +177,8 @@ servePasswordResetAPI pool conf pwReset = do
     Left _ -> throwError err403
     Right () -> return NoContent
 
-servePasswordResetTokenInfo :: ConnectionPool -> Config -> Server PasswordResetInfoAPI
+servePasswordResetTokenInfo ::
+     ConnectionPool -> Config -> Server PasswordResetInfoAPI
 servePasswordResetTokenInfo pool conf Nothing = throwError err400
 servePasswordResetTokenInfo pool conf (Just token) = do
   mbInfo <-
@@ -189,6 +190,24 @@ servePasswordResetTokenInfo pool conf (Just token) = do
       throwError err403
     Left _ -> throwError err403
 
+serveCreateAccountApi :: ConnectionPool -> Config -> Server CreateAccountAPI
+serveCreateAccountApi pool conf createAccount =
+  case (accountCreationConfigEnabled $ configAccountCreation conf) of
+    False -> throwError err403
+    True -> liftHandler . runAPI pool conf $ do
+      dis <- getConfig (accountCreation . defaultInstances)
+      _ <-
+        createUser
+          AddUser
+          { addUserUuid = Nothing
+          , addUserEmail = createAccountEmail createAccount
+          , addUserPassword = createAccountPassword createAccount
+          , addUserName = createAccountName createAccount
+          , addUserPhone = createAccountPhone createAccount
+          , addUserInstances = dis
+          , addUserRoles = []
+          }
+      return NoContent
 
 serveAPI :: ConnectionPool -> Config -> Application
 serveAPI pool conf = serve apiPrx $ serveLogin pool conf
@@ -203,3 +222,4 @@ serveAPI pool conf = serve apiPrx $ serveLogin pool conf
                                :<|> serveRequestPasswordResetAPI pool conf
                                :<|> servePasswordResetAPI pool conf
                                :<|> servePasswordResetTokenInfo pool conf
+                               :<|> serveCreateAccountApi pool conf

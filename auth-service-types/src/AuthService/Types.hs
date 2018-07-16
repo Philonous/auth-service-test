@@ -279,3 +279,21 @@ makeLensesWith camelCaseFields ''PasswordReset
 deriveJSON
   defaultOptions {fieldLabelModifier = dropPrefix "passwordReset"}
   ''PasswordReset
+
+--------------------------------------------------------------------------------
+-- Account Creation ------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+data CreateAccount =
+  CreateAccount
+  { createAccountEmail :: Email
+  , createAccountPassword :: Password
+  , createAccountName :: Name
+  , createAccountPhone :: Maybe Phone
+  } deriving (Show)
+
+makeLensesWith camelCaseFields ''CreateAccount
+
+deriveJSON
+  defaultOptions {fieldLabelModifier = dropPrefix "createAccount"}
+  ''CreateAccount

@@ -22,10 +22,13 @@ import           Control.Monad.Trans
 import qualified Data.Aeson              as Aeson
 import qualified Data.Configurator.Types as Conf
 import           Data.Default            (def)
+import           Data.Maybe              (maybeToList)
 import           Data.Monoid
 import qualified Data.Text               as Text
 import qualified Data.Text.Lazy          as LText
 import qualified Data.Text.Lazy.IO       as LText
+import           Data.UUID               (UUID)
+import qualified Data.UUID               as UUID
 import qualified Network.Mail.Mime       as Mail
 import qualified System.Exit             as Exit
 import           System.IO               (stderr, hFlush)
@@ -40,6 +43,10 @@ import           NejlaCommon.Config      hiding (Config)
 --------------------------------------------------------------------------------
 -- Configuration
 --------------------------------------------------------------------------------
+
+instance Conf.Configured UUID where
+  convert (Conf.String txt) = UUID.fromText txt
+  convert _ = Nothing
 
 getTwilioConfig :: (MonadIO m, MonadLogger m) =>
                    Conf.Config
@@ -72,6 +79,20 @@ get2FAConf conf = do
       _ -> return (tfaRequired, twilioConf)
 
 
+getAccountCreationConfig ::
+     (MonadLogger m, MonadIO m) => Conf.Config -> m AccountCreationConfig
+getAccountCreationConfig conf = do
+  accountCreationConfigEnabled <-
+    getConfBool "ACCOUNT_CREATION" "account_creation.enabled" (Right False) conf
+  accountCreationConfigDefaultInstances <-
+    fmap InstanceID . maybeToList <$>
+    getConfGenericMaybe
+      (UUID.fromText . Text.pack)
+      "DEFAULT_INSTANCE"
+      "default-instance"
+      conf
+  return AccountCreationConfig{..}
+
 getAuthServiceConfig :: (MonadIO m, MonadLogger m) =>
                         Conf.Config
                      -> m Config
@@ -85,6 +106,7 @@ getAuthServiceConfig conf = do
     (tfaRequired, twilioConf) <- get2FAConf conf
     haveEmail <- setEmailConf conf
     let configOtp = fmap Twilio.sendMessage twilioConf
+    accountCreationConfig <- getAccountCreationConfig conf
     return Config{ configTimeout = to
                  , configOTPLength = otpl
                  , configOTPTimeoutSeconds = otpt
@@ -92,6 +114,7 @@ getAuthServiceConfig conf = do
                  , configOtp = configOtp
                  , configUseTransactionLevels = True
                  , configEmail = haveEmail
+                 , configAccountCreation = accountCreationConfig
                  }
 
 -- Default template loaded from src/password-reset-email-template.html.mustache

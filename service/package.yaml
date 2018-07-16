@@ -128,3 +128,4 @@ tests:
     - tasty-th
     - text
     - time
+    - uuid

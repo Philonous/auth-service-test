@@ -198,7 +198,6 @@ check_upstream() {
                 -H "X-Token: $TOKEN" \
                 http://$API/foo/index.html)
     [[ $RES == "foo!" ]]
-
 }
 
 email() {
@@ -498,6 +497,15 @@ docker_test() {
                 http://$API/roles \
        )
     [[ "$RES"  == "Roles:testrole,user" ]] || fail "Roles were not set"
+
+    testing "Account Creation"
+    call "create-account" \
+         -H "Content-type: application/json" \
+         -d '{"email": "no3@spam.com", "password": "abcfoo", "name": "3"}'
+    login "no3@spam.com" "abcfoo" || fail "Could not login new user"
+    [[ $(echo "$RES" | jq -r '.instances | .[0] .name') == "instance1" ]] \
+      || fail "Newly created user is missing instance"
+
 }
 
 
@@ -521,6 +529,7 @@ case $1 in
     login)
         shift
         login "$@"
+        echo "export TOKEN=$TOKEN"
         ;;
     nginx_rebuild_conf)
         nginx_build_conf
