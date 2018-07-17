@@ -64,7 +64,7 @@ type CreateAccountAPI = "create-account"
                       :> PostCreated '[JSON] NoContent
 
 --------------------------------------------------------------------------------
--- Admin Interface -------------------------------------------------------------
+-- Admin Interface
 --------------------------------------------------------------------------------
 
 type CreateUserAPI = "users" :> ReqBody '[JSON] AddUser :> Post '[JSON] ReturnUser
@@ -72,7 +72,7 @@ type CreateUserAPI = "users" :> ReqBody '[JSON] AddUser :> Post '[JSON] ReturnUs
 type AdminAPI = "admin" :> CreateUserAPI
 
 --------------------------------------------------------------------------------
--- Interface -------------------------------------------------------------------
+-- Interface
 --------------------------------------------------------------------------------
 
 type Api = LoginAPI

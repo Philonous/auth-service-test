@@ -122,7 +122,7 @@ serveGetUserInfoAPI pool conf tok =  do
    Just rui -> return rui
 
 --------------------------------------------------------------------------------
--- Admin interface -------------------------------------------------------------
+-- Admin interface
 --------------------------------------------------------------------------------
 
 serveCreateUserAPI :: ConnectionPool -> Config -> Server CreateUserAPI
