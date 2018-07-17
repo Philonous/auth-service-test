@@ -23,9 +23,9 @@ WEB_HOST=localhost:8000
 EMAIL_HOST=localhost:8025
 API=$WEB_HOST/api
 EMAIL_API=$EMAIL_HOST/api/v1
-USER=no@spam.please
+USER=user1@example.com
 PASSWORD=pwd123
-USER2=no2@spam.please
+USER2=user2@example.com
 PASSWORD2=pwd1234
 NAME="JohnDoe"
 INSTANCE="de305d54-75b4-431b-adb2-eb6b9e546014"
@@ -308,7 +308,7 @@ docker_test() {
     testing "Trying to get user info"
     RES=$($CURL --cookie "token=$TOKEN" \
                 http://$API/user-info)
-    [[ $(echo "$RES" | jq -r '.email') == "no@spam.please" ]] || fail "Could not get user info"
+    [[ $(echo "$RES" | jq -r '.email') == "user1@example.com" ]] || fail "Could not get user info"
 
     testing "Getting header info"
     RES=$($CURL -I \
@@ -501,8 +501,8 @@ docker_test() {
     testing "Account Creation"
     call "create-account" \
          -H "Content-type: application/json" \
-         -d '{"email": "no3@spam.com", "password": "abcfoo", "name": "3"}'
-    login "no3@spam.com" "abcfoo" || fail "Could not login new user"
+         -d '{"email": "user3@example.com", "password": "abcfoo", "name": "3"}'
+    login "user3@example.com" "abcfoo" || fail "Could not login new user"
     [[ $(echo "$RES" | jq -r '.instances | .[0] .name') == "instance1" ]] \
       || fail "Newly created user is missing instance"
 
