@@ -14,7 +14,8 @@ import           Backend
 import           Control.Lens
 import qualified Control.Monad.Catch  as Ex
 import           Control.Monad.Except
-import           Data.Maybe           (fromMaybe)
+import qualified Data.List            as List
+import           Data.Maybe           (fromMaybe, maybeToList)
 import           Data.Monoid
 import           Database.Persist.Sql
 import           Network.Wai
@@ -191,7 +192,7 @@ servePasswordResetTokenInfo pool conf (Just token) = do
     Left _ -> throwError err403
 
 serveCreateAccountApi :: ConnectionPool -> Config -> Server CreateAccountAPI
-serveCreateAccountApi pool conf createAccount =
+serveCreateAccountApi pool conf xinstance createAccount =
   case (accountCreationConfigEnabled $ configAccountCreation conf) of
     False -> throwError err403
     True -> liftHandler . runAPI pool conf $ do
@@ -204,7 +205,7 @@ serveCreateAccountApi pool conf createAccount =
           , addUserPassword = createAccountPassword createAccount
           , addUserName = createAccountName createAccount
           , addUserPhone = createAccountPhone createAccount
-          , addUserInstances = dis
+          , addUserInstances = (List.nub $ maybeToList xinstance ++ dis)
           , addUserRoles = []
           }
       return NoContent

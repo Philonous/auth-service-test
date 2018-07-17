@@ -29,6 +29,7 @@ USER2=user2@example.com
 PASSWORD2=pwd1234
 NAME="JohnDoe"
 INSTANCE="de305d54-75b4-431b-adb2-eb6b9e546014"
+INSTANCE2="$(uuidgen)"
 
 
 NOTINSTANCE="deadbeef-75b4-431b-adb2-eb6b9e546014"
@@ -83,6 +84,7 @@ EOF
     authservice adduser "$USER2" "$PASSWORD2" "$NAME" "12345"
 
     authservice newinstance "instance1" "$INSTANCE"
+    authservice newinstance "instance2" "$INSTANCE2"
     authservice addinstance "$USER" "$INSTANCE"
     authservice addrole "$USER" "testrole"
     authservice addrole "$USER" "user"
@@ -499,11 +501,14 @@ docker_test() {
     [[ "$RES"  == "Roles:testrole,user" ]] || fail "Roles were not set"
 
     testing "Account Creation"
-    call "create-account" \
+    http "http://$API/create-account" \
          -H "Content-type: application/json" \
+         -H "X-Instance: $INSTANCE2" \
          -d '{"email": "user3@example.com", "password": "abcfoo", "name": "3"}'
     login "user3@example.com" "abcfoo" || fail "Could not login new user"
-    [[ $(echo "$RES" | jq -r '.instances | .[0] .name') == "instance1" ]] \
+    [[ $(echo "$RES" | jq -r '.instances | .[0] .name') == "instance1"
+       && $(echo "$RES" | jq -r '.instances | .[1] .name') == "instance2"
+     ]] \
       || fail "Newly created user is missing instance"
 
 }

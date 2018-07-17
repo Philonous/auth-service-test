@@ -60,6 +60,7 @@ type PasswordResetInfoAPI =  "reset-password-info"
 
 
 type CreateAccountAPI = "create-account"
+                      :> Header "X-Instance" InstanceID
                       :> ReqBody '[JSON] CreateAccount
                       :> PostCreated '[JSON] NoContent
 
