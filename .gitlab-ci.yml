@@ -1,4 +1,4 @@
-image: philonous/stack-build:latest
+image: nejla/haskell-build
 
 stages:
   - prepare
