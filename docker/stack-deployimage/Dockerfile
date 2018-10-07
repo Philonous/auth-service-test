@@ -11,6 +11,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
       libicu-dev \
       libpq-dev \
       locales \
+      netbase \
       netcat \
       msmtp-mta \
       ssh-client && \
