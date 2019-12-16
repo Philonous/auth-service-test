@@ -66,6 +66,11 @@ http {
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection $connection_upgrade;
 
+            # Increase timeouts to 5 minutes.
+            proxy_send_timeout 300;
+            proxy_read_timeout 300;
+            send_timeout 300;
+
         }
 
         location = /auth {
