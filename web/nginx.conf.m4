@@ -29,6 +29,13 @@ http {
     set_real_ip_from 0.0.0.0/0;
     real_ip_header  X-Forwarded-For;
 
+    # [1] (See [1] later)
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+
+
     client_max_body_size 0;
 
     include /etc/nginx/mime.types;
@@ -52,6 +59,13 @@ http {
             proxy_set_header X-User $user;
             proxy_set_header X-Roles $roles;
             proxy_set_header X-Original-URI $request_uri;
+
+            # [1] Set the "Upgrade" and "Connection" headers when we receive
+            # them We have to manually pass them through because those headers
+            # are "per-hop".
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
+
         }
 
         location = /auth {
