@@ -23,4 +23,4 @@ EXPOSE 80
 
 ADD dist/auth-service /app/auth-service
 
-CMD /app/auth-service
+CMD /app/auth-service run
