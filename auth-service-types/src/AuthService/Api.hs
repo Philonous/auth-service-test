@@ -31,6 +31,7 @@ type CheckTokenAPI = "check-token"
                   :> Capture "instance" InstanceID
                   :> Header "X-Original-URI" Text
                   :> Get '[JSON] (Headers '[ Header "X-User" UserID
+                                           , Header "X-User-Email" Email
                                            , Header "X-Roles" Roles
                                            ] ReturnUser)
 
