@@ -16,7 +16,6 @@ import qualified Control.Monad.Catch  as Ex
 import           Control.Monad.Except
 import qualified Data.List            as List
 import           Data.Maybe           (fromMaybe, maybeToList)
-import           Data.Monoid
 import           Database.Persist.Sql
 import           Network.Wai
 import           Servant
@@ -40,12 +39,12 @@ serveLogin pool conf loginReq = loginHandler
         case mbReturnLogin of
          Right rl -> return (addHeader (returnLoginToken rl) rl)
          Left LoginErrorOTPRequired ->
-             throwError ServantErr{ errHTTPCode = 499
-                                  , errReasonPhrase = "OTP required"
-                                  , errBody =
-                                    "{\"error\":\"One time password required\"}"
-                                  , errHeaders = []
-                                  }
+             throwError ServerError{ errHTTPCode = 499
+                                   , errReasonPhrase = "OTP required"
+                                   , errBody =
+                                     "{\"error\":\"One time password required\"}"
+                                   , errHeaders = []
+                                   }
          Left _e -> throwError err403
 
 
