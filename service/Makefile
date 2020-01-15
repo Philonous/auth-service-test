@@ -1,5 +1,10 @@
+TAG=$(shell git rev-parse HEAD)
+SERVICE_IMAGE=$(REGISTRY)/$(APP_IMAGE_NAME)
+
 image: build Dockerfile
-	docker build -t 'registry.nejla.com/avancera/auth-service' .
+	docker build -t "registry.nejla.com/nejla-ab/auth-service/auth-service:${TAG}" .
+	docker tag "registry.nejla.com/nejla-ab/auth-service/auth-service:${TAG}" \
+	           "registry.nejla.com/nejla-ab/auth-service/auth-service:latest"
 	touch image
 
 .PHONY: build
