@@ -1,6 +1,6 @@
 image: build Dockerfile
-	docker build -t 'registry.nejla.com/avancera/auth-service' \
-	  --iidfile image .
+	docker build -t 'registry.nejla.com/avancera/auth-service' .
+	touch image
 
 .PHONY: build
 build: dist/auth-service
