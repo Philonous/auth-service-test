@@ -82,13 +82,14 @@ serveCheckToken pool conf tok inst req = checkTokenHandler
             "Checking token " <> showText tok <> " for instance " <>
             showText inst
           mbUser <- checkTokenInstance (fromMaybe "" req) tok inst
-          forM mbUser $ \usr -> do
-            roles' <- getUserRoles usr
-            return (usr, roles')
+          forM mbUser $ \(usrId, usrEmail, _userName) -> do
+            roles' <- getUserRoles usrId
+            return (usrId, usrEmail, roles')
       case res of
         Nothing -> throwError err403
-        Just (usr, roles') -> do
+        Just (usr, userEmail, roles') -> do
           return . addHeader usr
+                 . addHeader userEmail
                  . addHeader (Roles roles')
                  $ ReturnUser { returnUserUser = usr
                               , returnUserRoles = roles'
@@ -156,7 +157,7 @@ serveRequestPasswordResetAPI pool conf req = do
     Nothing -> do
       liftHandler . runAPI pool conf $ logError $ "Password reset: email not configured"
       throwError $ err404
-    Just emailCfg -> do
+    Just _emailCfg -> do
       res <- Ex.try . liftHandler . runAPI pool conf $
                passwordResetRequest (req ^. email)
       case res of
@@ -179,7 +180,7 @@ servePasswordResetAPI pool conf pwReset = do
 
 servePasswordResetTokenInfo ::
      ConnectionPool -> Config -> Server PasswordResetInfoAPI
-servePasswordResetTokenInfo pool conf Nothing = throwError err400
+servePasswordResetTokenInfo _pool _conf Nothing = throwError err400
 servePasswordResetTokenInfo pool conf (Just token) = do
   mbInfo <-
     Ex.try . liftHandler . runAPI pool conf $ getUserByResetPwToken token

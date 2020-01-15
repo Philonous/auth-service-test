@@ -401,7 +401,7 @@ case_checkTokenInstance = withUserToken testUser $ \tok uid run -> do
   iid <- run $ addInstance Nothing "testInstance"
   run $ addUserInstance uid iid
   res <- run $ checkTokenInstance "" tok iid
-  res `shouldBe` Just uid
+  res `shouldBe` Just (uid, addUserEmail testUser, addUserName testUser)
 
 case_checkTokenInstance_not_member :: IO ()
 case_checkTokenInstance_not_member = withUserToken testUser $ \tok _uid run -> do
