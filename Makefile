@@ -10,6 +10,7 @@ WEB_IMAGE=$(REGISTRY)/$(WEB_IMAGE_NAME)
 
 all: service/image auth-web-container
 
+.PHONY: service/image
 service/image:
 	$(MAKE) -C service image
 
