@@ -18,9 +18,10 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
 ENV LC_ALL=en_US.UTF-8
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US.UTF-8
+ENV PATH=/app:$PATH
 
 EXPOSE 80
 
 ADD dist/auth-service /app/auth-service
 
-CMD /app/auth-service run
+CMD auth-service run
