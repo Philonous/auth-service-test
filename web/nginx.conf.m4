@@ -105,7 +105,15 @@ http {
         }
 
         location = /logout {
-                proxy_pass http://AUTH_SERVICE/logout/$cookie_token;
+                set $token $cookie_token;
+                if ($token = '') {
+                  set $token $http_x_token;
+                }
+                if ($token = '') {
+                  return 403;
+                }
+
+                proxy_pass http://AUTH_SERVICE/logout/$token;
                 proxy_set_header X-Original-URI $request_uri;
                 add_header Set-Cookie "token=deleted; Path=/; Expires=Thu, 01-Jan-1970 00:00:01 GMT";
 
