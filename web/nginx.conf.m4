@@ -51,7 +51,7 @@ http {
         resolver 127.0.0.11;
         location / {
             auth_request /auth;
-            auth_request_set $user $upstream_http_x_user;
+            auth_request_set $user $upstream_http_x_user_id;
             auth_request_set $useremail $upstream_http_x_user_email;
             auth_request_set $roles $upstream_http_x_roles;
             # The variable $user now contains the username when the check was
