@@ -57,7 +57,7 @@ http {
             # The variable $user now contains the username when the check was
             # successful
             proxy_pass http://$http_x_instance;
-            proxy_set_header X-User $user;
+            proxy_set_header X-User-ID $user;
             proxy_set_header X-User-Email $useremail;
             proxy_set_header X-Roles $roles;
             proxy_set_header X-Original-URI $request_uri;
