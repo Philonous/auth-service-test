@@ -52,11 +52,13 @@ http {
         location / {
             auth_request /auth;
             auth_request_set $user $upstream_http_x_user;
+            auth_request_set $useremail $upstream_http_x_user_email;
             auth_request_set $roles $upstream_http_x_roles;
             # The variable $user now contains the username when the check was
             # successful
             proxy_pass http://$http_x_instance;
-            proxy_set_header X-User $user;
+            proxy_set_header X-User-ID $user;
+            proxy_set_header X-User-Email $useremail;
             proxy_set_header X-Roles $roles;
             proxy_set_header X-Original-URI $request_uri;
 
@@ -103,7 +105,15 @@ http {
         }
 
         location = /logout {
-                proxy_pass http://AUTH_SERVICE/logout/$cookie_token;
+                set $token $cookie_token;
+                if ($token = '') {
+                  set $token $http_x_token;
+                }
+                if ($token = '') {
+                  return 403;
+                }
+
+                proxy_pass http://AUTH_SERVICE/logout/$token;
                 proxy_set_header X-Original-URI $request_uri;
                 add_header Set-Cookie "token=deleted; Path=/; Expires=Thu, 01-Jan-1970 00:00:01 GMT";
 

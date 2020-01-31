@@ -483,7 +483,7 @@ getUserInfo token' = do
                           , returnUserInfoRoles = roles
                           }
 
-checkTokenInstance :: Text -> B64Token -> InstanceID -> API (Maybe UserID)
+checkTokenInstance :: Text -> B64Token -> InstanceID -> API (Maybe (UserID, Email, Name))
 checkTokenInstance request (B64Token "") inst = do
     Log.logES Log.RequestNoToken{ Log.request = request
                                 , Log.instanceId = inst
@@ -508,7 +508,10 @@ checkTokenInstance request tok inst = do
                                                 , Log.instanceId = inst
                                                 }
             return Nothing
-          Just _ -> return $ Just (DB.userUuid usr)
+          Just _ -> return $ Just ( DB.userUuid usr
+                                  , DB.userEmail usr
+                                  , DB.userName usr
+                                  )
 
 checkToken :: B64Token -> API (Maybe UserID)
 checkToken tokenId = fmap (DB.userUuid . snd) <$> getUserByToken tokenId
