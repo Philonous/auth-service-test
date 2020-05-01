@@ -17,6 +17,7 @@ import qualified Data.Text.Encoding.Error    as Text
 import           Data.Text.Strict.Lens
 import           Database.Persist.Postgresql
 import           Network.HTTP.Types          as HTTP
+import qualified Network.Socket              as Net
 import qualified Network.Wai                 as Wai
 import qualified Network.Wai.Handler.Warp    as Warp
 import           System.Environment
@@ -36,7 +37,10 @@ logMiddleware app req respond = app req respond'
   where
     debug f = hPutStrLn stderr $ "[Info#auth-serivce]" ++ f
     respond' res = do
-      debug $ concat
+      unless ( Wai.requestMethod req == "GET"
+             && Wai.pathInfo req == ["status"]
+             && isLocal (Wai.remoteHost req)
+             ) $ debug $ concat
         [ " "
         , fromBS (Wai.requestMethod req) , " "
         , fromBS (Wai.rawPathInfo req) , " > "
@@ -45,6 +49,12 @@ logMiddleware app req respond = app req respond'
         ]
       respond res
     fromBS = Text.unpack . Text.decodeUtf8With Text.lenientDecode
+    isLocal Net.SockAddrUnix{} = True
+    isLocal (Net.SockAddrInet _port haddr) =
+      Net.hostAddressToTuple haddr == (127,0,0,1)
+    isLocal (Net.SockAddrInet6 _port _flow haddr6 _scope) =
+      haddr6 == (0, 0, 0, 1)
+    isLocal _ = False
 
 runMain :: IO ()
 runMain = runStderrLoggingT . filterLogger (\_source level -> level >= LevelWarn)

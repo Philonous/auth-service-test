@@ -30,6 +30,12 @@ import           AuthService.Api
 liftHandler :: IO a -> Handler a
 liftHandler = Handler . lift
 
+type StatusApi = "status" :> GetNoContent '[JSON] NoContent
+
+serveStatus :: Server StatusApi
+serveStatus = return NoContent
+
+
 -- Will be transformed into X-Token header and token cookie by the nginx
 serveLogin :: ConnectionPool -> Config -> Server LoginAPI
 serveLogin pool conf loginReq = loginHandler
@@ -147,7 +153,7 @@ serveAdminAPI = serveCreateUserAPI
 -- Interface
 --------------------------------------------------------------------------------
 
-apiPrx :: Proxy Api
+apiPrx :: Proxy (StatusApi :<|> Api)
 apiPrx = Proxy
 
 serveRequestPasswordResetAPI ::
@@ -211,7 +217,8 @@ serveCreateAccountApi pool conf xinstance createAccount =
       return NoContent
 
 serveAPI :: ConnectionPool -> Config -> Application
-serveAPI pool conf = serve apiPrx $ serveLogin pool conf
+serveAPI pool conf = serve apiPrx $ serveStatus
+                               :<|> serveLogin pool conf
                                :<|> serveCheckToken pool conf
                                :<|> servePublicCheckToken pool conf
                                :<|> serveLogout pool conf

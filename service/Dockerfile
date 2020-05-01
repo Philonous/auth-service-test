@@ -7,6 +7,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update && \
     apt-get -y install \
       build-essential \
+      curl \
       libgmp10 \
       libicu-dev \
       libpq-dev \
@@ -25,3 +26,4 @@ EXPOSE 80
 ADD dist/auth-service /app/auth-service
 
 CMD auth-service run
+HEALTHCHECK CMD curl --fail "http://localhost/status"
