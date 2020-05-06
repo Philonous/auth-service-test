@@ -145,10 +145,10 @@ setEmailConf conf =
       emailConfigSiteName <-
         getConf "SITE_NAME" "site-name" (Left "site name") conf
       emailConfigResetLinkExpirationTime <-
-        getConf
+        getConf'
           "RESET_LINK_EXPIRATION_TIME"
           "email.link-expiration-time"
-          (Left "Human-readable reset link expiration time")
+          (Left "Human-readable reset link expiration time in hours")
           conf
       mbEmailConfigTemplatefile <-
         getConfMaybe "EMAIL_TEMPLATE" "email.template" conf
