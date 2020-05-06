@@ -191,11 +191,11 @@ servePasswordResetTokenInfo pool conf (Just token) = do
   mbInfo <-
     Ex.try . liftHandler . runAPI pool conf $ getUserByResetPwToken token
   case mbInfo of
-    Right r -> return $ ResetTokenInfo (DB.userEmail r)
+    Right (Just r) -> return $ ResetTokenInfo (DB.userEmail r)
     Left ChangePasswordTokenError -> do
       liftHandler . runAPI pool conf $ logInfo $ "Tried to request token info with invalid Token " <> token
       throwError err403
-    Left _ -> throwError err403
+    _ -> throwError err403
 
 serveCreateAccountApi :: ConnectionPool -> Config -> Server CreateAccountAPI
 serveCreateAccountApi pool conf xinstance createAccount =
