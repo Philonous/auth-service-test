@@ -199,8 +199,8 @@ case_reset_password = withUser testUser $ \uid run -> do
 case_reset_password_wrong_token :: IO ()
 case_reset_password_wrong_token =
   withRunAPI Nothing $ \run -> do
-    run (resetPassword "BogusToken" "newPwd" Nothing) `shouldThrow`
-      (== ChangePasswordTokenError)
+    run (resetPassword "BogusToken" "newPwd" Nothing) `shouldReturn`
+      (Left ChangePasswordTokenError)
     return ()
 
 case_reset_password_OTP :: IO ()
@@ -217,16 +217,16 @@ case_reset_password_double_use =
   withUser testUser $ \uid run -> do
     tok <- run $ createResetToken 60 uid
     run $ resetPassword tok "newPwd" Nothing
-    run (resetPassword tok "newPwd2" Nothing) `shouldThrow`
-      (== ChangePasswordTokenError)
+    run (resetPassword tok "newPwd2" Nothing) `shouldReturn`
+      (Left ChangePasswordTokenError)
     return ()
 
 case_reset_password_expired :: IO ()
 case_reset_password_expired =
   withUser testUser $ \uid run -> do
     tok <- run $ createResetToken (-60) uid
-    run (resetPassword tok "newPwd" Nothing) `shouldThrow`
-      (== ChangePasswordTokenError)
+    run (resetPassword tok "newPwd" Nothing) `shouldReturn`
+      (Left ChangePasswordTokenError)
     return ()
 
 testEmailData :: EmailData
