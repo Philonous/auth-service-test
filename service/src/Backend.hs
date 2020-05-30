@@ -18,7 +18,6 @@ import qualified Control.Monad.Catch  as Ex
 import           Control.Monad.Except
 import qualified Crypto.BCrypt        as BCrypt
 import           Data.Maybe           (listToMaybe)
-import           Data.Monoid
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
 import qualified Data.Text.Encoding   as Text
@@ -130,7 +129,7 @@ resetTokenActive now token =
        ]
 
 
-getUserByResetPwToken :: PwResetToken -> API DB.User
+getUserByResetPwToken :: PwResetToken -> API (Maybe DB.User)
 getUserByResetPwToken token = do
   now <- liftIO getCurrentTime
   users <- db' . E.select . E.from $ \((tok :: SV DB.PasswordResetToken)
@@ -144,8 +143,8 @@ getUserByResetPwToken token = do
   case users of
     [] -> do
       Log.logInfo $ "Failed reset password attempt: " <> token
-      Ex.throwM ChangePasswordTokenError
-    (user : _) -> return $ entityVal user
+      return Nothing
+    (user : _) -> return . Just $ entityVal user
 
 
 -- | Reset password using the token from a password reset email
@@ -155,7 +154,10 @@ resetPassword :: PwResetToken
               -> API (Either ChangePasswordError ())
 resetPassword token password mbOtp = runExceptT $ do
   now <- liftIO getCurrentTime
-  usr <- lift $ getUserByResetPwToken token
+  mbUser <- lift $ getUserByResetPwToken token
+  usr <- case mbUser of
+    Nothing -> throwError ChangePasswordTokenError
+    Just usr -> return usr
   let uid = DB.userUuid usr
   lift (handleOTP usr mbOtp) >>= \case
     Left e -> throwError $ ChangePasswordLoginError e
@@ -424,7 +426,7 @@ changePassword tok ChangePassword { changePasswordOldPasword = oldPwd
   (_tokenID, usr) <- case mbUser of
     Nothing -> do
 
-      Log.logInfo $ "Failure while trying to change passowrd " <> (unB64Token tok)
+      Log.logInfo $ "Failure while trying to change password " <> (unB64Token tok)
       throwError ChangePasswordTokenError
     Just usr -> return usr
   mbError <- lift $ checkUserPassword (DB.userEmail usr) oldPwd

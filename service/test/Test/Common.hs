@@ -38,7 +38,7 @@ testEmailConfig =
       , sendmailConfigArguments = []
       }
   , emailConfigSiteName = "Test Site"
-  , emailConfigResetLinkExpirationTime = "24 hours"
+  , emailConfigResetLinkExpirationTime = 24
   , emailConfigMkLink = \tok -> "http://localhost/reset?token=" <> tok
   }
   where

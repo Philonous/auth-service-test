@@ -97,7 +97,7 @@ data EmailConfig = EmailConfig
   , emailConfigPWResetUnknownTemplate :: Mustache.Template
   , emailConfigSendmail :: SendmailConfig
   , emailConfigSiteName :: Text
-  , emailConfigResetLinkExpirationTime :: Text
+  , emailConfigResetLinkExpirationTime :: Int -- ^ Time in hours
   , emailConfigMkLink :: PwResetToken -> Text -- ^ Generate a link from a token
   }
 
