@@ -90,6 +90,8 @@ runMain = runStderrLoggingT . filterLogger (\_source level -> level >= LevelWarn
                "Usage: auth-service [run|adduser|chpass|addrole|rmrole|newinstance|addinstance|removeinstance] [options]"
              exitFailure
 
+-- Compares the schema to the SQL server and prints out necessary changes. For
+-- development.
 checkMigration :: IO ()
 checkMigration = runStderrLoggingT $ do
   withPostgresqlConn "host=localhost user=postgres" $ \(conn :: SqlBackend) -> do

@@ -1,10 +1,9 @@
-resolver: lts-14.27
+resolver: lts-16.6
 
 extra-deps:
   - git: git@git.nejla.com:nejla-ab/common.git
-    commit: 65adf85e5e25274f31564e8efa2a48f581633734
+    commit: 18ff4e9526d8f13e7abf84d30bd4977f4df96a51
   - '../auth-service-types'
-
 
 docker:
   enable: false
