@@ -1,7 +1,7 @@
 User
   uuid UserID
   Primary uuid
-  email Email
+  email Email sqltype=CITEXT
   UniqueUserEmail email
   name Name
   passwordHash PasswordHash
