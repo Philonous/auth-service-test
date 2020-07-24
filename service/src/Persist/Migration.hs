@@ -20,6 +20,12 @@ migrations =
                              -- versionioning wasn't in use
                       return ()
               }
+  , Migration { expect = "1"
+              , to = "2"
+              , description = "Case insenstivie email addresses"
+              , script = rawExecute
+                           $(sqlFile "src/Persist/migrations/01-ci-emails.sql") []
+              }
   ]
 
 migrate = M.migrate $(gitHash) migrations
