@@ -28,6 +28,7 @@ import           NejlaCommon                 (withPool)
 
 import           Api
 import           Config
+import           Persist.Migration           (doMigrate)
 import           Persist.Schema
 import           Types
 import           User
@@ -68,7 +69,7 @@ runMain = runStderrLoggingT . filterLogger (\_source level -> level >= LevelWarn
 
     withPool confFile 5 $ \pool -> do
         let run = liftIO . runAPI pool conf
-        _ <- liftIO $ runSqlPool (runMigrationSilent migrateAll) pool
+        _ <- runSqlPool doMigrate pool
         args <- liftIO getArgs
         case args of
          ("adduser": args') -> do

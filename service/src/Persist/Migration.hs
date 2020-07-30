@@ -3,13 +3,13 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Persist.Migration
-  ( Persist.Migration.migrate
+  ( doMigrate
   ) where
 
 import NejlaCommon.Persistence.Migration as M
 
 migrations =
-  [ Migration { expect = "" -- No migrations present
+  [ Migration { expect = Nothing -- No migrations present
               , to = "1"
               , description = "Initial version"
               , script = do
@@ -20,7 +20,7 @@ migrations =
                              -- versionioning wasn't in use
                       return ()
               }
-  , Migration { expect = "1"
+  , Migration { expect = Just "1"
               , to = "2"
               , description = "Case insenstivie email addresses"
               , script = rawExecute
@@ -28,4 +28,4 @@ migrations =
               }
   ]
 
-migrate = M.migrate $(gitHash) migrations
+doMigrate = M.migrate $(gitHash) migrations

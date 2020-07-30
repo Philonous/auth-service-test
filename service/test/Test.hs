@@ -137,6 +137,13 @@ case_user_check_password_wrong = withUser testUser $ \_uid run -> do
     Left _e -> return ()
     Right _ -> assertFailure "Accepted bogus password"
 
+case_user_email_case_insensitive :: IO ()
+case_user_email_case_insensitive = withUser testUser $ \_uid run -> do
+  res <- run $ checkUserPassword ("NO@SpAM.pleaSE") (Password "pwd")
+  case res of
+    Left _e -> assertFailure "Did not accept case-altered email"
+    Right{} -> return ()
+
 --------------------------------------------------------------------------------
 -- Password Changes
 --------------------------------------------------------------------------------

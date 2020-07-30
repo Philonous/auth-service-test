@@ -20,6 +20,7 @@ library:
   - Backend
   - Config
   - Logging
+  - Persist.Migration
   - Persist.Schema
   - Persist.Stage
   - Run
@@ -122,11 +123,15 @@ tests:
     - microstache
     - monad-logger >=0.3
     - mtl >=2.2
+    - nejla-common
+    - persistent
     - persistent-sqlite
+    - persistent-postgresql
     - resource-pool
     - tasty-hunit
     - tasty-quickcheck
     - tasty-th
     - text
     - time
+    - unliftio-core
     - uuid

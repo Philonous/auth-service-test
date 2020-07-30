@@ -1,8 +1,11 @@
 User
   uuid UserID
   Primary uuid
-  email Email sqltype=CITEXT
-  UniqueUserEmail email
+  email Email
+-- UniqueUserEmail email
+-- We have a uniqueness constraint on lower("email") instead, but persistent
+-- can't handle this directly
+-- CREATE UNIQUE INDEX "unique_user_email" on "user" (LOWER(email));
   name Name
   passwordHash PasswordHash
   phone Phone Maybe
