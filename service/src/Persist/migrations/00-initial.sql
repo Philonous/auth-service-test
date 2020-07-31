@@ -1,11 +1,11 @@
 CREATE TABLE "user"
   (
-     PRIMARY KEY ("uuid"),
      "uuid"          UUID NOT NULL,
      "email"         VARCHAR NOT NULL,
      "name"          VARCHAR NOT NULL,
      "password_hash" BYTEA NOT NULL,
-     "phone"         VARCHAR NULL
+     "phone"         VARCHAR NULL,
+     PRIMARY KEY ("uuid")
   );
 
 ALTER TABLE "user"
@@ -13,9 +13,9 @@ ALTER TABLE "user"
 
 CREATE TABLE "user_role"
   (
-     PRIMARY KEY ("user", "role"),
      "user" UUID NOT NULL,
-     "role" VARCHAR NOT NULL
+     "role" VARCHAR NOT NULL,
+     PRIMARY KEY ("user", "role")
   );
 
 ALTER TABLE "user_role"
@@ -27,9 +27,9 @@ ALTER TABLE "user_role"
 
 CREATE TABLE "instance"
   (
-     PRIMARY KEY ("uuid"),
      "uuid" UUID NOT NULL,
-     "name" VARCHAR NOT NULL
+     "name" VARCHAR NOT NULL,
+     PRIMARY KEY ("uuid")
   );
 
 ALTER TABLE "instance"
@@ -50,9 +50,9 @@ ALTER TABLE "user_otp"
 
 CREATE TABLE "user_instance"
   (
-     PRIMARY KEY ("user", "instance_id"),
      "user"        UUID NOT NULL,
-     "instance_id" UUID NOT NULL
+     "instance_id" UUID NOT NULL,
+     PRIMARY KEY ("user", "instance_id")
   );
 
 ALTER TABLE "user_instance"
