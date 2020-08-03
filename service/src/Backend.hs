@@ -7,6 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
+
 module Backend
   (module Backend
   ) where
@@ -101,8 +102,12 @@ userRemoveRole usr role = do
     _ -> return ()
 
 getUserByEmail :: Email -> API (Maybe DB.User)
-getUserByEmail name' =
-  fmap (fmap entityVal) . runDB $ P.getBy (DB.UniqueUserEmail name')
+getUserByEmail email' = do
+  users <- runDB . E.select . E.from $ \(user :: SV DB.User) -> do
+    where_ (lower_ (val email') ==. lower_ (user E.^. DB.UserEmail))
+    -- limit 1, but LOWER ("email") has a UNIQUE INDEX
+    return user
+  return $ entityVal <$> listToMaybe users
 
 createResetToken :: NominalDiffTime -> UserID -> API PwResetToken
 createResetToken expires usr = do
@@ -267,10 +272,10 @@ tokenChars = concat [ ['a' .. 'z']
 
 checkUserPassword :: Email -> Password -> API (Either LoginError DB.User)
 checkUserPassword userEmail pwd = do
-  mbUser <- runDB $ P.getBy (DB.UniqueUserEmail userEmail)
+  mbUser <- getUserByEmail userEmail
   case mbUser of
     Nothing -> return $ Left LoginErrorFailed
-    Just (Entity _ usr) -> do
+    Just usr -> do
       let hash = usr ^. DB.passwordHash
           userId = usr ^. DB.uuid
       if checkPassword hash pwd

@@ -1,0 +1,17 @@
+version: '3'
+
+services:
+  database:
+    image: postgres:12
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+    networks:
+      auth-service-test:
+
+  email:
+    image: mailhog/mailhog
+    networks:
+      auth-service-test:
+
+networks:
+  auth-service-test:

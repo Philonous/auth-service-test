@@ -6,6 +6,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Api where
@@ -14,9 +15,11 @@ import           Backend
 import           Control.Lens
 import qualified Control.Monad.Catch  as Ex
 import           Control.Monad.Except
+import           Data.Aeson           (encode)
 import qualified Data.List            as List
 import           Data.Maybe           (fromMaybe, maybeToList)
 import           Database.Persist.Sql
+import qualified NejlaCommon          as NC
 import           Network.Wai
 import           Servant
 import           Types
@@ -28,7 +31,17 @@ import qualified Persist.Schema       as DB
 import           AuthService.Api
 
 liftHandler :: IO a -> Handler a
-liftHandler = Handler . lift
+liftHandler =
+  Ex.handle (\(e :: NC.PersistError) -> throwError (toError e))
+    . Handler . lift
+  where
+    toError e =
+      ServerError{ errHTTPCode = NC.responseCode e
+                 , errReasonPhrase = ""
+                 , errBody = encode e
+                 , errHeaders = []
+                 }
+
 
 type StatusApi = "status" :> GetNoContent '[JSON] NoContent
 
