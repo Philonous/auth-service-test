@@ -27,6 +27,11 @@ build:
   artifacts:
     paths:
       - service/dist
+  cache:
+    paths:
+      - '.stack-cache'
+      - 'service/.stack-work'
+    key: "auth-service"
 
 test-backend:
   stage: test
@@ -43,9 +48,3 @@ test-backend:
     - build
   script:
     - for t in service/dist/tests/*; do echo "Runing $t"; $t; done
-
-cache:
-  paths:
-    - '.stack-cache'
-    - 'service/.stack-work'
-  key: "auth-service"
