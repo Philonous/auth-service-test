@@ -20,6 +20,13 @@ build:
 
 test:
   stage: test
+  variables:
+    POSTGRES_HOST_AUTH_METHOD: trust
+    DB_HOST: database
+  services:
+    - name: postgres:10.13
+      alias: database
+
   before_script:
     - eval $(ssh-agent -s)
     - ssh-add <(echo "$AUTHSERVICE_SSH_PRIVKEY")
