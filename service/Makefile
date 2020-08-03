@@ -6,12 +6,11 @@ ifeq (${TERM},dumb)
 export stack_build_args := ${stack_build_args} --colour=never
 endif
 
-TAG=$(shell git rev-parse HEAD)
 SERVICE_IMAGE=$(REGISTRY)/$(APP_IMAGE_NAME)
+TEST_IMAGE = $(REGISTRY)/$(APP_TEST_BASEIMAGE_NAME)
 
 tests = dist/tests/api-tests dist/tests/unit-tests
 
-tests-baseimage = registry.nejla.com/nejla-ab/auth-service/baseimage
 srcfiles=$(shell find src -type f)
 test-srcfiles=$(shell find test -type f)
 
@@ -19,17 +18,31 @@ test-srcfiles=$(shell find test -type f)
 .PHONY: all
 all: image baseimage $(tests)
 
-image: dist/auth-service Dockerfile
-	docker build -t "registry.nejla.com/nejla-ab/auth-service/auth-service:${TAG}" .
-	docker tag "registry.nejla.com/nejla-ab/auth-service/auth-service:${TAG}" \
-	           "registry.nejla.com/nejla-ab/auth-service/auth-service:latest"
+.PHONY: push
+push: push-image push-baseimage
+
+image: dist/auth-service Dockerfile ../.git
+	docker build --pull \
+	  -t "${SERVICE_IMAGE}:${TAG}" .
+	docker tag "${SERVICE_IMAGE}:${TAG}" \
+	           "${SERVICE_IMAGE}:latest"
 	touch image
 
+# Dont build, just push
+.PHONY: push-image
+push-image:
+	docker push $(SERVICE_IMAGE):$(TAG)
 
-baseimage: Dockerfile
-	docker build . --target baseimage \
-	  -t $(tests-baseimage):$(shell git rev-parse HEAD)
+# Depend on image to ensure that baseimage is up to date with latest built image
+baseimage: image
+	docker build . --pull --target baseimage \
+	  -t "$(TEST_IMAGE):$(TAG)"
 	touch baseimage
+
+.PHONY: push-baseimage
+push-baseimage:
+	docker push $(TEST_IMAGE):$(TAG)
+
 
 dist/auth-service: $(srcfiles) $(test-srcfiles) package.yaml stack.yaml
 	rm -f *.cabal
@@ -61,7 +74,7 @@ test: $(tests) baseimage
 	docker run --rm -it -v "$(PWD)/dist/tests:/tests:ro" \
            --network auth-service-test_auth-service-test \
            -e DB_HOST=database \
-           $(tests-baseimage):$(shell git rev-parse HEAD) \
+           $(TEST_IMAGE):$(TAG) \
            sh -c 'for t in /tests/*; do $$t; done'
 
 # Clean
