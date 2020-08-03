@@ -12,7 +12,6 @@ import           Data.Time.Clock
 import qualified Data.UUID                         as UUID
 import           Database.Persist.Postgresql       as Postgres
 import           Database.Persist.Sql              as P
-import           Database.Persist.Sqlite           as SQLite
 import qualified NejlaCommon                       as NC
 import qualified NejlaCommon.Config                as NC
 import           NejlaCommon.Persistence.Migration (sql)
@@ -21,11 +20,6 @@ import qualified Text.Microstache                  as Mustache
 import           Persist.Migration                 (doMigrate)
 
 import           Types
-
-withMemoryPool :: (Pool SqlBackend -> IO a) -> IO a
-withMemoryPool f = runNoLoggingT . withSqliteConn ":memory:" $ \con -> liftIO $ do
-  pool <- createPool (return con) (\_ -> return ()) 1 3600 1
-  f pool
 
 withPsqlPool :: (Pool SqlBackend -> NoLoggingT IO a) -> IO a
 withPsqlPool f = runNoLoggingT $ do
@@ -72,24 +66,12 @@ accountCreationConfig = AccountCreationConfig
               ]
   }
 
-withApiData :: Maybe OtpHandler -> (Pool SqlBackend -> Config -> IO a) -> IO a
-withApiData mbHandleOtp f =
+withTestDB :: (Pool SqlBackend -> IO a) -> IO a
+withTestDB f =
   withPsqlPool $ \pool -> do
-    let conf =
-          Config
-          { configTimeout = 9999
-          , configOTPLength = 6
-          , configOTPTimeoutSeconds = 10
-          , configTFARequired = True
-          , configOtp = mbHandleOtp
-          , configUseTransactionLevels = False
-          , configEmail = Just testEmailConfig
-          , configAccountCreation = accountCreationConfig
-          }
     liftIO $ do
-      -- _ <- runLoggingT (runSqlPool dbSetup pool) (\_ _ _ _ ->
       _ <- runLoggingT (NC.runPoolRetry pool dbSetup) (\_ _ _ _ -> return ())
-      f pool conf
+      f pool
   where
     dbSetup = do
       resetDB
@@ -130,12 +112,24 @@ withApiData mbHandleOtp f =
 
 type TestCase = Postgres.ConnectionPool -> IO ()
 
-withRunAPI :: Maybe OtpHandler -> ((forall a. API a -> IO a) -> IO b) -> IO b
-withRunAPI mbOtpHandler f =
-  withApiData mbOtpHandler
-    $ \pool conf -> do
+withConf :: Maybe OtpHandler
+           -> ConnectionPool
+           -> (Config -> IO b)
+           -> IO b
+withConf mbOtpHandler pool f = do
     runSqlPool cleanDB pool
-    f $  runAPI pool conf
+    let conf =
+          Config
+          { configTimeout = 9999
+          , configOTPLength = 6
+          , configOTPTimeoutSeconds = 10
+          , configTFARequired = True
+          , configOtp = mbOtpHandler
+          , configUseTransactionLevels = False
+          , configEmail = Just testEmailConfig
+          , configAccountCreation = accountCreationConfig
+          }
+    f conf
   where
     -- | Delete all rows from all tables (Don't use TRUNACE TABLE since it's
     -- slower)
@@ -157,6 +151,16 @@ withRunAPI mbOtpHandler f =
          $$;
          RESET client_min_messages;
          |] []
+
+
+withRunAPI :: Maybe OtpHandler
+           -> ConnectionPool
+           -> ((forall a. API a -> IO a) -> IO b)
+           -> IO b
+withRunAPI mbOtpHandler pool f = do
+  withConf mbOtpHandler pool $ \conf ->
+    f $ runAPI pool conf
+
 
 seconds :: Integer -> NominalDiffTime
 seconds s = fromIntegral s

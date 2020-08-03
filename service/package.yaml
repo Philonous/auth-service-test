@@ -96,10 +96,13 @@ tests:
     - monad-logger >=0.3
     - mtl >=2.2
     - nejla-common
+    - persistent
+    - persistent-postgresql
     - persistent-sqlite
     - resource-pool
     - text
     - time
+    - unliftio-core
     - uuid
     - wai
     - wai-extra
@@ -128,6 +131,7 @@ tests:
     - persistent-sqlite
     - persistent-postgresql
     - resource-pool
+    - tasty
     - tasty-hunit
     - tasty-quickcheck
     - tasty-th

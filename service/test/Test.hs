@@ -19,13 +19,15 @@ import           Control.Monad.Trans
 import           Data.Data
 import           Data.IORef
 import           Data.Monoid
-import qualified Data.Text               as Text
 import           Data.Text               (Text)
+import qualified Data.Text               as Text
+import           Database.Persist.Sql    (ConnectionPool)
 import           Prelude                 hiding (id)
 import qualified Test.QuickCheck.Monadic as QC
 import qualified Text.Microstache        as Mustache
 
 import           Test.Hspec.Expectations
+import           Test.Tasty              (defaultMain, testGroup)
 import           Test.Tasty.HUnit        hiding (assertFailure)
 import           Test.Tasty.QuickCheck
 import           Test.Tasty.TH
@@ -48,6 +50,8 @@ instance Ex.Exception AssertionFailed
 assertFailure :: Ex.MonadThrow m => String -> m a
 assertFailure = Ex.throwM  . AssertionFailed
 
+type Case a = ConnectionPool -> IO a
+
 --------------------------------------------------------------------------------
 -- Add User
 --------------------------------------------------------------------------------
@@ -65,8 +69,8 @@ testUser = AddUser { addUserUuid = Nothing
 testUserOtp :: AddUser
 testUserOtp = testUser & phone .~ (Just $ Phone "12345")
 
-withUser :: AddUser -> (UserID -> (forall a. API a -> IO a) -> IO ()) -> IO ()
-withUser usr f = withRunAPI Nothing $ \run -> do
+withUser :: AddUser -> (UserID -> (forall a. API a -> IO a) -> IO ()) -> Case ()
+withUser usr f pool = withRunAPI Nothing pool $ \run -> do
   mbRes <- run $ createUser usr
   case mbRes of
     Nothing -> assertFailure "could not create user"
@@ -75,15 +79,15 @@ withUser usr f = withRunAPI Nothing $ \run -> do
 withUserOTP ::
      AddUser
   -> (UserID -> IO (Maybe Text) -> (forall a. API a -> IO a) -> IO ())
-  -> IO ()
-withUserOTP usr f = do
+  -> Case ()
+withUserOTP usr f pool = do
   otpRef <- newIORef Nothing
   let otpHandler _ = liftIO . writeIORef otpRef . Just
       readOTP = do
         res <- readIORef otpRef
         writeIORef otpRef Nothing
         return res
-  withRunAPI (Just otpHandler) $ \run -> do
+  withRunAPI (Just otpHandler) pool $ \run -> do
     mbRes <- run $ createUser usr
     case mbRes of
       Nothing -> assertFailure "could not create user"
@@ -116,28 +120,28 @@ loginOTP run getOtp AddUser{..} = do
       Left e -> assertFailure $ "Failed login with OTP " <> (show e)
       Right r -> return $ returnLoginToken r
 
-case_create_user :: IO ()
+case_create_user :: Case ()
 case_create_user = withUser testUser $ \_uid run -> do
   mbUsr <- run . getUserByEmail $ testUser ^. email
   case mbUsr of
     Nothing -> assertFailure "Did not get user"
     Just usr -> checkUser usr testUser
 
-case_user_check_password :: IO ()
+case_user_check_password :: Case ()
 case_user_check_password = withUser testUser $ \_uid run -> do
   res <- run $ checkUserPassword (testUser ^. email) (testUser ^. password)
   case res of
     Left _e -> assertFailure "check password failed"
     Right _ -> return ()
 
-case_user_check_password_wrong :: IO ()
+case_user_check_password_wrong :: Case ()
 case_user_check_password_wrong = withUser testUser $ \_uid run -> do
   res <- run $ checkUserPassword (testUser ^. email) (Password "bogus")
   case res of
     Left _e -> return ()
     Right _ -> assertFailure "Accepted bogus password"
 
-case_user_email_case_insensitive :: IO ()
+case_user_email_case_insensitive :: Case ()
 case_user_email_case_insensitive = withUser testUser $ \_uid run -> do
   res <- run $ checkUserPassword ("NO@SpAM.pleaSE") (Password "pwd")
   case res of
@@ -148,7 +152,7 @@ case_user_email_case_insensitive = withUser testUser $ \_uid run -> do
 -- Password Changes
 --------------------------------------------------------------------------------
 
-case_user_change_password :: IO ()
+case_user_change_password :: Case ()
 case_user_change_password = withUser testUser $ \uid run -> do
   _ <- run $ changeUserPassword uid (Password "newPassword")
   res <- run $ checkUserPassword (testUser ^. email) (Password "newPassword")
@@ -156,7 +160,7 @@ case_user_change_password = withUser testUser $ \uid run -> do
     Left _e -> assertFailure "check password fails"
     Right _ -> return ()
 
-case_user_change_password_old_password :: IO ()
+case_user_change_password_old_password :: Case ()
 case_user_change_password_old_password = withUser testUser $ \uid run -> do
   _ <- run $ changeUserPassword uid (Password "newpassword")
   res <- run $ checkUserPassword (testUser ^. email) (testUser ^. password)
@@ -164,7 +168,7 @@ case_user_change_password_old_password = withUser testUser $ \uid run -> do
     Left _e -> return ()
     Right _ -> assertFailure "Could still use old password"
 
-case_changePassword_otp :: IO ()
+case_changePassword_otp :: Case ()
 case_changePassword_otp =
   withUserOTP testUserOtp $ \uid getOtp run -> do
     tok <- loginOTP run getOtp testUserOtp
@@ -196,21 +200,21 @@ case_changePassword_otp =
 -- Reset Password
 --------------------------------------------------------------------------------
 
-case_reset_password :: IO ()
+case_reset_password :: Case ()
 case_reset_password = withUser testUser $ \uid run -> do
   tok <- run $ createResetToken 60 uid
   _ <- run $ resetPassword tok "newPwd" Nothing
   _ <- run $ checkUserPassword (testUser ^. email) "newPwd"
   return ()
 
-case_reset_password_wrong_token :: IO ()
-case_reset_password_wrong_token =
-  withRunAPI Nothing $ \run -> do
+case_reset_password_wrong_token :: Case ()
+case_reset_password_wrong_token pool =
+  withRunAPI Nothing pool $ \run -> do
     run (resetPassword "BogusToken" "newPwd" Nothing) `shouldReturn`
       (Left ChangePasswordTokenError)
     return ()
 
-case_reset_password_OTP :: IO ()
+case_reset_password_OTP :: Case ()
 case_reset_password_OTP = withUserOTP testUserOtp $ \uid getOtp run -> do
   tok <- run $ createResetToken 60 uid
   res <- run (resetPassword tok "newPwd" Nothing)
@@ -219,7 +223,7 @@ case_reset_password_OTP = withUserOTP testUserOtp $ \uid getOtp run -> do
   run (resetPassword tok "newPwd" $ Just (Password otp))
   return ()
 
-case_reset_password_double_use :: IO ()
+case_reset_password_double_use :: Case ()
 case_reset_password_double_use =
   withUser testUser $ \uid run -> do
     tok <- run $ createResetToken 60 uid
@@ -228,7 +232,7 @@ case_reset_password_double_use =
       (Left ChangePasswordTokenError)
     return ()
 
-case_reset_password_expired :: IO ()
+case_reset_password_expired :: Case ()
 case_reset_password_expired =
   withUser testUser $ \uid run -> do
     tok <- run $ createResetToken (-60) uid
@@ -244,8 +248,8 @@ testEmailData =
   , emailDataExpirationTime = "24 hours"
   }
 
-case_password_reset_render_email :: IO ()
-case_password_reset_render_email = do
+case_password_reset_render_email :: Case ()
+case_password_reset_render_email _pool = do
   renderedEmail <-
     runNoLoggingT $
     renderEmail
@@ -255,8 +259,8 @@ case_password_reset_render_email = do
   renderedEmail `shouldBe`
     "please click on http://localhost/reset?token=tok123abc"
 
-case_password_reset_render_error_email :: IO ()
-case_password_reset_render_error_email = do
+case_password_reset_render_error_email :: Case ()
+case_password_reset_render_error_email _pool = do
   renderedEmail <-
     runNoLoggingT $
     renderEmail
@@ -268,16 +272,16 @@ case_password_reset_render_error_email = do
 
 -- | Check that the render functions throws an exception when there are errors
 -- during render
-case_password_reset_render_email_errors :: IO ()
-case_password_reset_render_email_errors = do
+case_password_reset_render_email_errors :: Case ()
+case_password_reset_render_email_errors _pool = do
   let Right tmpl = Mustache.compileMustacheText "test" "{{bogus}}"
   runNoLoggingT (renderEmail testEmailConfig tmpl Nothing)
     `shouldThrow` (== EmailRenderError)
 
 -- Check that we can render the default template (i.e. there are no missing
 -- variables)
-case_password_reset_default_template :: IO ()
-case_password_reset_default_template = do
+case_password_reset_default_template :: Case ()
+case_password_reset_default_template _pool = do
   _ <-
     runStderrLoggingT $ renderEmail testEmailConfig defaultPwResetTemplate Nothing
   return ()
@@ -286,14 +290,14 @@ case_password_reset_default_template = do
 -- Instances
 --------------------------------------------------------------------------------
 
-case_add_user_instance :: IO ()
+case_add_user_instance :: Case ()
 case_add_user_instance = withUser testUser $ \uid run -> do
   iid <- run $ addInstance Nothing "instance1"
   run $ addUserInstance uid iid
   iids <- run $ getUserInstances uid
   iids ^.. each . id  `shouldBe` [iid]
 
-case_remove_user_instance :: IO ()
+case_remove_user_instance :: Case ()
 case_remove_user_instance = withUser testUser $ \uid run -> do
   iid <- run $ addInstance Nothing "instance1"
   run $ addUserInstance uid iid
@@ -335,12 +339,12 @@ runLogin run usr = do
     Left _e -> assertFailure "Could not login"
     Right rl -> return rl
 
-case_login :: IO ()
+case_login :: Case ()
 case_login = withUser testUser $ \_uid run -> do
   _ <- runLogin run testUser
   return ()
 
-case_login_otp :: IO ()
+case_login_otp :: Case ()
 case_login_otp =  withUserOTP testUserOtp $ \_uid getOtp run -> do
     res <- run $ login Login { loginUser = testUserOtp ^. email
                              , loginPassword = testUserOtp ^. password
@@ -356,7 +360,7 @@ case_login_otp =  withUserOTP testUserOtp $ \_uid getOtp run -> do
       Left e -> assertFailure $ "Failed login with OTP " <> (show e)
       Right _ -> return ()
 
-case_login_otp_wrong_user :: IO ()
+case_login_otp_wrong_user :: Case ()
 case_login_otp_wrong_user =
   withUserOTP testUserOtp $ \_uid getOtp run -> do
     _ <- run . createUser $ testUserOtp & email .~ "user2@spam.please"
@@ -386,51 +390,51 @@ case_login_otp_wrong_user =
 
 withUserToken :: AddUser
               -> (B64Token -> UserID -> (forall a. API a -> IO a) -> IO ())
-              -> IO ()
+              -> Case ()
 withUserToken usr f = withUser usr $ \uid run -> do
   res <- runLogin run usr
   f (res ^. token) uid run
 
 
-case_checkToken :: IO ()
+case_checkToken :: Case ()
 case_checkToken = withUserToken testUser $ \tok uid run -> do
   res <- run $ checkToken tok
   res `shouldBe` Just uid
 
-case_checkToken_bogus :: IO ()
+case_checkToken_bogus :: Case ()
 case_checkToken_bogus = withUser testUser $ \_uid run -> do
   let tok = B64Token "bogus"
   res <- run $ checkToken tok
   res `shouldBe` Nothing
 
-case_checkTokenInstance :: IO ()
+case_checkTokenInstance :: Case ()
 case_checkTokenInstance = withUserToken testUser $ \tok uid run -> do
   iid <- run $ addInstance Nothing "testInstance"
   run $ addUserInstance uid iid
   res <- run $ checkTokenInstance "" tok iid
   res `shouldBe` Just (uid, addUserEmail testUser, addUserName testUser)
 
-case_checkTokenInstance_not_member :: IO ()
+case_checkTokenInstance_not_member :: Case ()
 case_checkTokenInstance_not_member = withUserToken testUser $ \tok _uid run -> do
   iid <- run $ addInstance Nothing "testInstance"
   res <- run $ checkTokenInstance "" tok iid
   res `shouldBe` Nothing
 
 
-case_logout :: IO ()
+case_logout :: Case ()
 case_logout = withUserToken testUser $ \tok _uid run -> do
   run $ logOut tok
   res <- run $ checkToken tok
   res `shouldBe` Nothing
 
-case_closeOtherSesions :: IO ()
+case_closeOtherSesions :: Case ()
 case_closeOtherSesions = withUserToken testUser $ \tok _uid run -> do
   tok2 <- view token <$> runLogin run testUser
   run $ closeOtherSessions tok2
   res <- run $ checkToken tok
   res `shouldBe` Nothing
 
-case_closeOtherSesions_same_session :: IO ()
+case_closeOtherSesions_same_session :: Case ()
 case_closeOtherSesions_same_session =
   withUserToken testUser $ \_tok uid run -> do
     tok2 <- view token <$> runLogin run testUser
@@ -438,6 +442,35 @@ case_closeOtherSesions_same_session =
     res <- run $ checkToken tok2
     res `shouldBe` Just uid
 
-
 main :: IO ()
-main = $defaultMainGenerator
+main = withTestDB $ \pool -> do
+  defaultMain . testGroup "main" $
+       [ testCase "create user"                       $ case_create_user                        pool
+       , testCase "user check password"               $ case_user_check_password                pool
+       , testCase "user check password wrong"         $ case_user_check_password_wrong          pool
+       , testCase "user email case insensitive"       $ case_user_email_case_insensitive        pool
+       , testCase "user change password"              $ case_user_change_password               pool
+       , testCase "user change password old password" $ case_user_change_password_old_password  pool
+       , testCase "changePassword otp"                $ case_changePassword_otp                 pool
+       , testCase "reset password"                    $ case_reset_password                     pool
+       , testCase "reset password wrong token"        $ case_reset_password_wrong_token         pool
+       , testCase "reset password OTP"                $ case_reset_password_OTP                 pool
+       , testCase "reset password double use"         $ case_reset_password_double_use          pool
+       , testCase "reset password expired"            $ case_reset_password_expired             pool
+       , testCase "password reset render email"       $ case_password_reset_render_email        pool
+       , testCase "password reset render error email" $ case_password_reset_render_error_email  pool
+       , testCase "password reset render email error" $ case_password_reset_render_email_errors pool
+       , testCase "password reset default template"   $ case_password_reset_default_template    pool
+       , testCase "add user instance"                 $ case_add_user_instance                  pool
+       , testCase "remove user instance"              $ case_remove_user_instance               pool
+       , testCase "login"                             $ case_login                              pool
+       , testCase "login otp"                         $ case_login_otp                          pool
+       , testCase "login otp wrong user"              $ case_login_otp_wrong_user               pool
+       , testCase "checkToken"                        $ case_checkToken                         pool
+       , testCase "checkToken bogus"                  $ case_checkToken_bogus                   pool
+       , testCase "checkTokenInstance"                $ case_checkTokenInstance                 pool
+       , testCase "checkTokenInstance not member"     $ case_checkTokenInstance_not_member      pool
+       , testCase "logout"                            $ case_logout                             pool
+       , testCase "closeOtherSesions"                 $ case_closeOtherSesions                  pool
+       , testCase "closeOtherSesions same session"    $ case_closeOtherSesions_same_session     pool
+       ]
