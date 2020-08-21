@@ -12,7 +12,7 @@ library:
   - client
   - src
   ghc-options:
-  # - -Wall
+  - -Wall
   - -O2
   exposed-modules:
   - Api
