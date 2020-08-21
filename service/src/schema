@@ -9,6 +9,7 @@ User
   name Name
   passwordHash PasswordHash
   phone Phone Maybe
+  deactivate UTCTime Maybe
   deriving Show
 
 UserRole

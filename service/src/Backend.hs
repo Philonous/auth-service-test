@@ -36,6 +36,7 @@ import           NejlaCommon
 import qualified Logging              as Log
 import qualified Persist.Schema       as DB
 import           Types
+import Database.Esqueleto.Internal.Sql (unsafeSqlBinOp)
 
 unOtpKey :: Key DB.UserOtp -> Log.OtpRef
 unOtpKey = P.unSqlBackendKey . DB.unUserOtpKey
@@ -71,6 +72,7 @@ createUser usr = do
                             , DB.userPasswordHash = hash
                             , DB.userEmail = usr ^. email
                             , DB.userPhone = usr ^. phone
+                            , DB.userDeactivate = Nothing
                             }
        _ <- runDB $ P.insert dbUser
        Log.logES Log.UserCreated{ Log.user = usr ^. email}
@@ -101,10 +103,19 @@ userRemoveRole usr role = do
     0 -> notFound "User Role" (usr, role)
     _ -> return ()
 
+isDistinctFrom :: SqlExpr (Value (Maybe a)) -> SqlExpr (Value (Maybe a)) -> SqlExpr (Value Bool)
+isDistinctFrom = unsafeSqlBinOp " IS DISTINCT FROM "
+
+isNotTrue :: SqlExpr (Value (Maybe Bool)) -> SqlExpr (Value Bool)
+isNotTrue x = isDistinctFrom x (just (val True))
+
 getUserByEmail :: Email -> API (Maybe DB.User)
 getUserByEmail email' = do
+  now <- liftIO getCurrentTime
   users <- runDB . E.select . E.from $ \(user :: SV DB.User) -> do
-    where_ (lower_ (val email') ==. lower_ (user E.^. DB.UserEmail))
+    whereL [ lower_ (val email') ==. lower_ (user E.^. DB.UserEmail)
+           , isNotTrue . just $ user E.^. DB.UserDeactivate <=. just (val now)
+           ]
     -- limit 1, but LOWER ("email") has a UNIQUE INDEX
     return user
   return $ entityVal <$> listToMaybe users
