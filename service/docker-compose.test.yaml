@@ -1,6 +1,23 @@
-version: '3'
+version: '3.4'
 
 services:
+
+  test:
+    image: ${BASEIMAGE:-baseimage}
+    build:
+      context: .
+      target: baseimage
+    volumes:
+      - ./dist/tests:/tests:ro
+    environment:
+      DB_HOST: database
+    command: sh -ec 'for t in /tests/*; do $$t; done'
+    networks:
+      auth-service-test:
+    links:
+      - database
+      - email
+
   database:
     image: postgres:12
     environment:
@@ -12,6 +29,8 @@ services:
     image: mailhog/mailhog
     networks:
       auth-service-test:
+
+
 
 networks:
   auth-service-test:
