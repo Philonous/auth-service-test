@@ -91,6 +91,7 @@ tests:
     - hspec-expectations
     - hspec-wai
     - hspec-wai-json
+    - interpolate
     - lens
     - microstache
     - monad-logger >=0.3

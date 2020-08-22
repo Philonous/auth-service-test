@@ -155,13 +155,31 @@ serveCreateUserAPI pool conf addUser = do
                                    , returnUserRoles = addUser ^. roles
                                    }
 
+
+serveGetUsersAPI ::  ConnectionPool -> Config -> Server GetUsersAPI
+serveGetUsersAPI pool conf = do
+  liftHandler $ runAPI pool conf $ getUsers
+
+serveDeactivateUsersAPI :: ConnectionPool -> Config -> Server DeactivateUserAPI
+serveDeactivateUsersAPI pool conf uid body = do
+  liftHandler $ runAPI pool conf $  deactivateUser uid (body ^. deactivateAt)
+  return NoContent
+
+serveReactivateUsersAPI :: ConnectionPool -> Config -> Server ReactivateUserAPI
+serveReactivateUsersAPI pool conf uid = do
+    liftHandler $ runAPI pool conf $  reactivateUser uid
+    return NoContent
+
 adminAPIPrx :: Proxy AdminAPI
 adminAPIPrx = Proxy
 
 serveAdminAPI :: ConnectionPool
               -> Config
-              -> Server CreateUserAPI
-serveAdminAPI = serveCreateUserAPI
+              -> Server AdminAPI
+serveAdminAPI pool conf = serveCreateUserAPI pool conf
+                          :<|> serveGetUsersAPI pool conf
+                          :<|> serveDeactivateUsersAPI pool conf
+                          :<|> serveReactivateUsersAPI pool conf
 
 --------------------------------------------------------------------------------
 -- Interface

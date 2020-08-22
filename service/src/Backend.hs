@@ -12,31 +12,33 @@ module Backend
   (module Backend
   ) where
 
-import           Control.Arrow        ((***))
-import           Control.Lens         hiding (from)
+import           Control.Arrow                   ((***))
+import           Control.Lens                    hiding (from)
 import           Control.Monad
-import qualified Control.Monad.Catch  as Ex
+import qualified Control.Monad.Catch             as Ex
 import           Control.Monad.Except
-import qualified Crypto.BCrypt        as BCrypt
-import           Data.Maybe           (listToMaybe)
-import           Data.Text            (Text)
-import qualified Data.Text            as Text
-import qualified Data.Text.Encoding   as Text
+import qualified Crypto.BCrypt                   as BCrypt
+import           Data.Maybe                      (listToMaybe)
+import           Data.Text                       (Text)
+import qualified Data.Text                       as Text
+import qualified Data.Text.Encoding              as Text
 import           Data.Time.Clock
-import qualified Data.Traversable     as Traversable
-import qualified Data.UUID.V4         as UUID
-import qualified Database.Esqueleto   as E
-import           Database.Esqueleto   hiding ((^.), from)
-import qualified Database.Persist     as P
-import qualified Database.Persist.Sql as P
+import qualified Data.Traversable                as Traversable
+import qualified Data.UUID.V4                    as UUID
+import qualified Database.Esqueleto              as E
+import           Database.Esqueleto              hiding ((^.), from)
+import qualified Database.Persist                as P
+import qualified Database.Persist.Sql            as P
 import           System.Random
 
-import           NejlaCommon
+import           NejlaCommon                     as NC
 
-import qualified Logging              as Log
-import qualified Persist.Schema       as DB
+import qualified Logging                         as Log
+import qualified Persist.Schema                  as DB
 import           Types
-import Database.Esqueleto.Internal.Sql (unsafeSqlBinOp)
+import           Database.Esqueleto.Internal.Sql (unsafeSqlBinOp)
+
+import           Dev
 
 unOtpKey :: Key DB.UserOtp -> Log.OtpRef
 unOtpKey = P.unSqlBackendKey . DB.unUserOtpKey
@@ -106,16 +108,11 @@ userRemoveRole usr role = do
 isDistinctFrom :: SqlExpr (Value (Maybe a)) -> SqlExpr (Value (Maybe a)) -> SqlExpr (Value Bool)
 isDistinctFrom = unsafeSqlBinOp " IS DISTINCT FROM "
 
-isNotTrue :: SqlExpr (Value (Maybe Bool)) -> SqlExpr (Value Bool)
-isNotTrue x = isDistinctFrom x (just (val True))
-
 getUserByEmail :: Email -> API (Maybe DB.User)
 getUserByEmail email' = do
   now <- liftIO getCurrentTime
   users <- runDB . E.select . E.from $ \(user :: SV DB.User) -> do
-    whereL [ lower_ (val email') ==. lower_ (user E.^. DB.UserEmail)
-           , isNotTrue . just $ user E.^. DB.UserDeactivate <=. just (val now)
-           ]
+    where_ (lower_ (val email') ==. lower_ (user E.^. DB.UserEmail))
     -- limit 1, but LOWER ("email") has a UNIQUE INDEX
     return user
   return $ entityVal <$> listToMaybe users
@@ -284,9 +281,12 @@ tokenChars = concat [ ['a' .. 'z']
 checkUserPassword :: Email -> Password -> API (Either LoginError DB.User)
 checkUserPassword userEmail pwd = do
   mbUser <- getUserByEmail userEmail
+  now <- liftIO getCurrentTime
   case mbUser of
-    Nothing -> return $ Left LoginErrorFailed
-    Just usr -> do
+    Just usr | Just deac <- usr ^. deactivate
+             , deac <= now
+               -> return $ Left LoginErrorFailed
+             | otherwise -> do
       let hash = usr ^. DB.passwordHash
           userId = usr ^. DB.uuid
       if checkPassword hash pwd
@@ -294,6 +294,7 @@ checkUserPassword userEmail pwd = do
           unless (hashUsesPolicy hash) $ rehash userId
           return $ Right usr
         else return $ Left LoginErrorFailed
+    Nothing -> return $ Left LoginErrorFailed
   where
     checkPassword (PasswordHash hash) (Password pwd') =
       BCrypt.validatePassword hash (Text.encodeUtf8 pwd')
@@ -499,6 +500,7 @@ getUserInfo token' = do
                           , returnUserInfoPhone = user' ^. phone
                           , returnUserInfoInstances = instances'
                           , returnUserInfoRoles = roles
+                          , returnUserInfoDeactivate = user' ^. deactivate
                           }
 
 checkTokenInstance :: Text -> B64Token -> InstanceID -> API (Maybe (UserID, Email, Name))
@@ -509,6 +511,7 @@ checkTokenInstance request (B64Token "") inst = do
     return Nothing
 checkTokenInstance request tok inst = do
     mbUsr <- getUserByToken tok
+    now <- liftIO getCurrentTime
     case mbUsr of
       Nothing -> do
         Log.logES Log.RequestInvalidToken{ Log.request = request
@@ -516,7 +519,16 @@ checkTokenInstance request tok inst = do
                                          , Log.instanceId = inst
                                          }
         return Nothing
-      Just (tid,  usr) -> do
+      Just (tid,  usr) | Just deactivatAt <- usr ^. deactivate
+                       , deactivatAt <= now
+                       -> do
+                           Log.logES
+                             Log.RequestInvalidToken{ Log.request = request
+                                                    , Log.token = unB64Token tok
+                                                    , Log.instanceId = inst
+                                                    }
+                           return Nothing
+                       | otherwise -> do
         mbInst <- checkInstance inst (DB.userUuid usr)
         case mbInst of
           Nothing -> do
@@ -561,3 +573,76 @@ closeOtherSessions tokenID = do
                      ]
            , tok E.^. DB.TokenToken E.!=. E.val tokenID
            ]
+
+
+--------------------------------------------------------------------------------
+-- Admin endpoints -------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+getUsers :: API [ReturnUserInfo]
+getUsers = do
+  users <- runDB $ E.select . E.from $ \((user :: SV DB.User)
+                                        `LeftOuterJoin` (role :: SVM DB.UserRole)
+                                        `LeftOuterJoin`
+                                          ((uinst :: SVM DB.UserInstance)
+                                           `InnerJoin` (inst :: SVM DB.Instance)
+                                          )
+
+                                        ) -> do
+    on $ foreignKeyLR uinst inst
+    on $ foreignKeyL uinst user
+    on $ foreignKeyL role user
+    groupBy ( user E.^. DB.UserUuid
+            , user E.^. DB.UserEmail
+            , user E.^. DB.UserName
+            , user E.^. DB.UserPhone
+            , user E.^. DB.UserDeactivate
+            )
+    orderBy [E.asc $ user E.^. DB.UserEmail]
+    return ( user E.^. DB.UserUuid
+           , user E.^. DB.UserEmail
+           , user E.^. DB.UserName
+           , user E.^. DB.UserPhone
+           , user E.^. DB.UserDeactivate
+           , arrayAgg' $ role ?. DB.UserRoleRole
+           , arrayAgg' $ inst ?. DB.InstanceUuid
+           , arrayAgg' $ inst ?. DB.InstanceName
+           )
+
+  return $ for users $ \(Value userId, Value userEmail, Value userName
+                        , Value userPhone
+                        , Value userDeactivate
+                        , Value roles
+                        , Value instanceIDs , Value instanceNames) ->
+    ReturnUserInfo
+    { returnUserInfoId         = userId
+    , returnUserInfoEmail      = userEmail
+    , returnUserInfoName       = userName
+    , returnUserInfoPhone      = userPhone
+    , returnUserInfoInstances  = zipWith ReturnInstance instanceNames instanceIDs
+    , returnUserInfoRoles      = roles
+    , returnUserInfoDeactivate = userDeactivate
+    }
+ where
+   for = flip fmap
+
+deactivateUser :: UserID -> DeactivateAt -> API ()
+deactivateUser uid deactivate = do
+  deactivateAt <- case deactivate of
+                    DeactivateNow -> liftIO getCurrentTime
+                    DeactivateAt time -> return time
+  num <- db' $ P.updateWhereCount [ DB.UserUuid P.==. uid]
+                                  [ DB.UserDeactivate P.=. Just deactivateAt ]
+  case num of
+    0 -> NC.notFound "user by uuid" uid
+    1 -> return ()
+    _ -> error $ "deactivateUser: More than one user affected: <> " ++ show num
+
+reactivateUser :: UserID -> API ()
+reactivateUser uid = do
+  num <- db' $ P.updateWhereCount [ DB.UserUuid P.==. uid]
+                                  [ DB.UserDeactivate P.=. Nothing ]
+  case num of
+    0 -> NC.notFound "user by uuid" uid
+    1 -> return ()
+    _ -> error $ "deactivateUser: More than one user affected: <> " ++ show num
