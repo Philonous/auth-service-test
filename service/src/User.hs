@@ -6,20 +6,31 @@
 
 module User where
 
-import qualified Control.Monad.Catch as Ex
+import qualified Control.Monad.Catch      as Ex
 import           Control.Monad.Trans
 import           Data.Maybe
 import           Data.Monoid
-import           Data.Text           (Text)
-import qualified Data.Text           as Text
-import           Data.UUID           (UUID)
-import qualified Data.UUID           as UUID
+import           Data.Text                (Text)
+import qualified Data.Text                as Text
+import           Data.Time                (UTCTime)
+import qualified Data.Time.Format.ISO8601 as ISO8601
+import           Data.UUID                (UUID)
+import qualified Data.UUID                as UUID
 import           System.IO
 
 import           Backend
-import qualified Persist.Schema      as DB
+import qualified Persist.Schema           as DB
 import           System.Exit
 import           Types
+
+readTime :: String -> IO UTCTime
+readTime str = case ISO8601.iso8601ParseM str of
+                 Nothing -> do
+                   hPutStrLn stderr $ "could not read time string \"" ++ str
+                                       ++ "\". Is it in ISO8601 format?\n"
+                                       ++ "Example: 2020-08-25T00:00:00Z"
+                   exitFailure
+                 Just time -> return time
 
 addUser :: [Text] -> API (Maybe UserID)
 addUser args = do
@@ -103,6 +114,27 @@ userRemoveInstance args = do
                hPutStrLn stderr $
                  "User did not have access to instance " <> (Text.unpack inst)
                exitFailure
+
+userDeactivate' :: [String] -> API ()
+userDeactivate' [userEmail] = do
+  usr <- fetchUser (Email $ Text.pack userEmail)
+  deactivateUser (DB.userUuid usr) DeactivateNow
+userDeactivate' [userEmail, deactivateAt] = do
+  usr <- fetchUser (Email $ Text.pack userEmail)
+  time <- liftIO $ readTime deactivateAt
+  deactivateUser (DB.userUuid usr) (DeactivateAt time)
+userDeactivate' _ = liftIO $ do
+      hPutStrLn stderr "Usage: auth-service deactivateuser <email> [time]"
+      exitFailure
+
+userReactivate :: [String] -> API ()
+userReactivate [userEmail] = do
+  usr <- fetchUser (Email $ Text.pack userEmail)
+  reactivateUser (DB.userUuid usr)
+userReactivate _ = liftIO $ do
+      hPutStrLn stderr "Usage: auth-service reactivateuser <email>"
+      exitFailure
+
 
 fetchUser :: Email -> API DB.User
 fetchUser userEmail = do
