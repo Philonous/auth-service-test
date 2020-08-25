@@ -8,6 +8,7 @@ module Main where
 import                          Control.Lens
 import                          Control.Monad
 import                          Data.ByteString                  (ByteString)
+import qualified                Data.ByteString.Lazy             as BSL
 import                          Data.Data                        (Proxy(..))
 import                          Data.String.Interpolate.IsString (i)
 import                          Data.Text                        (Text)
