@@ -211,6 +211,22 @@ http {
         }
 
 
+        location /admin/ {
+              set $token $cookie_token;
+              if ($token = '') {
+                set $token $http_x_token;
+              }
+              if ($token = '') {
+                return 403;
+              }
+
+              proxy_set_header X-Original-URI $request_uri;
+              proxy_set_header X-Token $token;
+
+              proxy_pass http://AUTH_SERVICE/admin/;
+
+        }
+
         # Locations to redirect /auth.html
         location = /authentication/index.html {
             # Serve auth.html instead of a 404 page when auth fails
