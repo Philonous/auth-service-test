@@ -9,7 +9,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 module Backend
-  (module Backend
+  ( module Backend
   ) where
 
 import           Control.Arrow                   ((***))
@@ -38,8 +38,6 @@ import qualified Persist.Schema                  as DB
 import           Types
 import           Database.Esqueleto.Internal.Sql (unsafeSqlBinOp)
 
-import           Dev
-
 unOtpKey :: Key DB.UserOtp -> Log.OtpRef
 unOtpKey = P.unSqlBackendKey . DB.unUserOtpKey
 
@@ -48,9 +46,6 @@ unTokenKey = P.unSqlBackendKey . DB.unTokenKey
 
 for :: Functor f => f a -> (a -> b) -> f b
 for = flip fmap
-
-showText :: Show a => a -> Text
-showText = Text.pack . show
 
 policy :: BCrypt.HashingPolicy
 policy = BCrypt.fastBcryptHashingPolicy { BCrypt.preferredHashCost = 10 }
@@ -110,7 +105,6 @@ isDistinctFrom = unsafeSqlBinOp " IS DISTINCT FROM "
 
 getUserByEmail :: Email -> API (Maybe DB.User)
 getUserByEmail email' = do
-  now <- liftIO getCurrentTime
   users <- runDB . E.select . E.from $ \(user :: SV DB.User) -> do
     where_ (lower_ (val email') ==. lower_ (user E.^. DB.UserEmail))
     -- limit 1, but LOWER ("email") has a UNIQUE INDEX
@@ -475,6 +469,10 @@ getUserByToken tokenId = do
     on (user' E.^. DB.UserUuid ==. token' E.^. DB.TokenUser)
     whereL [ token' E.^. DB.TokenToken ==. val tokenId
            , E.isNothing $ token' E.^. DB.TokenDeactivated
+           -- Check that user is not deactivated
+           , orL [ isNothing $ user' E.^. DB.UserDeactivate
+                 , user' E.^. DB.UserDeactivate >=. just (val now)
+                 ]
            ]
     return (token' E.^. DB.TokenId, user')
   runDB $ P.updateWhere [DB.TokenToken P.==. tokenId]
@@ -511,7 +509,6 @@ checkTokenInstance request (B64Token "") inst = do
     return Nothing
 checkTokenInstance request tok inst = do
     mbUsr <- getUserByToken tok
-    now <- liftIO getCurrentTime
     case mbUsr of
       Nothing -> do
         Log.logES Log.RequestInvalidToken{ Log.request = request
@@ -519,16 +516,7 @@ checkTokenInstance request tok inst = do
                                          , Log.instanceId = inst
                                          }
         return Nothing
-      Just (tid,  usr) | Just deactivatAt <- usr ^. deactivate
-                       , deactivatAt <= now
-                       -> do
-                           Log.logES
-                             Log.RequestInvalidToken{ Log.request = request
-                                                    , Log.token = unB64Token tok
-                                                    , Log.instanceId = inst
-                                                    }
-                           return Nothing
-                       | otherwise -> do
+      Just (tid,  usr) -> do
         mbInst <- checkInstance inst (DB.userUuid usr)
         case mbInst of
           Nothing -> do
@@ -542,6 +530,33 @@ checkTokenInstance request tok inst = do
                                   , DB.userEmail usr
                                   , DB.userName usr
                                   )
+
+data IsAdmin = IsAdmin -- Don't export Constructor
+  deriving (Show, Eq)
+
+-- | Check that the token represents an Admin
+checkAdmin :: Text
+           -> B64Token
+           -> API (Maybe IsAdmin)
+checkAdmin request tok = do
+  getUserByToken tok >>= \case
+    Nothing -> do
+      Log.logES Log.AdminRequestInvalidToken{ Log.token = unB64Token tok
+                                            , Log.request = request
+                                            }
+
+      return Nothing
+    Just usr -> do
+      roles' <- getUserRoles (usr ^. _2 . uuid)
+      case "admin" `elem` roles' of
+        False -> do
+          Log.logES Log.AdminRequestNotAdmin
+                   { Log.request = request
+                   , Log.token = unB64Token tok
+                   }
+          return Nothing
+        True -> return $ Just IsAdmin -- @TODO
+
 
 checkToken :: B64Token -> API (Maybe UserID)
 checkToken tokenId = fmap (DB.userUuid . snd) <$> getUserByToken tokenId

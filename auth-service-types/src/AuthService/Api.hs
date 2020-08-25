@@ -85,11 +85,13 @@ type ReactivateUserAPI = "users"
                     :> "reactivate"
                     :> PostNoContent '[JSON] NoContent
 
-type AdminAPI = "admin" :> (CreateUserAPI
-                           :<|> GetUsersAPI
-                           :<|> DeactivateUserAPI
-                           :<|> ReactivateUserAPI
-                           )
+type AdminAPI = "admin"
+                 :> Header "X-Token" B64Token
+                 :> (CreateUserAPI
+                      :<|> GetUsersAPI
+                      :<|> DeactivateUserAPI
+                      :<|> ReactivateUserAPI
+                    )
 
 --------------------------------------------------------------------------------
 -- Interface

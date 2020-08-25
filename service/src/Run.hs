@@ -10,7 +10,6 @@ module Run where
 import           Control.Lens
 import           Control.Monad.Logger
 import           Control.Monad.Reader
-import           Control.Monad.Trans
 import qualified Data.Text                   as Text
 import qualified Data.Text.Encoding          as Text
 import qualified Data.Text.Encoding.Error    as Text

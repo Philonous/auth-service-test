@@ -84,6 +84,7 @@ tests:
     ghc-options: -Wall
     dependencies:
     - base
+    - bytestring
     - QuickCheck
     - auth-service
     - exceptions >=0.8
