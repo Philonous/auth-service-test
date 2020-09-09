@@ -33,6 +33,12 @@ migrations =
               , script = rawExecute
                            $(sqlFile "src/Persist/migrations/03-user-deactivation.sql") []
               }
+  , Migration { expect = Just "3"
+              , to = "4"
+              , description = "Add audit_log table"
+              , script = rawExecute
+                           $(sqlFile "src/Persist/migrations/04-add-audit-log.sql") []
+              }
   ]
 
 doMigrate :: M ()

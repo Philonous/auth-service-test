@@ -62,3 +62,11 @@ PasswordResetToken
   expires UTCTime
   used UTCTime Maybe
   deriving Show
+
+AuditLog
+  time UTCTime
+  event Text
+  details Text
+  source Text
+  sourceDetails Text
+  user UserID Maybe -- Which user the log entry relates to (changes etc.) for easier aggregation

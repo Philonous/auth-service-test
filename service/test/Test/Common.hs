@@ -19,6 +19,8 @@ import qualified Text.Microstache                  as Mustache
 
 import           Persist.Migration                 (doMigrate)
 
+import           Audit                             (AuditSource(AuditSourceTest))
+import           Monad
 import           Types
 
 withPsqlPool :: (Pool SqlBackend -> NoLoggingT IO a) -> IO a
@@ -159,7 +161,10 @@ withRunAPI :: Maybe OtpHandler
            -> IO b
 withRunAPI mbOtpHandler pool f = do
   withConf mbOtpHandler pool $ \conf ->
-    f $ runAPI pool conf
+    let apiState = ApiState { apiStateConfig = conf
+                            , apiStateAuditSource = AuditSourceTest
+                            }
+    in f $ runAPI pool apiState
 
 
 seconds :: Integer -> NominalDiffTime

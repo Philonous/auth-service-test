@@ -25,7 +25,9 @@ import                          Network.Wai                      (Application)
 import                          Network.Wai.Test                 (SResponse)
 
 import qualified "auth-service" Api
+import                          Audit (AuditSource(AuditSourceTest))
 import                          Backend
+import                          Monad
 import                          Test.Common
 import                          Types
 
@@ -38,7 +40,10 @@ runTest :: SpecWith ((), Application) -> IO ()
 runTest spec = withTestDB $ \pool -> do
   hspec $ flip around spec $ \f -> do
     withConf Nothing pool $ \conf -> do
-      _ <- runAPI pool conf $ do
+      let apiState = ApiState { apiStateConfig = conf
+                              , apiStateAuditSource = AuditSourceTest
+                              }
+      _ <- runAPI pool apiState $ do
         createUser adminUser
         addInstance (Just $ InstanceID iid) "instance1"
       f ((), Api.serveAPI pool conf)

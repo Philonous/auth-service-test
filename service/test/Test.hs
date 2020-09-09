@@ -33,6 +33,7 @@ import           Test.Tasty.QuickCheck
 
 import           Backend
 import           Config                  (defaultPwResetTemplate)
+import           Monad
 import           PasswordReset
 import qualified Persist.Schema          as DB
 import           Types
@@ -153,7 +154,7 @@ case_user_email_case_insensitive = withUser testUser $ \_uid run -> do
 
 case_user_change_password :: Case ()
 case_user_change_password = withUser testUser $ \uid run -> do
-  _ <- run $ changeUserPassword uid (Password "newPassword")
+  _ <- run $ changeUserPassword Nothing uid (Password "newPassword")
   res <- run $ checkUserPassword (testUser ^. email) (Password "newPassword")
   case res of
     Left _e -> assertFailure "check password fails"
@@ -161,7 +162,7 @@ case_user_change_password = withUser testUser $ \uid run -> do
 
 case_user_change_password_old_password :: Case ()
 case_user_change_password_old_password = withUser testUser $ \uid run -> do
-  _ <- run $ changeUserPassword uid (Password "newpassword")
+  _ <- run $ changeUserPassword Nothing uid (Password "newpassword")
   res <- run $ checkUserPassword (testUser ^. email) (testUser ^. password)
   case res of
     Left _e -> return ()
