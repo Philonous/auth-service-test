@@ -62,9 +62,11 @@ serveLogin pool conf loginReq = loginHandler
                                    , errReasonPhrase = "OTP required"
                                    , errBody =
                                      "{\"error\":\"One time password required\"}"
-                                   , errHeaders = []
+                                   , errHeaders = [("Content-Type", "application/json")]
                                    }
-         Left _e -> throwError err403
+         Left _e -> throwError err403{ errBody = "{\"error\": \"Credentials not accepted\"}"
+                                     , errHeaders = [("Content-Type", "application/json")]
+                                     }
 
 
 serveLogout :: ConnectionPool -> Config -> Server LogoutAPI
