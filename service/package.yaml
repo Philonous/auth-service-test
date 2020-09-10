@@ -89,6 +89,7 @@ tests:
     - auth-service
     - exceptions >=0.8
     - hspec
+    - hspec-core
     - hspec-expectations
     - hspec-wai
     - hspec-wai-json

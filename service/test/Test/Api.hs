@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE PackageImports #-}
@@ -17,6 +19,7 @@ import qualified                Data.Text.Encoding               as Text
 import                          Data.Time.Clock                  (getCurrentTime)
 import                          Data.UUID                        (UUID)
 import qualified                Data.UUID                        as UUID
+import                          Test.Hspec.Core.Spec
 import                          Test.Hspec
 import                          Test.Hspec.Wai
 import                          Test.Hspec.Wai.JSON
@@ -34,14 +37,14 @@ import                          NejlaCommon.Test                 as NC
 iid :: UUID
 Just iid = UUID.fromString "3afe62f4-7235-4b86-a418-923aaa4a5c28"
 
-runTest :: SpecWith ((), Application) -> IO ()
+runTest :: SpecWith ((), (Config -> Config)-> Application) -> IO ()
 runTest spec = withTestDB $ \pool -> do
   hspec $ flip around spec $ \f -> do
     withConf Nothing pool $ \conf -> do
       _ <- runAPI pool conf $ do
         createUser adminUser
         addInstance (Just $ InstanceID iid) "instance1"
-      f ((), Api.serveAPI pool conf)
+      f ((), \cc -> Api.serveAPI pool $ cc conf)
   where
     adminUser = AddUser { addUserUuid      = Nothing
                         , addUserEmail     = "admin@example.com"
@@ -51,22 +54,35 @@ runTest spec = withTestDB $ \pool -> do
                         , addUserInstances = []
                         , addUserRoles     = ["admin"]
                         }
+
+data WithConfig st = WithConfig (Config -> Config) (WaiExpectation st)
+
+withDefaultConfig :: WaiExpectation st -> WithConfig st
+withDefaultConfig = WithConfig Prelude.id
+
+instance Example (WithConfig st) where
+  type Arg (WithConfig st) = (st, (Config -> Config) -> Application)
+  evaluateExample (WithConfig wc m) p action  = do
+    evaluateExample m p (\f -> action (\(st, wca) -> f (st, wca wc)))
+
+
 main :: IO ()
 main = runTest spec
 
-spec :: SpecWith ((), Application)
+spec :: SpecWith ((), (Config -> Config) -> Application)
 spec = do
   describe "admin API" adminApiSpec
+  describe "create account API" createAccountSpec
 
 
 exampleUser :: Text -> [Text] -> BSL.ByteString
 exampleUser name roles =
                      [json|{ "name": #{name}
-                          , "email" : #{name <> "@example.com"}
-                          , "password" : "pwd"
-                          , "instances" : [#{iid}]
-                          , "roles": #{roles}
-                          } |]
+                           , "email" : #{name <> "@example.com"}
+                           , "password" : "pwd"
+                           , "instances" : [#{iid}]
+                           , "roles": #{roles}
+                           } |]
 
 addUser :: Text -> Text -> [Text] -> WaiSession st UUID
 addUser token name roles = do
@@ -101,6 +117,26 @@ postToken token path body =
 getToken :: Text -> ByteString -> WaiSession st SResponse
 getToken token path = request "GET" path [("X-Token", Text.encodeUtf8 token)] ""
 
+
+createAccountSpec :: SpecWith ((), (Config -> Config) -> Application)
+createAccountSpec = do
+  describe "/create-account" $ do
+    it "Allows users to create an account" $ WithConfig Prelude.id $ do
+      postJ "/create-account" [json| { "email": "create-account@example.com"
+                                     , "password": "cac"
+                                     , "name": "create account"
+                                     , "phone": null
+                                     } |] `shouldRespondWith` 201
+      _ <- loginReq "create-account" "cac"
+      return ()
+    it "Disallows users to create an account when account creation is disabled"
+      $ WithConfig (accountCreation . enabled .~ False) $ do
+        postJ "/create-account" [json| { "email": "create-account@example.com"
+                                       , "password": "cac"
+                                       , "name": "create account"
+                                       , "phone": null
+                                       } |] `shouldRespondWith` 403
+
 data TestRequestMethod = GET | POST deriving (Show, Eq, Ord)
 
 data TestRequest = TR { trMethod :: TestRequestMethod
@@ -132,27 +168,32 @@ runRequest mbToken tr =
 describeRequest :: TestRequest -> Text
 describeRequest tr = Text.decodeUtf8 $ method (trMethod tr) <> " " <> trPath tr
 
+-- List of endpoints that should be limited to admin users
 adminEndpoints :: [TestRequest]
 adminEndpoints =
   [TR POST "/admin/users" (exampleUser "" [])
   ,TR GET  "/admin/users" ""
+  -- We use iid as a dummy UUID, the point is to check that the endpoint is
+  -- properly guarded before the existence of the user is checked
   ,TR POST [i|/admin/users/#{iid}/deactivate|] [i|{"deactivate_at": "now"}|]
   ,TR POST [i|/admin/users/#{iid}/reactivate|] ""
   ]
 
-adminApiSpec :: SpecWith ((), Application)
+
+adminApiSpec :: SpecWith ((), (Config -> Config) -> Application)
 adminApiSpec = do
   describe "endpoint authentication" $ do
     forM_ adminEndpoints  $ \endpoint -> do
       describe (Text.unpack $ describeRequest endpoint) $ do
-        it "checks that token is set" $
+        it "checks that token is set" $ withDefaultConfig $
           runRequest Nothing endpoint `shouldRespondWith` 403
-        it "checks that user is admin" $ withRegularToken $ \token -> do
-          runRequest (Just token) endpoint `shouldRespondWith` 403
+        it "checks that user is admin" $ withDefaultConfig
+          $ withRegularToken $ \token -> do
+            runRequest (Just token) endpoint `shouldRespondWith` 403
 
   describe "/admin/users" $ do
     describe "POST" $ do
-      it "succeeds" $ withAdminToken $ \admin -> do
+      it "succeeds" $ withDefaultConfig $ withAdminToken $ \admin -> do
         postToken admin "/admin/users" [json|{ "name": "robert"
                                             , "email" : "no@spam.please"
                                             , "password" : "pwd"
@@ -160,7 +201,8 @@ adminApiSpec = do
                                             , "roles": []
                                             } |] `shouldRespondWith` 200
 
-      it "allows created user to login" $ withAdminToken $ \admin -> do
+      it "allows created user to login"
+       $ withDefaultConfig $ withAdminToken $ \admin -> do
         postToken admin "/admin/users" [json|{ "name": "robert"
                                    , "email" : "no@spam.please"
                                    , "password" : "pwd"
@@ -172,7 +214,8 @@ adminApiSpec = do
                               , "password": "pwd"
                               } |] `shouldRespondWith` 200
 
-      it "disallows duplicate email addresses" $ withAdminToken $ \admin-> do
+      it "disallows duplicate email addresses"
+       $ withDefaultConfig $ withAdminToken $ \admin-> do
         postToken admin "/admin/users" [json|{ "name": "robert"
                                             , "email" : "no@spam.please"
                                             , "password" : "pwd"
@@ -187,7 +230,8 @@ adminApiSpec = do
                                    } |] `shouldRespondWith` 409
 
     describe "GET" $ do
-      it "returns the list of users" $ withAdminToken $ \admin-> do
+      it "returns the list of users"
+       $ withDefaultConfig  $ withAdminToken $ \admin-> do
         _ <- addUser admin "peter" []
         _ <- addUser admin "robert" []
         res <- getToken admin "/admin/users"
@@ -200,7 +244,8 @@ adminApiSpec = do
 
   describe "/admin/users/<uid>/deactivate" $ do
     describe "now" $ do
-      it "prevents a user from logging in" $ withAdminToken $ \admin-> do
+      it "prevents a user from logging in"
+       $ withDefaultConfig $ withAdminToken $ \admin-> do
         uid <- addUser admin "robert" []
         postToken admin [i|/login|] [json|{ "user": "robert@example.com"
                                 , "password": "pwd"
@@ -214,7 +259,8 @@ adminApiSpec = do
         postToken admin [i|/login|] [json|{ "user": "robert@example.com"
                                 , "password": "pwd"
                                 }|] `shouldRespondWith` 403
-      it "disables existing tokens" $ withAdminToken $ \admin-> do
+      it "disables existing tokens"
+       $ withDefaultConfig $ withAdminToken $ \admin-> do
         uid <- addUser admin "robert" []
 
         tok <- loginReq "robert" "pwd"
@@ -229,7 +275,8 @@ adminApiSpec = do
                   `shouldRespondWith` 403
 
     describe "time" $ do
-      it "prevents a user from logging in" $ withAdminToken $ \admin-> do
+      it "prevents a user from logging in"
+       $ withDefaultConfig $ withAdminToken $ \admin-> do
         uid <- addUser admin "robert" []
         postToken admin [i|/login|] [json|{ "user": "robert@example.com"
                                 , "password": "pwd"
@@ -247,7 +294,7 @@ adminApiSpec = do
                               }|] `shouldRespondWith` 403
 
     it "doesn't prevent user from logging in when time is in the future"
-     $ withAdminToken $ \admin-> do
+     $ withDefaultConfig $ withAdminToken $ \admin-> do
       uid <- addUser admin "robert" []
 
       -- The year 2400 seems like a safe choice here
@@ -259,7 +306,8 @@ adminApiSpec = do
                               , "password": "pwd"
                               }|] `shouldRespondWith` 200
   describe "/admin/users/<uid>/reactivate" $ do
-    it "Should allow a user to log in again" $ withAdminToken $ \admin-> do
+    it "Should allow a user to log in again"
+     $ withDefaultConfig $ withAdminToken $ \admin-> do
       uid <- addUser admin "robert" []
       postToken admin [i|/admin/users/#{uid}/deactivate|]
                       [json|{"deactivate_at": "now"}|]
