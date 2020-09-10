@@ -3,17 +3,15 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE GADTs #-}
 
-{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
-
 -- | Audit logging
 --
 -- This log should contain a trail of _changes to the state_, e.g. we log when a
--- user's password is changed. It does not includes that do not lead to changes
--- to the database, e.g. failed queries or checking an existing token
+-- user's password is changed. It does not includes events that do not lead to
+-- changes to the database, e.g. failed queries or checking an existing token
 
 module Audit where
 
-import           Control.Monad.Trans
+import           Control.Monad.Reader
 import qualified Data.Aeson               as Aeson
 import qualified Data.Aeson.TH            as Aeson
 import qualified Data.ByteString.Lazy     as BSL
@@ -24,13 +22,10 @@ import qualified Data.Text.Encoding       as Text
 import qualified Data.Text.Encoding.Error as Text
 import           Data.Time                (UTCTime)
 import           Data.Time.Clock          (getCurrentTime)
-import           Data.UUID                (UUID)
-import qualified Data.UUID                as UUID
 import qualified Database.Persist         as P
-import           Language.Haskell.TH
+import qualified Database.Persist.Sql     as P
 import           Network.Socket
 import qualified Network.Wai              as Wai
-import           System.IO
 
 import           NejlaCommon.Helpers
 
@@ -38,7 +33,6 @@ import qualified Persist.Schema           as DB
 import           AuthService.Types
 import qualified Data.Text                as Text
 import           Numeric                  (showHex)
-import           Control.Monad.Logger     (logDebug)
 
 data AuditSource
   = AuditSourceCli {auditSourceCliArguments :: [Text]}
@@ -47,7 +41,6 @@ data AuditSource
     , auditSourceHttpSourceIP :: Text
     , auditSourceHttpURL :: Text
     , auditSourceHttpHeaders :: [(Text, Text)]
-    , auditSourceHttpBody :: Text
     }
   | AuditSourceManual
   | AuditSourceTest
@@ -60,6 +53,7 @@ Aeson.deriveJSON ((aesonTHOptions "auditSource")
                    }
                  ) ''AuditSource
 
+auditSourceType :: AuditSource -> Text
 auditSourceType AuditSourceCli{} = "cli"
 auditSourceType AuditSourceHTTP{} = "http"
 auditSourceType AuditSourceManual = "manual"
@@ -125,8 +119,6 @@ data AuditEvent
     }
   | AuditUserReactivated
     { auditUserID :: UserID }
-
-
   deriving Show
 
 Aeson.deriveJSON ((aesonTHOptions "audit")
@@ -137,6 +129,7 @@ Aeson.deriveJSON ((aesonTHOptions "audit")
                    }
                  ) ''AuditEvent
 
+auditLogType :: AuditEvent -> Text
 auditLogType AuditUserCreated{} = "user created"
 auditLogType AuditUserRoleAdded{} = "role added"
 auditLogType AuditUserRoleRemoved{} = "role removed"
@@ -169,19 +162,19 @@ auditLogUser AuditOtherTokensDeactivated {} = Nothing
 auditLogUser AuditUserDeactivated        {auditUserID = uid} = Just uid
 auditLogUser AuditUserReactivated        {auditUserID = uid} = Just uid
 
+addAuditLog :: AuditSource -> AuditEvent -> ReaderT P.SqlBackend IO ()
 addAuditLog source event = do
   now <- liftIO getCurrentTime
-  P.insert DB.AuditLog
+  _ <- P.insert DB.AuditLog
     { DB.auditLogTime = now
     , DB.auditLogEvent = auditLogType event
     , DB.auditLogDetails = Text.decodeUtf8 . BSL.toStrict $ Aeson.encode event
     , DB.auditLogSource = auditSourceType source
     , DB.auditLogSourceDetails = Text.decodeUtf8With Text.lenientDecode
                                    . BSL.toStrict $ Aeson.encode source
-
     , DB.auditLogUser = auditLogUser event
     }
-
+  return ()
 
 -- -- | Extract the request information needed in the audit log
 withAuditHttp :: (AuditSource -> Wai.Application) -> Wai.Application
@@ -191,7 +184,6 @@ withAuditHttp app req next =
            , auditSourceHttpSourceIP = sourceIP
            , auditSourceHttpURL = decode $ Wai.rawPathInfo req
            , auditSourceHttpHeaders = fromHeader <$> Wai.requestHeaders req
-           , auditSourceHttpBody = "" -- @TODO
            }
   in app ah req next
   where
@@ -219,7 +211,6 @@ showAddress (SockAddrInet6 _ _ addr _)
         showFields prefix . showString "::" . showFields suffix $ ""
     | otherwise = showFields fields ""
   where
-    --
     showFields = foldr (.) Prelude.id . List.intersperse (showChar ':') . map showHex
     fields =
       let (i1, i2, i3, i4, i5, i6, i7, i8) = hostAddress6ToTuple addr
