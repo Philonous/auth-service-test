@@ -9,33 +9,34 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 module Backend
-  (module Backend
+  ( module Backend
   ) where
 
-import           Control.Arrow        ((***))
-import           Control.Lens         hiding (from)
+import           Control.Arrow                   ((***))
+import           Control.Lens                    hiding (from)
 import           Control.Monad
-import qualified Control.Monad.Catch  as Ex
+import qualified Control.Monad.Catch             as Ex
 import           Control.Monad.Except
-import qualified Crypto.BCrypt        as BCrypt
-import           Data.Maybe           (listToMaybe)
-import           Data.Text            (Text)
-import qualified Data.Text            as Text
-import qualified Data.Text.Encoding   as Text
+import qualified Crypto.BCrypt                   as BCrypt
+import           Data.Maybe                      (listToMaybe)
+import           Data.Text                       (Text)
+import qualified Data.Text                       as Text
+import qualified Data.Text.Encoding              as Text
 import           Data.Time.Clock
-import qualified Data.Traversable     as Traversable
-import qualified Data.UUID.V4         as UUID
-import qualified Database.Esqueleto   as E
-import           Database.Esqueleto   hiding ((^.), from)
-import qualified Database.Persist     as P
-import qualified Database.Persist.Sql as P
+import qualified Data.Traversable                as Traversable
+import qualified Data.UUID.V4                    as UUID
+import qualified Database.Esqueleto              as E
+import           Database.Esqueleto              hiding ((^.), from)
+import qualified Database.Persist                as P
+import qualified Database.Persist.Sql            as P
 import           System.Random
 
-import           NejlaCommon
+import           NejlaCommon                     as NC
 
-import qualified Logging              as Log
-import qualified Persist.Schema       as DB
+import qualified Logging                         as Log
+import qualified Persist.Schema                  as DB
 import           Types
+import           Database.Esqueleto.Internal.Sql (unsafeSqlBinOp)
 
 unOtpKey :: Key DB.UserOtp -> Log.OtpRef
 unOtpKey = P.unSqlBackendKey . DB.unUserOtpKey
@@ -45,9 +46,6 @@ unTokenKey = P.unSqlBackendKey . DB.unTokenKey
 
 for :: Functor f => f a -> (a -> b) -> f b
 for = flip fmap
-
-showText :: Show a => a -> Text
-showText = Text.pack . show
 
 policy :: BCrypt.HashingPolicy
 policy = BCrypt.fastBcryptHashingPolicy { BCrypt.preferredHashCost = 10 }
@@ -71,6 +69,7 @@ createUser usr = do
                             , DB.userPasswordHash = hash
                             , DB.userEmail = usr ^. email
                             , DB.userPhone = usr ^. phone
+                            , DB.userDeactivate = Nothing
                             }
        _ <- runDB $ P.insert dbUser
        Log.logES Log.UserCreated{ Log.user = usr ^. email}
@@ -100,6 +99,9 @@ userRemoveRole usr role = do
   case count of
     0 -> notFound "User Role" (usr, role)
     _ -> return ()
+
+isDistinctFrom :: SqlExpr (Value (Maybe a)) -> SqlExpr (Value (Maybe a)) -> SqlExpr (Value Bool)
+isDistinctFrom = unsafeSqlBinOp " IS DISTINCT FROM "
 
 getUserByEmail :: Email -> API (Maybe DB.User)
 getUserByEmail email' = do
@@ -273,9 +275,12 @@ tokenChars = concat [ ['a' .. 'z']
 checkUserPassword :: Email -> Password -> API (Either LoginError DB.User)
 checkUserPassword userEmail pwd = do
   mbUser <- getUserByEmail userEmail
+  now <- liftIO getCurrentTime
   case mbUser of
-    Nothing -> return $ Left LoginErrorFailed
-    Just usr -> do
+    Just usr | Just deac <- usr ^. deactivate
+             , deac <= now
+               -> return $ Left LoginErrorFailed
+             | otherwise -> do
       let hash = usr ^. DB.passwordHash
           userId = usr ^. DB.uuid
       if checkPassword hash pwd
@@ -283,6 +288,7 @@ checkUserPassword userEmail pwd = do
           unless (hashUsesPolicy hash) $ rehash userId
           return $ Right usr
         else return $ Left LoginErrorFailed
+    Nothing -> return $ Left LoginErrorFailed
   where
     checkPassword (PasswordHash hash) (Password pwd') =
       BCrypt.validatePassword hash (Text.encodeUtf8 pwd')
@@ -463,6 +469,10 @@ getUserByToken tokenId = do
     on (user' E.^. DB.UserUuid ==. token' E.^. DB.TokenUser)
     whereL [ token' E.^. DB.TokenToken ==. val tokenId
            , E.isNothing $ token' E.^. DB.TokenDeactivated
+           -- Check that user is not deactivated
+           , orL [ isNothing $ user' E.^. DB.UserDeactivate
+                 , user' E.^. DB.UserDeactivate >=. just (val now)
+                 ]
            ]
     return (token' E.^. DB.TokenId, user')
   runDB $ P.updateWhere [DB.TokenToken P.==. tokenId]
@@ -488,6 +498,7 @@ getUserInfo token' = do
                           , returnUserInfoPhone = user' ^. phone
                           , returnUserInfoInstances = instances'
                           , returnUserInfoRoles = roles
+                          , returnUserInfoDeactivate = user' ^. deactivate
                           }
 
 checkTokenInstance :: Text -> B64Token -> InstanceID -> API (Maybe (UserID, Email, Name))
@@ -520,6 +531,33 @@ checkTokenInstance request tok inst = do
                                   , DB.userName usr
                                   )
 
+data IsAdmin = IsAdmin -- Don't export Constructor
+  deriving (Show, Eq)
+
+-- | Check that the token represents an Admin
+checkAdmin :: Text
+           -> B64Token
+           -> API (Maybe IsAdmin)
+checkAdmin request tok = do
+  getUserByToken tok >>= \case
+    Nothing -> do
+      Log.logES Log.AdminRequestInvalidToken{ Log.token = unB64Token tok
+                                            , Log.request = request
+                                            }
+
+      return Nothing
+    Just usr -> do
+      roles' <- getUserRoles (usr ^. _2 . uuid)
+      case "admin" `elem` roles' of
+        False -> do
+          Log.logES Log.AdminRequestNotAdmin
+                   { Log.request = request
+                   , Log.token = unB64Token tok
+                   }
+          return Nothing
+        True -> return $ Just IsAdmin -- @TODO
+
+
 checkToken :: B64Token -> API (Maybe UserID)
 checkToken tokenId = fmap (DB.userUuid . snd) <$> getUserByToken tokenId
 
@@ -550,3 +588,76 @@ closeOtherSessions tokenID = do
                      ]
            , tok E.^. DB.TokenToken E.!=. E.val tokenID
            ]
+
+
+--------------------------------------------------------------------------------
+-- Admin endpoints -------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+getUsers :: API [ReturnUserInfo]
+getUsers = do
+  users <- runDB $ E.select . E.from $ \((user :: SV DB.User)
+                                        `LeftOuterJoin` (role :: SVM DB.UserRole)
+                                        `LeftOuterJoin`
+                                          ((uinst :: SVM DB.UserInstance)
+                                           `InnerJoin` (inst :: SVM DB.Instance)
+                                          )
+
+                                        ) -> do
+    on $ foreignKeyLR uinst inst
+    on $ foreignKeyL uinst user
+    on $ foreignKeyL role user
+    groupBy ( user E.^. DB.UserUuid
+            , user E.^. DB.UserEmail
+            , user E.^. DB.UserName
+            , user E.^. DB.UserPhone
+            , user E.^. DB.UserDeactivate
+            )
+    orderBy [E.asc $ user E.^. DB.UserEmail]
+    return ( user E.^. DB.UserUuid
+           , user E.^. DB.UserEmail
+           , user E.^. DB.UserName
+           , user E.^. DB.UserPhone
+           , user E.^. DB.UserDeactivate
+           , arrayAgg' $ role ?. DB.UserRoleRole
+           , arrayAgg' $ inst ?. DB.InstanceUuid
+           , arrayAgg' $ inst ?. DB.InstanceName
+           )
+
+  return $ for users $ \(Value userId, Value userEmail, Value userName
+                        , Value userPhone
+                        , Value userDeactivate
+                        , Value roles
+                        , Value instanceIDs , Value instanceNames) ->
+    ReturnUserInfo
+    { returnUserInfoId         = userId
+    , returnUserInfoEmail      = userEmail
+    , returnUserInfoName       = userName
+    , returnUserInfoPhone      = userPhone
+    , returnUserInfoInstances  = zipWith ReturnInstance instanceNames instanceIDs
+    , returnUserInfoRoles      = roles
+    , returnUserInfoDeactivate = userDeactivate
+    }
+ where
+   for = flip fmap
+
+deactivateUser :: UserID -> DeactivateAt -> API ()
+deactivateUser uid deactivate = do
+  deactivateAt <- case deactivate of
+                    DeactivateNow -> liftIO getCurrentTime
+                    DeactivateAt time -> return time
+  num <- db' $ P.updateWhereCount [ DB.UserUuid P.==. uid]
+                                  [ DB.UserDeactivate P.=. Just deactivateAt ]
+  case num of
+    0 -> NC.notFound "user by uuid" uid
+    1 -> return ()
+    _ -> error $ "deactivateUser: More than one user affected: <> " ++ show num
+
+reactivateUser :: UserID -> API ()
+reactivateUser uid = do
+  num <- db' $ P.updateWhereCount [ DB.UserUuid P.==. uid]
+                                  [ DB.UserDeactivate P.=. Nothing ]
+  case num of
+    0 -> NC.notFound "user by uuid" uid
+    1 -> return ()
+    _ -> error $ "deactivateUser: More than one user affected: <> " ++ show num

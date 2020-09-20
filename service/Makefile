@@ -70,12 +70,9 @@ test-down:
 	docker-compose -f docker-compose.test.yaml -p auth-service-test down -v
 
 .PHONY: test
-test: $(tests) baseimage
-	docker run --rm -it -v "$(PWD)/dist/tests:/tests:ro" \
-           --network auth-service-test_auth-service-test \
-           -e DB_HOST=database \
-           $(TEST_IMAGE):$(TAG) \
-           sh -c 'for t in /tests/*; do $$t; done'
+test: $(tests)
+	docker-compose -f docker-compose.test.yaml -p authservice-test \
+	  run --rm test
 
 # Clean
 #######

@@ -72,7 +72,26 @@ type CreateAccountAPI = "create-account"
 
 type CreateUserAPI = "users" :> ReqBody '[JSON] AddUser :> Post '[JSON] ReturnUser
 
-type AdminAPI = "admin" :> CreateUserAPI
+type GetUsersAPI = "users" :> Get '[JSON] [ReturnUserInfo]
+
+type DeactivateUserAPI = "users"
+                    :> Capture "user" UserID
+                    :> "deactivate"
+                    :> ReqBody '[JSON] DeactivateUser
+                    :> PostNoContent '[JSON] NoContent
+
+type ReactivateUserAPI = "users"
+                    :> Capture "user" UserID
+                    :> "reactivate"
+                    :> PostNoContent '[JSON] NoContent
+
+type AdminAPI = "admin"
+                 :> Header "X-Token" B64Token
+                 :> (CreateUserAPI
+                      :<|> GetUsersAPI
+                      :<|> DeactivateUserAPI
+                      :<|> ReactivateUserAPI
+                    )
 
 --------------------------------------------------------------------------------
 -- Interface

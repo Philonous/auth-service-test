@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 -- Copyright (c) 2015 Lambdatrade AB
 -- All rights reserved
 
@@ -18,6 +19,8 @@ import           Control.Monad.Except
 import           Data.Aeson           (encode)
 import qualified Data.List            as List
 import           Data.Maybe           (fromMaybe, maybeToList)
+import           Data.Text            (Text)
+import qualified Data.Text            as Text
 import           Database.Persist.Sql
 import qualified NejlaCommon          as NC
 import           Network.Wai
@@ -29,6 +32,9 @@ import           PasswordReset
 import qualified Persist.Schema       as DB
 
 import           AuthService.Api
+
+showText :: Show a => a -> Text
+showText = Text.pack . show
 
 liftHandler :: IO a -> Handler a
 liftHandler =
@@ -146,22 +152,69 @@ serveGetUserInfoAPI pool conf tok =  do
 -- Admin interface
 --------------------------------------------------------------------------------
 
-serveCreateUserAPI :: ConnectionPool -> Config -> Server CreateUserAPI
-serveCreateUserAPI pool conf addUser = do
+isAdmin :: Text -> ConnectionPool -> Config -> Maybe B64Token -> Handler IsAdmin
+isAdmin _ _ _ Nothing = throwError err403
+isAdmin request pool conf (Just token) = do
+  liftHandler (runAPI pool conf $ checkAdmin request token) >>= \case
+    Nothing -> throwError err403
+    Just isAdmin -> return isAdmin
+
+serveCreateUserAPI :: ConnectionPool -> Config -> Maybe B64Token -> Server CreateUserAPI
+serveCreateUserAPI pool conf tok addUser = do
+  _ <- isAdmin desc pool conf tok
   res <- liftHandler . runAPI pool conf $ createUser addUser
   case res of
     Nothing -> throwError err500
     Just uid -> return $ ReturnUser{ returnUserUser = uid
                                    , returnUserRoles = addUser ^. roles
                                    }
+  where
+    desc = "create user " <> Text.pack (show addUser)
+
+serveGetUsersAPI :: ConnectionPool
+                 -> Config
+                 -> Maybe B64Token
+                 -> Server GetUsersAPI
+serveGetUsersAPI pool conf tok = do
+  _ <- isAdmin desc pool conf tok
+  liftHandler $ runAPI pool conf $ getUsers
+  where
+    desc = "get users"
+
+
+serveDeactivateUsersAPI :: ConnectionPool
+                        -> Config
+                        -> Maybe B64Token
+                        -> Server DeactivateUserAPI
+serveDeactivateUsersAPI pool conf tok uid body = do
+  _ <- isAdmin desc pool conf tok
+  liftHandler $ runAPI pool conf $  deactivateUser uid (body ^. deactivateAt)
+  return NoContent
+  where
+    desc = "deactivateUser " <> Text.pack (show uid) <> " " <> Text.pack (show body)
+
+serveReactivateUsersAPI :: ConnectionPool
+                        -> Config
+                        -> Maybe B64Token
+                        -> Server ReactivateUserAPI
+serveReactivateUsersAPI pool conf tok uid = do
+    _ <- isAdmin desc pool conf tok
+    liftHandler $ runAPI pool conf $  reactivateUser uid
+    return NoContent
+  where
+    desc = "reactivateUser" <> Text.pack (show uid)
 
 adminAPIPrx :: Proxy AdminAPI
 adminAPIPrx = Proxy
 
 serveAdminAPI :: ConnectionPool
               -> Config
-              -> Server CreateUserAPI
-serveAdminAPI = serveCreateUserAPI
+              -> Server AdminAPI
+serveAdminAPI pool conf tok =
+       serveCreateUserAPI      pool conf tok
+  :<|> serveGetUsersAPI        pool conf tok
+  :<|> serveDeactivateUsersAPI pool conf tok
+  :<|> serveReactivateUsersAPI pool conf tok
 
 --------------------------------------------------------------------------------
 -- Interface

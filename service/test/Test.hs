@@ -27,10 +27,9 @@ import qualified Test.QuickCheck.Monadic as QC
 import qualified Text.Microstache        as Mustache
 
 import           Test.Hspec.Expectations
-import           Test.Tasty              (defaultMain, testGroup)
+import           Test.Tasty              (defaultMain, testGroup, TestTree)
 import           Test.Tasty.HUnit        hiding (assertFailure)
 import           Test.Tasty.QuickCheck
-import           Test.Tasty.TH
 
 import           Backend
 import           Config                  (defaultPwResetTemplate)
@@ -442,6 +441,32 @@ case_closeOtherSesions_same_session =
     res <- run $ checkToken tok2
     res `shouldBe` Just uid
 
+adminTests :: ConnectionPool -> TestTree
+adminTests pool = testGroup "admin" $
+  [ it "succeeds when user is admin" $ do
+      withUserToken (testUser & roles .~ ["admin"]) $ \tok _uid run -> do
+        res <- run $ checkAdmin "" tok
+        case res of
+          Nothing -> expectationFailure "checkAdmin returned Nothing"
+          Just{} -> return ()
+  , it "fails when user is not admin" $ do
+      withUserToken testUser $ \tok _uid run -> do
+        res <- run $ checkAdmin "" tok
+        res `shouldBe` Nothing
+
+  , it "fails when user is deactivated" $ do
+      withUserToken (testUser & roles .~ ["admin"]) $ \tok uid run -> do
+        res1 <- run $ checkAdmin "" tok
+        res1 `shouldNotBe` Nothing
+
+        run $ deactivateUser uid DeactivateNow
+
+        res2 <- run $ checkAdmin "" tok
+        res2 `shouldBe` Nothing
+  ]
+  where it n x = testCase n (x pool)
+
+
 main :: IO ()
 main = withTestDB $ \pool -> do
   defaultMain . testGroup "main" $
@@ -473,4 +498,5 @@ main = withTestDB $ \pool -> do
        , testCase "logout"                            $ case_logout                             pool
        , testCase "closeOtherSesions"                 $ case_closeOtherSesions                  pool
        , testCase "closeOtherSesions same session"    $ case_closeOtherSesions_same_session     pool
+       , adminTests pool
        ]
