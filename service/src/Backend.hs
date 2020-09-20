@@ -18,6 +18,7 @@ import           Control.Monad
 import qualified Control.Monad.Catch             as Ex
 import           Control.Monad.Except
 import qualified Crypto.BCrypt                   as BCrypt
+import           Data.ByteString.Base64          as B64
 import           Data.Maybe                      (listToMaybe)
 import           Data.Text                       (Text)
 import qualified Data.Text                       as Text
@@ -38,6 +39,10 @@ import qualified Persist.Schema                  as DB
 import           Types
 import           Database.Esqueleto.Internal.Sql (unsafeSqlBinOp)
 
+import           Audit
+import           Monad
+import Control.Monad.Logger (LoggingT(runLoggingT))
+
 unOtpKey :: Key DB.UserOtp -> Log.OtpRef
 unOtpKey = P.unSqlBackendKey . DB.unUserOtpKey
 
@@ -54,6 +59,10 @@ hashPassword :: Password -> API (Maybe PasswordHash)
 hashPassword (Password pwd) = liftIO $
     fmap PasswordHash <$>
       BCrypt.hashPasswordUsingPolicy policy (Text.encodeUtf8 pwd)
+
+base64HashedPassword :: PasswordHash -> Text
+base64HashedPassword (PasswordHash pwd) =
+  "base64:" <> Text.decodeUtf8 (B64.encode pwd)
 
 createUser :: AddUser -> API (Maybe UserID)
 createUser usr = do
@@ -81,6 +90,15 @@ createUser usr = do
            DB.UserRole{ DB.userRoleUser = uid
                       , DB.userRoleRole = role
                       }
+       audit AuditUserCreated
+           { auditUserID = uid
+           , auditUserName = unName $ usr ^. name
+           , auditUserPasswordHash = base64HashedPassword hash
+           , auditUserEmail = unEmail $ usr ^. email
+           , auditUserPhone = unPhone <$>  usr ^. phone
+           , auditUserInstances = usr ^. instances
+           , auditUserRoles = usr ^. roles
+           }
        return $ Just uid
 
 userAddRole :: UserID -> Text -> API ()
@@ -88,6 +106,10 @@ userAddRole usr role = do
   _ <- runDB $ P.insert DB.UserRole { DB.userRoleUser = usr
                                     , DB.userRoleRole = role
                                     }
+  audit AuditUserRoleAdded
+    { auditUserID = usr
+    , auditUserRole = role
+    }
   return ()
 
 userRemoveRole :: UserID -> Text -> API ()
@@ -98,7 +120,12 @@ userRemoveRole usr role = do
            ]
   case count of
     0 -> notFound "User Role" (usr, role)
-    _ -> return ()
+    _ ->
+      audit AuditUserRoleRemoved
+            { auditUserID = usr
+            , auditUserRole = role
+            }
+
 
 isDistinctFrom :: SqlExpr (Value (Maybe a)) -> SqlExpr (Value (Maybe a)) -> SqlExpr (Value Bool)
 isDistinctFrom = unsafeSqlBinOp " IS DISTINCT FROM "
@@ -112,10 +139,11 @@ getUserByEmail email' = do
   return $ entityVal <$> listToMaybe users
 
 createResetToken :: NominalDiffTime -> UserID -> API PwResetToken
-createResetToken expires usr = do
+createResetToken expiresIn usr = do
   tok <-
     unprivileged $ mkUniqueRandomHrID (Prelude.id) 20 DB.PasswordResetTokenToken
   now <- liftIO getCurrentTime
+  let expires = addUTCTime expiresIn now
   _ <-
     db' $
     P.insert
@@ -123,9 +151,14 @@ createResetToken expires usr = do
       { DB.passwordResetTokenToken = tok
       , DB.passwordResetTokenUser = usr
       , DB.passwordResetTokenCreated = now
-      , DB.passwordResetTokenExpires = addUTCTime expires now
+      , DB.passwordResetTokenExpires = expires
       , DB.passwordResetTokenUsed = Nothing
       }
+  audit AuditResetTokenCreated
+        { auditUserID = usr
+        , auditToken = tok
+        , auditExpires = expires
+        }
   return tok
 
 resetTokenActive ::
@@ -178,24 +211,31 @@ resetPassword token password mbOtp = runExceptT $ do
            ]
   -- If there was a valid token, cnt should be 1
   if cnt > 0
-    then lift $ changeUserPassword uid password
+    then do
+    -- changeUserPassword will add to the audit log
+      lift $ changeUserPassword (Just token) uid password
     else do
     Log.logInfo $ "Failed reset password attempt (token not found): " <> token
     throwError ChangePasswordTokenError
 
 
 
-changeUserPassword :: UserID -> Password -> API ()
-changeUserPassword user' password' = do
+changeUserPassword :: Maybe PwResetToken -> UserID -> Password -> API ()
+changeUserPassword mbToken user' password' = do
   mbHash <- hashPassword password'
   cnt <-
     case mbHash of
       Nothing -> Ex.throwM ChangePasswordHashError
-      Just hash ->
-        runDB $
-        P.updateWhereCount
-          [DB.UserUuid P.==. user']
-          [DB.UserPasswordHash P.=. hash]
+      Just hash -> do
+        cnt <- runDB $ P.updateWhereCount
+                 [DB.UserUuid P.==. user']
+                 [DB.UserPasswordHash P.=. hash]
+        audit AuditUserPasswordChanged
+              { auditUserID = user'
+              , auditResetToken = mbToken
+              , auditNewPasswordHash = base64HashedPassword hash
+              }
+        return cnt
   if cnt > 0
     then return ()
     else Ex.throwM ChangePasswordUserDoesNotExistError
@@ -213,6 +253,10 @@ addInstance mbIid name' = do
   _ <- runDB . P.insert $ DB.Instance{ DB.instanceUuid = instanceID
                                      , DB.instanceName = name'
                                      }
+  audit $ AuditInstanceAdded
+          { auditInstanceID = instanceID
+          , auditInstanceName = name'
+          }
   return instanceID
 
 addUserInstance :: UserID -> InstanceID -> API ()
@@ -220,6 +264,10 @@ addUserInstance user' inst = do
   _ <- runDB $ P.insert DB.UserInstance{ DB.userInstanceUser = user'
                                        , DB.userInstanceInstanceId = inst
                                        }
+  audit AuditUserInstanceAdded
+        { auditUserID = user'
+        , auditInstanceID = inst
+        }
   return ()
 
 removeUserInstance :: UserID -> InstanceID -> API Integer
@@ -227,6 +275,11 @@ removeUserInstance user' inst = do
   count' <- runDB $ P.deleteWhereCount [ DB.UserInstanceUser P.==. user'
                                        , DB.UserInstanceInstanceId P.==. inst
                                        ]
+  audit AuditUserInstanceRemoved
+        { auditUserID = user'
+        , auditInstanceID = inst
+        }
+
   return $ fromIntegral count'
 
 getUserInstances :: UserID -> API [ReturnInstance]
@@ -264,7 +317,8 @@ sendOTP otpHandler (Email user') p (Password otp') = do
                           , "(", unPhone p , ")"
                           , ": " <> otp'
                           ]
-    otpHandler p otp'
+    lfn <- askLogFunc
+    liftIO $ runLoggingT (otpHandler p otp') lfn
 
 tokenChars :: [Char]
 tokenChars = concat [ ['a' .. 'z']
@@ -331,6 +385,11 @@ createOTP otpHandler p userEmail userId = do
     { Log.user = userEmail
     , Log.otp = P.unSqlBackendKey $ DB.unUserOtpKey key
     }
+  audit AuditOTPCreated
+        { auditUserID = userId
+        , auditOTP = unPassword otp'
+        , auditPhone = unPhone p
+        }
   return ()
 
 -- | Check that one time password is valid for user
@@ -421,6 +480,11 @@ login Login {loginUser = userEmail, loginPassword = pwd, loginOtp = mbOtp} = do
         }
       let tokenId = P.unSqlBackendKey $ DB.unTokenKey key
       instances' <- getUserInstances userId
+      audit AuditTokenCreated
+            { auditUserID = userId
+            , auditOTPUsed = unPassword <$> mbOtp
+            , auditCreatedToken = unB64Token token'
+            }
       return
         ( tokenId
         , ReturnLogin
@@ -450,7 +514,8 @@ changePassword tok ChangePassword { changePasswordOldPasword = oldPwd
     Left e -> throwError $ ChangePasswordLoginError e
     Right _ -> return ()
 
-  mbError' <- Ex.try . lift $ changeUserPassword (usr ^. DB.uuid) newPwd
+  -- changeUserPassword adds to the audit log
+  mbError' <- Ex.try . lift $ changeUserPassword Nothing (usr ^. DB.uuid) newPwd
 
   case mbError' of
     Left e -> do
@@ -575,20 +640,21 @@ logOut token' = do
                                               }
       _ -> return ()
     deactivateTokenWhere [DB.TokenToken P.==. token']
-
-
+    audit AuditTokenDeactivated { auditToken = unB64Token token'}
 -- addUser name password email mbPhone = do
 
 closeOtherSessions :: B64Token -> API ()
 closeOtherSessions tokenID = do
-  runDB $ E.delete . E.from $ \tok -> do
+  cnt <- runDB $ E.deleteCount . E.from $ \tok -> do
     whereL [ E.exists . E.from $ \token' ->
               whereL [ tok E.^. DB.TokenUser E.==. token' E.^. DB.TokenUser
                      , token' E.^. DB.TokenToken E.==. E.val tokenID
                      ]
            , tok E.^. DB.TokenToken E.!=. E.val tokenID
            ]
-
+  case cnt > 0 of
+    True -> audit AuditOtherTokensDeactivated { auditToken = unB64Token tokenID}
+    False -> return ()
 
 --------------------------------------------------------------------------------
 -- Admin endpoints -------------------------------------------------------------
@@ -650,7 +716,10 @@ deactivateUser uid deactivate = do
                                   [ DB.UserDeactivate P.=. Just deactivateAt ]
   case num of
     0 -> NC.notFound "user by uuid" uid
-    1 -> return ()
+    1 -> audit AuditUserDeactivated
+               { auditUserID = uid
+               , auditDeactivateAt = deactivateAt
+               }
     _ -> error $ "deactivateUser: More than one user affected: <> " ++ show num
 
 reactivateUser :: UserID -> API ()
@@ -659,5 +728,8 @@ reactivateUser uid = do
                                   [ DB.UserDeactivate P.=. Nothing ]
   case num of
     0 -> NC.notFound "user by uuid" uid
-    1 -> return ()
+    1 -> audit AuditUserReactivated
+               { auditUserID = uid
+               }
+
     _ -> error $ "deactivateUser: More than one user affected: <> " ++ show num

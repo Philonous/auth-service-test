@@ -19,6 +19,7 @@ import qualified Data.UUID                as UUID
 import           System.IO
 
 import           Backend
+import           Monad
 import qualified Persist.Schema           as DB
 import           System.Exit
 import           Types
@@ -114,6 +115,8 @@ userRemoveInstance args = do
                hPutStrLn stderr $
                  "User did not have access to instance " <> (Text.unpack inst)
                exitFailure
+    _ -> liftIO $ do
+      hPutStrLn stderr "Usage: auth-service removeinstance <email> <uuid>"
 
 userDeactivate' :: [String] -> API ()
 userDeactivate' [userEmail] = do
@@ -150,7 +153,7 @@ changePassword args = do
   case Text.pack <$> args of
     [userEmail, pwd] -> do
       usr <- fetchUser (Email userEmail)
-      res <- Ex.try $ changeUserPassword (DB.userUuid usr) (Password pwd)
+      res <- Ex.try $ changeUserPassword Nothing (DB.userUuid usr) (Password pwd)
       case res of
         Left (e :: ChangePasswordError) ->
           liftIO $ do

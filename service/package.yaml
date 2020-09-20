@@ -14,12 +14,15 @@ library:
   ghc-options:
   - -Wall
   - -O2
+  - -Werror=incomplete-patterns
   exposed-modules:
   - Api
+  - Audit
   - AuthService
   - Backend
   - Config
   - Logging
+  - Monad
   - Persist.Migration
   - Persist.Schema
   - Persist.Stage
@@ -36,6 +39,7 @@ library:
   - bcrypt
   - bytestring
   - bytestring-conversion >=0.3
+  - case-insensitive
   - configurator
   - data-default
   - esqueleto
