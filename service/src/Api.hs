@@ -106,7 +106,7 @@ serveChangePassword pool conf tok chpass = chPassHandler >> return NoContent
        Left ChangePasswordUserDoesNotExistError{} -> throwError err403
 
 serveCheckToken :: ConnectionPool -> ApiState -> Server CheckTokenAPI
-serveCheckToken pool conf tok inst req = checkTokenHandler
+serveCheckToken pool conf req (Just tok) (Just inst) = checkTokenHandler
   where
     checkTokenHandler = do
       res <-
@@ -128,6 +128,7 @@ serveCheckToken pool conf tok inst req = checkTokenHandler
                  $ ReturnUser { returnUserUser = usr
                               , returnUserRoles = roles'
                               }
+serveCheckToken _ _ _ _ _ = throwError err400
 
 servePublicCheckToken :: ConnectionPool -> ApiState -> Server PublicCheckTokenAPI
 servePublicCheckToken pool conf tok = checkTokenHandler

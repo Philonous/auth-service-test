@@ -224,14 +224,17 @@ adminApiSpec = do
 
         tok <- loginReq "robert" "pwd"
 
-        getToken admin [i|/check-token/#{tok}/#{iid}|] `shouldRespondWith` 200
+        request "GET" [i|/check-token/|] [ ("X-Token", Text.encodeUtf8 tok)
+                                         , ("X-Instance", UUID.toASCIIBytes iid)
+                                         ] "" `shouldRespondWith` 200
 
         postToken admin [i|/admin/users/#{uid}/deactivate|]
                         [json|{"deactivate_at": "now"}|]
               `shouldRespondWith` 204
 
-        getToken admin [i|/check-token/#{tok}/#{iid}|]
-                  `shouldRespondWith` 403
+        request "GET" [i|/check-token/|] [ ("X-Token", Text.encodeUtf8 tok)
+                                         , ("X-Instance", UUID.toASCIIBytes iid)
+                                         ] "" `shouldRespondWith` 403
 
     describe "time" $ do
       it "prevents a user from logging in" $ withAdminToken $ \admin-> do
