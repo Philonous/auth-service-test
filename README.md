@@ -153,16 +153,66 @@ Please see auth-service.config for the configuration options.
 
 ## Creating new users
 
+### Using the CLI tool
 Users can be added by running the `adduser` command in the `auth-service` container:
 
 ```
 docker exec -it app_auth_1 auth-service adduser "My Name" my_password my_email@example.com
 ```
 
-Users may create their own accounts using the `/api/create-account` endpoint if
-the `ACCOUNT_CREATION` environment variable is set to true. The instance of
-accounts created like this is determined by the `DEFAULT_INSTANCE` variable
+### Using the web API
 
+Users with the `Admin` role can create new users via the endpoint `POST
+/api/users` with the following request body:
+
+```json
+{
+  "uuid": "78caafc1-c71b-410a-b338-90dd7b59af0d",
+  "email": "newuser@example.com",
+  "password": "pasword",
+  "name": "User Name",
+  "phone": "123456789",
+  "instances": [
+    "78caafc1-c71b-410a-b338-90dd7b59af0d"
+  ],
+  "roles": [
+    "role1"
+  ]
+}
+```
+
+* `uuid` and `phone` are optional (uuid will be filled in automatically if unset)
+
+Response:
+
+```json
+{
+  "user": "78caafc1-c71b-410a-b338-90dd7b59af0d",
+  "roles": [ "role1" ]
+}
+```
+
+### By users using the self-service API
+
+Users may create their own accounts using the `POST /api/create-account` endpoint if
+the `ACCOUNT_CREATION` environment variable is set to true. The instance of
+accounts created like this is determined by the `DEFAULT_INSTANCE` variable and
+the `X-Instance` header set by the auth_web container.
+
+The request body should look like this:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "password",
+  "name": "Robert E. Xampleuser",
+  "phone": "1234567"
+}
+```
+
+* phone is optional
+
+* Nothing is returned
 
 ## Changing user passwords
 
