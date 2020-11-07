@@ -63,8 +63,7 @@ accountCreationConfig :: AccountCreationConfig
 accountCreationConfig = AccountCreationConfig
   { accountCreationConfigEnabled = True
   , accountCreationConfigDefaultInstances =
-              [ InstanceID . fromJust $
-                UUID.fromText "de305d54-75b4-431b-adb2-eb6b9e546014"
+              [
               ]
   }
 
