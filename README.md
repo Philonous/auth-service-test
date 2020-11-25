@@ -144,6 +144,11 @@ Note that of you set _any_ of the twilio options you have to set _all_ of them.
 * `ACCOUNT_CREATION` (Bool) _optional_: Whether new users are allowed to create accounts (default: false)
 * `DEFAULT_INSTACE` (UUID) _optional_: Default instance to set on new accounts (e.g. `6595bcf6-ba54-4054-b09a-f67618a9ba3b`)
 
+## Configuring the auth-web container
+
+You can set the following environment variables:
+
+* `COOKIE` (String) _optional_: If set to `permanent` cookies are permanent, otherwise cookies are sent as session cookies
 
 ## Configuring the frontend proxy container
 
