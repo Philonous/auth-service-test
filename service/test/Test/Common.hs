@@ -121,7 +121,7 @@ withConf mbOtpHandler pool f = do
     runSqlPool cleanDB pool
     let conf =
           Config
-          { configTimeout = 9999
+          { configTimeout = Nothing
           , configOTPLength = 6
           , configOTPTimeoutSeconds = 10
           , configTFARequired = True
