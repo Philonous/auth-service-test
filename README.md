@@ -92,6 +92,10 @@ docker-compose.yaml files
 
 Available configuration options:
 
+### General Options
+
+* `TOKEN_TIMEOUT` (Int) _optional_: Time before login tokens expire in seconds (e.g. 3600 = one hour). Tokens don't expire when unset
+
 ### Password Reset Emails
 If `EMAIL_FROM` is set, all options that aren't marked as optional become
 mandatory. If `EMAIL_FROM` is unset, mail is deactivated and all email-related

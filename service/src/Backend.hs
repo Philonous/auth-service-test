@@ -27,7 +27,7 @@ import           Data.Time.Clock
 import qualified Data.Traversable                as Traversable
 import qualified Data.UUID.V4                    as UUID
 import qualified Database.Esqueleto              as E
-import           Database.Esqueleto              hiding ((^.), from)
+import           Database.Esqueleto              hiding ((^.), (<&>), from)
 import qualified Database.Persist                as P
 import qualified Database.Persist.Sql            as P
 import           System.Random
@@ -466,7 +466,10 @@ login Login {loginUser = userEmail, loginPassword = pwd, loginOtp = mbOtp} = do
   where
     createToken userId = do
       now <- liftIO $ getCurrentTime
-        -- token <- liftIO $ b64Token <$> getEntropy 16 -- 128 bits
+      mbTokenExpiration <- getConfig timeout
+      let tokenExpires = mbTokenExpiration <&> \texp ->
+            -- fromInteger on NominalDiffTime assumes seconds
+            fromInteger texp `addUTCTime` now
       token' <- B64Token <$> mkRandomString tokenChars 22 -- > 128 bit
       key <-
         runDB . P.insert $
@@ -474,7 +477,7 @@ login Login {loginUser = userEmail, loginPassword = pwd, loginOtp = mbOtp} = do
         { DB.tokenToken = token'
         , DB.tokenUser = userId
         , DB.tokenCreated = now
-        , DB.tokenExpires = Nothing
+        , DB.tokenExpires = tokenExpires
         , DB.tokenLastUse = Nothing
         , DB.tokenDeactivated = Nothing
         }

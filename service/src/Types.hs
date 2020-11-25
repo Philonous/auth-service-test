@@ -111,7 +111,7 @@ data AccountCreationConfig =
   }
 
 data Config = Config
-  { configTimeout              :: Integer -- token timeout in seconds
+  { configTimeout              :: Maybe Integer -- token timeout in seconds
   , configOTPLength            :: Int
   , configOTPTimeoutSeconds    :: Integer
   , configTFARequired          :: Bool
