@@ -1,4 +1,4 @@
-resolver: lts-16.6
+resolver: lts-16.21
 
 extra-deps:
   - git: git@git.nejla.com:nejla-ab/common.git
@@ -10,7 +10,7 @@ docker:
   image: nejla/haskell-build
 
 nix:
-  shell-file: stack.nix
-  # packages:
-  #   - zlib
-  #   - postgresql
+  # shell-file: stack.nix
+  packages:
+    - zlib
+    - postgresql

@@ -113,11 +113,9 @@ withTestDB f =
 
 type TestCase = Postgres.ConnectionPool -> IO ()
 
-withConf :: Maybe OtpHandler
-           -> ConnectionPool
-           -> (Config -> IO b)
-           -> IO b
-withConf mbOtpHandler pool f = do
+mkConfig :: ConnectionPool
+           -> IO Config
+mkConfig pool = do
     runSqlPool cleanDB pool
     let conf =
           Config
@@ -125,12 +123,12 @@ withConf mbOtpHandler pool f = do
           , configOTPLength = 6
           , configOTPTimeoutSeconds = 10
           , configTFARequired = True
-          , configOtp = mbOtpHandler
+          , configOtp = Nothing
           , configUseTransactionLevels = False
           , configEmail = Just testEmailConfig
           , configAccountCreation = accountCreationConfig
           }
-    f conf
+    return conf
   where
     -- | Delete all rows from all tables (Don't use TRUNACE TABLE since it's
     -- slower)
@@ -154,16 +152,16 @@ withConf mbOtpHandler pool f = do
          |] []
 
 
-withRunAPI :: Maybe OtpHandler
+withRunAPI :: (Config -> Config)
            -> ConnectionPool
            -> ((forall a. API a -> IO a) -> IO b)
            -> IO b
-withRunAPI mbOtpHandler pool f = do
-  withConf mbOtpHandler pool $ \conf ->
-    let apiState = ApiState { apiStateConfig = conf
-                            , apiStateAuditSource = AuditSourceTest
-                            }
-    in f $ runAPI pool apiState
+withRunAPI changeConf pool f = do
+  conf <- mkConfig pool
+  let apiState = ApiState { apiStateConfig = changeConf conf
+                          , apiStateAuditSource = AuditSourceTest
+                          }
+  f $ runAPI pool apiState
 
 
 seconds :: Integer -> NominalDiffTime

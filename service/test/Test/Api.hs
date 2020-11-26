@@ -42,14 +42,14 @@ Just iid = UUID.fromString "3afe62f4-7235-4b86-a418-923aaa4a5c28"
 runTest :: SpecWith ((), (Config -> Config)-> Application) -> IO ()
 runTest spec = withTestDB $ \pool -> do
   hspec $ flip around spec $ \f -> do
-    withConf Nothing pool $ \conf -> do
-      let apiState = ApiState { apiStateConfig = conf
-                              , apiStateAuditSource = AuditSourceTest
-                              }
-      _ <- runAPI pool apiState $ do
-        createUser adminUser
-        addInstance (Just $ InstanceID iid) "instance1"
-      f ((), \cc -> Api.serveAPI pool $ cc conf)
+    conf <- mkConfig pool
+    let apiState = ApiState { apiStateConfig = conf
+                            , apiStateAuditSource = AuditSourceTest
+                            }
+    _ <- runAPI pool apiState $ do
+      createUser adminUser
+      addInstance (Just $ InstanceID iid) "instance1"
+    f ((), \cc -> Api.serveAPI pool $ cc conf)
   where
     adminUser = AddUser { addUserUuid      = Nothing
                         , addUserEmail     = "admin@example.com"

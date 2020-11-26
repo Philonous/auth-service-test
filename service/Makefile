@@ -6,6 +6,13 @@ ifeq (${TERM},dumb)
 export stack_build_args := ${stack_build_args} --colour=never
 endif
 
+build-env-file=../build.env
+ifdef env-file
+build-env-file=$(env-file)
+endif
+include $(build-env-file)
+
+
 SERVICE_IMAGE=$(REGISTRY)/$(APP_IMAGE_NAME)
 TEST_IMAGE = $(REGISTRY)/$(APP_TEST_BASEIMAGE_NAME)
 
@@ -48,8 +55,10 @@ dist/auth-service: $(srcfiles) $(test-srcfiles) package.yaml stack.yaml
 	rm -f *.cabal
 	rm -f stack.yaml.lock
 	mkdir -p ./dist
-	stack build --install-ghc --test --no-run-tests ${stack_build_args} \
-	      --copy-bins --local-bin-path ./dist
+	stack build --install-ghc --test --no-run-tests \
+	            ${stack_args} \
+	            ${stack_build_args} \
+	            --copy-bins --local-bin-path ./dist
 
 
 # Tests
