@@ -141,7 +141,7 @@ getUserByEmail email' = do
 createResetToken :: NominalDiffTime -> UserID -> API PwResetToken
 createResetToken expiresIn usr = do
   tok <-
-    unprivileged $ mkUniqueRandomHrID (Prelude.id) 20 DB.PasswordResetTokenToken
+    unprivileged $ mkUniqueRandomHrID Prelude.id 20 DB.PasswordResetTokenToken
   now <- liftIO getCurrentTime
   let expires = addUTCTime expiresIn now
   _ <-
@@ -465,7 +465,7 @@ login Login {loginUser = userEmail, loginPassword = pwd, loginOtp = mbOtp} = do
           return $ Right rl
   where
     createToken userId = do
-      now <- liftIO $ getCurrentTime
+      now <- liftIO getCurrentTime
       mbTokenExpiration <- getConfig timeout
       let tokenExpires = mbTokenExpiration <&> \texp ->
             -- fromInteger on NominalDiffTime assumes seconds
@@ -504,7 +504,7 @@ changePassword tok ChangePassword { changePasswordOldPasword = oldPwd
   (_tokenID, usr) <- case mbUser of
     Nothing -> do
 
-      Log.logInfo $ "Failure while trying to change password " <> (unB64Token tok)
+      Log.logInfo $ "Failure while trying to change password " <> unB64Token tok
       throwError ChangePasswordTokenError
     Just usr -> return usr
   mbError <- lift $ checkUserPassword (DB.userEmail usr) oldPwd
@@ -530,7 +530,7 @@ changePassword tok ChangePassword { changePasswordOldPasword = oldPwd
 getUserByToken :: B64Token -> API (Maybe (Log.TokenRef, DB.User))
 getUserByToken tokenId = do
   -- Delete expired tokens
-  now <- liftIO $ getCurrentTime
+  now <- liftIO getCurrentTime
   deactivateTokenWhere [DB.TokenExpires P.<=. Just now]
 
   user' <- runDB . select . E.from $ \(user' `InnerJoin` token') -> do

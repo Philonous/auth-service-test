@@ -22,6 +22,7 @@ import           Data.Monoid
 import           Data.Text               (Text)
 import qualified Data.Text               as Text
 import           Database.Persist.Sql    (ConnectionPool)
+import qualified Prelude
 import           Prelude                 hiding (id)
 import qualified Test.QuickCheck.Monadic as QC
 import qualified Text.Microstache        as Mustache
@@ -67,10 +68,10 @@ testUser = AddUser { addUserUuid = Nothing
                    }
 
 testUserOtp :: AddUser
-testUserOtp = testUser & phone .~ (Just $ Phone "12345")
+testUserOtp = testUser & phone ?~ Phone "12345"
 
 withUser :: AddUser -> (UserID -> (forall a. API a -> IO a) -> IO ()) -> Case ()
-withUser usr f pool = withRunAPI Nothing pool $ \run -> do
+withUser usr f pool = withRunAPI Prelude.id pool $ \run -> do
   mbRes <- run $ createUser usr
   case mbRes of
     Nothing -> assertFailure "could not create user"
@@ -87,7 +88,7 @@ withUserOTP usr f pool = do
         res <- readIORef otpRef
         writeIORef otpRef Nothing
         return res
-  withRunAPI (Just otpHandler) pool $ \run -> do
+  withRunAPI (otp ?~ otpHandler) pool $ \run -> do
     mbRes <- run $ createUser usr
     case mbRes of
       Nothing -> assertFailure "could not create user"
@@ -117,7 +118,7 @@ loginOTP run getOtp AddUser{..} = do
                               , loginOtp = Just $ Password otp
                               }
     case res' of
-      Left e -> assertFailure $ "Failed login with OTP " <> (show e)
+      Left e -> assertFailure $ "Failed login with OTP " <> show e
       Right r -> return $ returnLoginToken r
 
 case_create_user :: Case ()
@@ -143,7 +144,7 @@ case_user_check_password_wrong = withUser testUser $ \_uid run -> do
 
 case_user_email_case_insensitive :: Case ()
 case_user_email_case_insensitive = withUser testUser $ \_uid run -> do
-  res <- run $ checkUserPassword ("NO@SpAM.pleaSE") (Password "pwd")
+  res <- run $ checkUserPassword "NO@SpAM.pleaSE" (Password "pwd")
   case res of
     Left _e -> assertFailure "Did not accept case-altered email"
     Right{} -> return ()
@@ -209,16 +210,16 @@ case_reset_password = withUser testUser $ \uid run -> do
 
 case_reset_password_wrong_token :: Case ()
 case_reset_password_wrong_token pool =
-  withRunAPI Nothing pool $ \run -> do
+  withRunAPI Prelude.id pool $ \run -> do
     run (resetPassword "BogusToken" "newPwd" Nothing) `shouldReturn`
-      (Left ChangePasswordTokenError)
+      Left ChangePasswordTokenError
     return ()
 
 case_reset_password_OTP :: Case ()
 case_reset_password_OTP = withUserOTP testUserOtp $ \uid getOtp run -> do
   tok <- run $ createResetToken 60 uid
   res <- run (resetPassword tok "newPwd" Nothing)
-  res `shouldBe` (Left $ ChangePasswordLoginError LoginErrorOTPRequired)
+  res `shouldBe` Left (ChangePasswordLoginError LoginErrorOTPRequired)
   Just otp <- getOtp
   run (resetPassword tok "newPwd" $ Just (Password otp))
   return ()
@@ -229,7 +230,7 @@ case_reset_password_double_use =
     tok <- run $ createResetToken 60 uid
     run $ resetPassword tok "newPwd" Nothing
     run (resetPassword tok "newPwd2" Nothing) `shouldReturn`
-      (Left ChangePasswordTokenError)
+      Left ChangePasswordTokenError
     return ()
 
 case_reset_password_expired :: Case ()
@@ -237,7 +238,7 @@ case_reset_password_expired =
   withUser testUser $ \uid run -> do
     tok <- run $ createResetToken (-60) uid
     run (resetPassword tok "newPwd" Nothing) `shouldReturn`
-      (Left ChangePasswordTokenError)
+      Left ChangePasswordTokenError
     return ()
 
 testEmailData :: EmailData
@@ -357,7 +358,7 @@ case_login_otp =  withUserOTP testUserOtp $ \_uid getOtp run -> do
                               , loginOtp = Just $ Password otp
                               }
     case res' of
-      Left e -> assertFailure $ "Failed login with OTP " <> (show e)
+      Left e -> assertFailure $ "Failed login with OTP " <> show e
       Right _ -> return ()
 
 case_login_otp_wrong_user :: Case ()
@@ -386,7 +387,7 @@ case_login_otp_wrong_user =
                               , loginOtp = Just $ Password otpUser2
                               }
 
-    res' `shouldBe` (Left LoginErrorFailed)
+    res' `shouldBe` Left LoginErrorFailed
 
 withUserToken :: AddUser
               -> (B64Token -> UserID -> (forall a. API a -> IO a) -> IO ())
