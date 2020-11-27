@@ -12,7 +12,7 @@ import Audit (AuditSource(AuditSourceManual))
 devConf :: ApiState
 devConf = ApiState
   { apiStateConfig = Config
-    { configTimeout              = 3600
+    { configTimeout              = Nothing
     , configOTPLength            = 1
     , configOTPTimeoutSeconds    = 3600
     , configTFARequired          = False
