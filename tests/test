@@ -150,6 +150,7 @@ login() {
     fi
 
     RES=$($CURL -H "Content-Type: application/json" \
+                --fail \
                 -d "$LOGIN_STRING" \
                 http://$API/login)
 
@@ -423,6 +424,10 @@ docker_test() {
     [[ -n $OTP ]] || fail "Could not get OTP"
     OTP=$(echo $OTP | tr '[:upper:]' '[:lower:]')
     login $USER2 $PASSWORD2 $OTP || fail "could not log in"
+
+    testing "Trying to login without otp"
+    create_otp $USER2 $PASSWORD2
+    login $USER2 $PASSWORD2 && fail "Login did not require OTP"
 
     testing "Trying to double-use OTP"
     create_otp $USER2 $PASSWORD2
