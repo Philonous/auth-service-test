@@ -95,8 +95,8 @@ http {
                   return 403;
                 }
                 proxy_pass http://AUTH_SERVICE/check-token;
-                proxy_set_header X-Token $token
-                proxy_set_header X-Instance $instance
+                proxy_set_header X-Token $token;
+                proxy_set_header X-Instance $instance;
                 proxy_set_header X-Original-URI $request_uri;
                 proxy_set_header Accept application/json;
         }
