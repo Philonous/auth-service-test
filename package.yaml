@@ -1,0 +1,55 @@
+name: signed-authorization
+version: '0.0.0'
+synopsis: An example project
+description: An example project
+maintainer: Philipp Balzarek
+
+dependencies:
+  - base
+
+ghc-options:
+    - -Wall
+    - -Werror=incomplete-patterns
+
+executables:
+  signed-authorization:
+    dependencies:
+    - signed-authorization
+    ghc-options:
+    - -rtsopts
+    - -threaded
+    - -with-rtsopts=-N
+    - -Wall
+    main: Main.hs
+    source-dirs: app
+    extra-source-files:
+    - CHANGELOG.md
+    - LICENSE.md
+    - README.md
+    - package.yaml
+    - stack.yaml
+
+library:
+  dependencies:
+  - aeson
+  - async
+  - bytestring
+  - containers
+  - data-default
+  - lens
+  - mtl
+  - text
+  source-dirs: src
+
+tests:
+  tests:
+    dependencies:
+    - signed-authorization
+    - tasty
+    - tasty-hspec
+    ghc-options:
+    - -rtsopts
+    - -threaded
+    - -with-rtsopts=-N
+    main: Main.hs
+    source-dirs: test-suite
