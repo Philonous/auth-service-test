@@ -1,6 +1,0 @@
----
-author: "Philipp Balzarek"
-email: "p.balzarek@googlemail.com"
-desc: "An example project"
-name: "signed-authorization"
-stack-resolver: "lts-16.24"

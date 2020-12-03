@@ -32,11 +32,15 @@ executables:
 library:
   dependencies:
   - aeson
+  - asn1-encoding
   - async
+  - base64-bytestring
   - bytestring
   - containers
+  - cryptonite
   - data-default
   - lens
+  - memory
   - mtl
   - text
   source-dirs: src
