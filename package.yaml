@@ -34,7 +34,7 @@ library:
   - aeson
   - asn1-encoding
   - async
-  - base64-bytestring
+  - base64-bytestring >= 1.1
   - bytestring
   - containers
   - cryptonite
