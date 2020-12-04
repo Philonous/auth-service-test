@@ -52,8 +52,11 @@ tests:
     - signed-authorization
     - tasty
     - tasty-hspec
+    - hspec-hedgehog
+    - hedgehog
     - typed-process
     - unliftio
+    - base64-bytestring >= 1.1
     ghc-options:
     - -rtsopts
     - -threaded

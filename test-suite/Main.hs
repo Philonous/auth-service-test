@@ -9,7 +9,12 @@ import           Test.Tasty.Hspec
 
 import           Data.ByteString      (ByteString)
 import qualified Data.ByteString      as BS
+import qualified Hedgehog             as H
+import qualified Hedgehog.Gen         as H
+import qualified Hedgehog.Range       as H
+import           Test.Hspec.Hedgehog
 import           UnliftIO.Temporary
+import qualified Data.ByteString.Base64.URL as B64U
 
 import           System.Process.Typed (runProcess_, proc, shell)
 
@@ -36,18 +41,45 @@ readKeys = withSystemTempDirectory "signed-auth-test." $ \path -> do
                Left e -> error $ "Could not read public key: " ++ e
                Right r -> return r
   return (privKey, pubKey)
-  where
-    sh x xs = shell $ List.unwords (x:xs)
-
-
 
 main :: IO ()
 main = do
-  test <- testSpec "signed-authorization" spec
+  keys <- readKeys
+  test <- testSpec "signed-authorization" (spec keys)
   Test.Tasty.defaultMain test
 
-spec :: Spec
-spec = describe "sign/verify" $ do
-  it "Works " $ do
-    (priv, pub) <- liftIO readKeys
-    Sign.verified pub (Sign.signed priv "hello world") `shouldBe` Just "hello world"
+-- | Change the message while keeping the signature intact
+manipulatePayload :: ByteString -> ByteString -> ByteString
+manipulatePayload signed mp =
+  let sig = BS.take 86 signed
+  in BS.concat [sig, ".", mp]
+
+spec :: (Sign.PrivateKey, Sign.PublicKey) -> Spec
+spec (priv, pub) = do
+  describe "manipulatePayload" $ do
+    it "Keeps the signature intact" $ hedgehog $ do
+      payload <- H.forAll $ H.bytes (H.linear 0 128)
+      let signed = Sign.signed priv payload
+          manipulated = manipulatePayload signed payload
+      manipulated H.=== signed
+  describe "sign/verify" $ do
+    it "Verifies signed messages" $ hedgehog $ do
+      payload <- H.forAll $ H.bytes (H.linear 0 128)
+      H.tripping payload (Sign.signed priv) (Sign.verified pub)
+
+    it "Does not verify bogus signature" $ hedgehog $ do
+      payload <- H.forAll $ H.bytes (H.linear 0 128)
+      bogusSig <- H.forAll $ H.bytes (H.singleton 64)
+      let bogusMessage = BS.concat [ B64U.encodeUnpadded bogusSig
+                                   , "."
+                                   , payload
+                                   ]
+      Sign.verified pub bogusMessage H.=== Nothing
+
+    it "Does not verify manipulated messages" $ hedgehog $ do
+      payload <- H.forAll $ H.bytes (H.linear 0 128)
+      newPayload <- H.forAll $ H.filter (/= payload) $ H.bytes (H.linear 0 128)
+
+      let sig = Sign.signed priv payload
+          bogus = manipulatePayload sig newPayload
+      Sign.verified pub bogus H.=== Nothing
