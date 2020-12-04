@@ -6,6 +6,8 @@ maintainer: Philipp Balzarek
 
 dependencies:
   - base
+  - bytestring
+  - mtl
 
 ghc-options:
     - -Wall
@@ -35,7 +37,6 @@ library:
   - asn1-encoding
   - async
   - base64-bytestring >= 1.1
-  - bytestring
   - containers
   - cryptonite
   - data-default
@@ -51,6 +52,8 @@ tests:
     - signed-authorization
     - tasty
     - tasty-hspec
+    - typed-process
+    - unliftio
     ghc-options:
     - -rtsopts
     - -threaded
