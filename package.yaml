@@ -8,6 +8,7 @@ dependencies:
   - base
   - bytestring
   - mtl
+  - time
 
 ghc-options:
     - -Wall
