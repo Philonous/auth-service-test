@@ -65,7 +65,16 @@ data NonceFrame =
   NonceFrame { nfOldNonces :: Set Nonce -- nonces we got before the split
              , nfSplit :: POSIXTime -- when we split
              , nfCurrentNonces :: Set Nonce -- current frame
-             } deriving Show
+             } deriving (Eq, Show)
+
+mkFrame :: POSIXTime -> NonceFrame
+mkFrame now = NonceFrame { nfOldNonces = mempty
+                         , nfSplit = now + nonce_reject_timeout
+                         -- Reject any nonce that was generated before we started
+                         -- to avoid replays after a restart
+                         , nfCurrentNonces = mempty
+                         }
+
 
 type Frame = IORef NonceFrame
 
@@ -74,40 +83,29 @@ newFrame = do
   now <- getPOSIXTime
   newIORef (NonceFrame Set.empty now Set.empty)
 
+data Verdict = RejectOld | RejectSeen | Accept deriving (Eq, Show)
+
 -- | Cycle frames, check if nonce is present and insert if it is not
 updateCheckNonceFrame
-  :: POSIXTime -- ^ Current time
-  -> NominalDiffTime -- ^ timeout before we can drop nonces
+  :: POSIXTime -- ^ Nonce timestamp
   -> Nonce -- ^ Nonce to handle
   -> NonceFrame -- ^ Frames to look nonce up
-  -> (NonceFrame, Bool)
-updateCheckNonceFrame now timeout nonce frames'@(NonceFrame _old _split current') =
-  let cutoff = now - timeout
-  -- Cycle frames if necessary
-      frames@(NonceFrame old split current) =
-        if split < cutoff
-          then NonceFrame current' now Set.empty
-          else frames'
-      found = Set.member nonce old || Set.member nonce current
-  in if found
-     -- Found the nonce, reject the message and don't update the frames
-     then (frames, False)
-     -- Fresh nonce, add to current frame and don't reject message
-     else  (NonceFrame old split (Set.insert nonce current), True)
+  -> (NonceFrame, Verdict)
+updateCheckNonceFrame timestamp nonce frames0@(NonceFrame old0 split0 current0)
+  -- Nonce timestamp is older than our record
+  | timestamp < split0 - nonce_reject_timeout = (frames0, RejectOld)
+  -- Nonce is in seen set
+  | Set.member nonce old0 || Set.member nonce current0 = (frames0, RejectSeen)
+  | otherwise =
+      let cutoff = timestamp - nonce_store_timeout
+      -- Cycle frames if necessary
+          (NonceFrame old1 split1 current1) =
+            if split0 < cutoff
+              then NonceFrame current0 timestamp Set.empty
+              else frames0
+      in (NonceFrame old1 split1 (Set.insert nonce current1), Accept)
 
-data Verdict = Reject | Accept deriving Show
 
-instance Semigroup Verdict where
-  Accept <> Accept = Accept
-  _ <> _ = Reject
-
-handleNonce :: Frame -> POSIXTime -> Nonce  -> IO Verdict
-handleNonce ref timestamp nonce = do
-  now <- getPOSIXTime
-  -- timestamp is before timeout
-  if nonce_reject_timeout + timestamp < now
-    then return Reject
-    else do
-      accept <- atomicModifyIORef ref
-               $ updateCheckNonceFrame now nonce_store_timeout nonce
-      return $ if accept then Accept else Reject
+handleNonce :: Frame -> POSIXTime -> Nonce -> IO Verdict
+handleNonce ref timestamp nonce =
+  atomicModifyIORef ref $ updateCheckNonceFrame timestamp nonce

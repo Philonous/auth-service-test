@@ -7,7 +7,9 @@ maintainer: Philipp Balzarek
 dependencies:
   - base
   - bytestring
+  - containers
   - mtl
+  - text
   - time
 
 ghc-options:
@@ -38,13 +40,11 @@ library:
   - asn1-encoding
   - async
   - base64-bytestring >= 1.1
-  - containers
   - cryptonite
   - data-default
   - lens
   - memory
   - mtl
-  - text
   source-dirs: src
 
 tests:

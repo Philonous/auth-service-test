@@ -18,9 +18,9 @@ import           Nonce
 import           Sign
 
 data Envelope payload =
-  Envelope { time_stamp :: Word32
+  Envelope { t :: Word32
            , nonce :: Nonce
-           , payload :: payload
+           , auth :: payload
            }
 
 Aeson.deriveJSON Aeson.defaultOptions ''Envelope
@@ -31,9 +31,9 @@ encodeHeaders key noncePool payload = do
   nonce <- mkNonce noncePool
   now <- getPOSIXTime <&> round
   let envelope = Aeson.encode
-        Envelope { time_stamp = now
+        Envelope { t = now
                  , nonce = nonce
-                 , payload = payload
+                 , auth = payload
                  }
   return $ signed key (BSL.toStrict envelope)
 
@@ -50,7 +50,8 @@ decodeHeaders key nonceFrame sig =
       case Aeson.decode' $ BSL.fromStrict encoded of
         Nothing -> return $ Left "failed to parse envelope"
         Just env -> do
-          verdict <- handleNonce nonceFrame (fromIntegral $ time_stamp env) (nonce env)
+          verdict <- handleNonce nonceFrame (fromIntegral $ t env) (nonce env)
           case verdict of
-            Reject -> return $ Left "nonce rejected"
-            Accept -> return $ Right (payload env)
+            RejectSeen -> return $ Left "nonce rejected: already used"
+            RejectOld -> return $ Left "nonce rejected: too old"
+            Accept -> return $ Right (auth env)

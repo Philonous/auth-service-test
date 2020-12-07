@@ -7,7 +7,7 @@ endif
 srcfiles = $(shell find src -type f)
 test-srcfiles = $(shell find test-suite -type f)
 
-tests = dist/tests/signed-authorization-test-suite
+tests = dist/tests/tests
 
 .PHONY: build
 build: dist/signed-authorization $(tests)
@@ -16,7 +16,7 @@ $(tests): dist/tests/% : dist/signed-authorization $(test-srcfiles) package.yaml
 	mkdir -p dist/tests
 	cp "$(shell stack ${stack_args} path --dist-dir)/build/$(notdir $@)/$(notdir $@)" dist/tests/
 
-dist/signed-authorization: $(srcfiles) package.yaml stack.yaml
+dist/signed-authorization: $(srcfiles) $(test-srcfiles) package.yaml stack.yaml
 	rm -f *.cabal
 	rm -f stack.yaml.lock
 	mkdir -p ./dist
@@ -28,7 +28,7 @@ dist/signed-authorization: $(srcfiles) package.yaml stack.yaml
 
 .PHONY: test
 test: export TASTY_NUM_THREADS=1
-test: $(tests) baseimage
+test: $(tests)
 	sh -c 'for t in dist/tests/*; do $$t; done'
 
 .PHONY: clean
