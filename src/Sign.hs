@@ -11,7 +11,7 @@ import qualified Data.ByteArray             as BA
 import           Data.ByteString            (ByteString)
 import qualified Data.ByteString            as BS
 import qualified Data.ByteString.Base64     as Base64
-import qualified Data.ByteString.Base64.URL as B64U
+
 import           Data.Char
 import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
@@ -108,24 +108,8 @@ verifySignature pubkey bs (Signature sigbytes) =
     Crypto.CryptoFailed e -> error $ show e
     Crypto.CryptoPassed sig -> Ed25519.verify pubkey bs sig
 
--- | Sign a bytestring and prepend the signature
--- key, input => base64_url_unpadded(sign(input,key)) ++ "." ++ input
-signed :: PrivateKey -> ByteString -> ByteString
-signed key input =
-  let Signature sig = sign key input
-  in BS.concat [B64U.encodeUnpadded sig, ".", input]
-
--- | Verify an octet sequence signed according to 'sign' and return the signed payload
-verified :: PublicKey -> ByteString -> Maybe ByteString
-verified pubKey signedBS =
-  -- Base64: 3 octets become 4 base64 characters, padded to to full 4 characters
-  -- ED25519 produces 64 signature octets
-  -- 64 octets => /6*8 => 86 base64 characters + 2 paddings (dropped)
-  let (base64Sig, rest) = BS.splitAt 86 signedBS
-  in case BS.splitAt 1 rest of
-       (".", payload) -> case B64U.decodeUnpadded base64Sig of
-          Left{} -> Nothing
-          Right sig -> case verifySignature pubKey payload (Signature sig) of
-            False -> Nothing
-            True -> Just payload
-       _ -> Nothing
+mkKeys :: IO (PrivateKey, PublicKey)
+mkKeys = do
+  secret <- Ed25519.generateSecretKey
+  let pub = Ed25519.toPublic secret
+  return ((secret, pub), pub)

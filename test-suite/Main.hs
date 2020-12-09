@@ -2,6 +2,7 @@
 
 module Main where
 
+import           Control.Lens
 import           Control.Monad.Trans
 import           Data.Set                   (Set)
 import qualified Data.Set                   as Set
@@ -22,7 +23,9 @@ import           UnliftIO.Temporary
 
 import           System.Process.Typed       (runProcess_, proc)
 
+import qualified Data.Char                  as Char
 import qualified Headers                    as Headers
+import qualified JWS                        as JWS
 import qualified Nonce                      as Nonce
 import qualified Sign                       as Sign
 
@@ -57,58 +60,99 @@ main = do
 spec :: (Sign.PrivateKey, Sign.PublicKey) -> Spec
 spec keys = do
   describe "signing" $ signSpec keys
-  describe "nonces" $ nonceSpec
+  describe "JWS"     $ jwsSpec keys
+  describe "nonces"    nonceSpec
   describe "headers" $ headersSpec keys
 
 --------------------------------------------------------------------------------
 -- Signing and verifying -------------------------------------------------------
 --------------------------------------------------------------------------------
 
--- | Change the message while keeping the signature intact
-manipulatePayload :: ByteString -> ByteString -> ByteString
-manipulatePayload signed mp =
-  let sig = BS.take 86 signed
-  in BS.concat [sig, ".", mp]
-
 signSpec :: (Sign.PrivateKey, Sign.PublicKey) -> Spec
 signSpec (priv, pub) = do
-  describe "manipulatePayload" $ do
-    it "Keeps the signature intact" $ hedgehog $ do
-      payload <- H.forAll $ H.bytes (H.linear 0 128)
-      let signed = Sign.signed priv payload
-          manipulated = manipulatePayload signed payload
-      manipulated H.=== signed
+  -- describe "manipulatePayload" $ do
+  --   it "Keeps the signature intact" $ hedgehog $ do
+  --     payload <- H.forAll $ H.bytes (H.linear 0 128)
+  --     let signed = JWS.signed priv payload
+  --         manipulated = manipulatePayload signed payload
+  --     manipulated H.=== signed
   describe "sign/verify" $ do
     it "Verifies signed messages" $ hedgehog $ do
       payload <- H.forAll $ H.bytes (H.linear 0 128)
-      H.tripping payload (Sign.signed priv) (Sign.verified pub)
+      let sig = Sign.sign priv payload
+      Sign.verifySignature pub payload sig H.=== True
 
     it "Does not verify bogus signature" $ hedgehog $ do
       payload <- H.forAll $ H.bytes (H.linear 0 128)
-      bogusSig <- H.forAll $ H.bytes (H.singleton 64)
-      let bogusMessage = BS.concat [ B64U.encodeUnpadded bogusSig
-                                   , "."
-                                   , payload
-                                   ]
-      Sign.verified pub bogusMessage H.=== Nothing
+      bogusSig <- Sign.Signature <$> H.forAll (H.bytes $ H.singleton 64)
+      Sign.verifySignature pub payload bogusSig H.=== False
 
     it "Does not verify manipulated messages" $ hedgehog $ do
       payload <- H.forAll $ H.bytes (H.linear 0 128)
       newPayload <- H.forAll $ H.filter (/= payload) $ H.bytes (H.linear 0 128)
 
-      let sig = Sign.signed priv payload
-          bogus = manipulatePayload sig newPayload
-      Sign.verified pub bogus H.=== Nothing
+      let sig = Sign.sign priv payload
+      Sign.verifySignature pub newPayload sig H.=== False
+
+jwsSpec (priv, pub) = do
+  describe "signed/verified" $ do
+    it "encodes and verifies an arbitrary payload" $ hedgehog $ do
+      payload <- H.forAll $ H.bytes (H.linear 0 128)
+      nonce <- H.forAll $ H.word64 H.constantBounded
+      time <- H.forAll $ H.word32 H.constantBounded
+      let encoded = JWS.signed priv (fromIntegral time) nonce payload
+      case JWS.verified pub encoded of
+        Nothing -> H.failure
+        Just (header, payload') -> do
+          header ^. JWS.t  H.=== time
+          header ^. JWS.n  H.=== nonce
+          payload' H.=== payload
+
+    it "rejects manipulated payloads" $ hedgehog $ do
+      payload <- H.forAll $ H.bytes (H.linear 0 128)
+      newPayload <- H.forAll $ H.filter (/= payload) $ H.bytes (H.linear 0 128)
+      nonce <- H.forAll $ H.word64 H.constantBounded
+      time <- H.forAll $ H.word32 H.constantBounded
+
+      let encoded = JWS.signed priv (fromIntegral time) nonce payload
+          manipulated = encoded & JWS.jwsPayload .~ newPayload
+
+      JWS.verified pub manipulated H.=== Nothing
+
+    it "rejects manipulated nonces" $ hedgehog $ do
+      payload <- H.forAll $ H.bytes (H.linear 0 128)
+      nonce <- H.forAll $ H.word64 H.constantBounded
+      newNonce <- H.forAll $ H.filter (/= nonce) $ H.word64 H.constantBounded
+      time <- H.forAll $ H.word32 H.constantBounded
+
+      let encoded = JWS.signed priv (fromIntegral time) nonce payload
+          manipulated = encoded & JWS.jwsHeader . JWS.n .~ newNonce
+
+      JWS.verified pub manipulated H.=== Nothing
+
+    it "rejects manipulated timestamps" $ hedgehog $ do
+      payload <- H.forAll $ H.bytes (H.linear 0 128)
+      nonce <- H.forAll $ H.word64 H.constantBounded
+      time <- H.forAll $ H.word32 H.constantBounded
+      newTime <- H.forAll $ H.filter (/= time) $ H.word32 H.constantBounded
+
+      let encoded = JWS.signed priv (fromIntegral time) nonce payload
+          manipulated = encoded & JWS.jwsHeader . JWS.t .~ newTime
+
+      JWS.verified pub manipulated H.=== Nothing
+
 
 --------------------------------------------------------------------------------
 -- Nonces ----------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
+-- | Generate time deltas from -5 to +10 seconds
 delta :: H.Gen NominalDiffTime
 delta = realToFrac <$> -- positives deltas more likely than negative
                 H.frequency [ (1, negate <$> H.double (H.exponentialFloat 0 5))
                             , (5, H.double (H.exponentialFloat 0 10))
                             ]
+
 
 nonceSpec = do
   describe "updateCheckNonceFrame" $ do
