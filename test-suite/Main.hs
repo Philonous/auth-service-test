@@ -24,10 +24,10 @@ import           UnliftIO.Temporary
 import           System.Process.Typed       (runProcess_, proc)
 
 import qualified Data.Char                  as Char
-import qualified Headers                    as Headers
-import qualified JWS                        as JWS
-import qualified Nonce                      as Nonce
-import qualified Sign                       as Sign
+import qualified SignedAuth.Headers                    as Headers
+import qualified SignedAuth.JWS                        as JWS
+import qualified SignedAuth.Nonce                      as Nonce
+import qualified SignedAuth.Sign                       as Sign
 
 readKeys :: IO (Sign.PrivateKey, Sign.PublicKey)
 readKeys = withSystemTempDirectory "signed-auth-test." $ \path -> do
@@ -190,7 +190,6 @@ nonceSpec = do
       verdict3 `shouldBe` Nonce.RejectSeen
       frame3 `shouldBe` frame2
 
-
     it "rejects old nonces" $ do
       let frame0 = Nonce.NonceFrame mempty 9000 mempty
           now = 9001
@@ -215,6 +214,8 @@ nonceSpec = do
 --------------------------------------------------------------------------------
 -- Header ----------------------------------------------------------------------
 --------------------------------------------------------------------------------
+
+headersSpec :: (Sign.PrivateKey, Sign.PublicKey) -> Spec
 headersSpec (privKey, pubKey) =
   describe "encodeHeaders / decodeHeaders" $ do
     it "should decode correctly signed headers" $ do

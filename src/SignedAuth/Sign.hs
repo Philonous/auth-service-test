@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Sign where
+module SignedAuth.Sign where
 
 import qualified Crypto.Error               as Crypto
 import qualified Crypto.PubKey.Ed25519      as Ed25519

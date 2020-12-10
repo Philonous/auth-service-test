@@ -1,4 +1,4 @@
-module Util where
+module SignedAuth.Util where
 
 import           Data.Aeson
 import           Data.Aeson.TH

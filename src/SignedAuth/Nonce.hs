@@ -1,7 +1,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE StrictData #-}
 
-module Nonce where
+module SignedAuth.Nonce where
 
 import           Data.Bits
 import           Data.ByteString       (ByteString)
@@ -15,7 +15,8 @@ import qualified Data.Set              as Set
 import           Data.Time.Clock
 import           Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime)
 import           Data.Word
-import           Sign
+
+import           SignedAuth.Sign
 
 -- How far back we keep nonces
 nonce_store_timeout :: NominalDiffTime

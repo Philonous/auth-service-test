@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
-module JWS where
+module SignedAuth.JWS where
 
 import           Control.Lens
 import qualified Data.Aeson                 as Aeson
@@ -16,10 +16,9 @@ import qualified Data.Text                  as Text
 import           Data.Time.Clock.POSIX      (POSIXTime)
 import           Data.Word
 
-import           Util
-
-import           Nonce
-import           Sign
+import           SignedAuth.Util
+import           SignedAuth.Nonce
+import           SignedAuth.Sign
 import qualified Data.Char                  as Char
 
 data Header = Header { headerAlg :: Text
@@ -31,14 +30,15 @@ data Header = Header { headerAlg :: Text
 Aeson.deriveJSON (aesonTHOptions "header") ''Header
 makeLensesWith camelCaseFields ''Header
 
-newtype JWS = JWS ByteString
+-- JWS-signed bytestring
+newtype JwsBs  = JwsBs ByteString
 
 dot :: Word8
 dot = fromIntegral (Char.ord '.')
 
 -- | Sign a bytestring and prepend the signature
 -- key, input => base64_url_unpadded(sign(input,key)) ++ "." ++ input
-signed :: PrivateKey -> POSIXTime -> Nonce -> ByteString -> JWS
+signed :: PrivateKey -> POSIXTime -> Nonce -> ByteString -> JwsBs
 signed key now nonce payload =
   let header = Header { headerAlg = "ed25519"
                       , headerCrit = ["t", "n"]
@@ -51,11 +51,11 @@ signed key now nonce payload =
                             ]
 
       Signature sig = sign key signInput
-  in JWS $ BS.concat [signInput , "." , B64U.encodeUnpadded sig]
+  in JwsBs $ BS.concat [signInput , "." , B64U.encodeUnpadded sig]
 
 -- | Verify an octet sequence signed according to 'sign' and return the signed payload
-verified :: PublicKey -> JWS -> Maybe (Header, ByteString)
-verified pubKey (JWS signedBS)
+verified :: PublicKey -> JwsBs -> Maybe (Header, ByteString)
+verified pubKey (JwsBs signedBS)
   -- Split "header.payload.signature" into parts
   | (signInput, base64SigDot) <- BS.splitAt (BS.length signedBS
                                              - 86 {- Note [Signature-length] -}
@@ -83,27 +83,27 @@ b64U = prism' B64U.encodeUnpadded (\bs -> case B64U.decodeUnpadded bs of
                                   )
 
 -- Lenses
-jwsParts :: Prism' JWS (ByteString, ByteString, ByteString)
+jwsParts :: Prism' JwsBs (ByteString, ByteString, ByteString)
 jwsParts = prism' (\(header, payload, sig)
-                   -> JWS $ BS.intercalate "." [header,payload, sig]
+                   -> JwsBs $ BS.intercalate "." [header,payload, sig]
                  )
-                 (\(JWS bs) -> case BS.split dot bs of
+                 (\(JwsBs bs) -> case BS.split dot bs of
                                  [header, payload, sig]
                                    -> Just (header, payload, sig)
                                  _ -> Nothing
                  )
 
-jwsHeader :: Traversal' JWS Header
+jwsHeader :: Traversal' JwsBs Header
 jwsHeader = jwsParts . _1 . b64U . iso (\bs -> case Aeson.decode' (BSL.fromStrict bs) of
                                           Nothing -> error "could not decode header"
                                           Just r -> r
                                           )
                                 (BSL.toStrict . Aeson.encode)
 
-jwsPayload :: Traversal' JWS ByteString
+jwsPayload :: Traversal' JwsBs ByteString
 jwsPayload = jwsParts . _2 . b64U
 
-jwsSignature :: Traversal' JWS ByteString
+jwsSignature :: Traversal' JwsBs ByteString
 jwsSignature = jwsParts . _3 . b64U
 
 -- Note [Signature-length]

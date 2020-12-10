@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Headers where
+module SignedAuth.Headers where
 
 import           Control.Lens
 import           Data.Aeson            ((.=))
@@ -14,25 +14,29 @@ import           Data.Time.Clock
 import           Data.Time.Clock.POSIX (getPOSIXTime)
 import           Data.Word
 
-import           JWS
-import           Nonce
-import           Sign
+import           SignedAuth.JWS
+import           SignedAuth.Nonce
+import           SignedAuth.Sign
+
+-- JSON-encoded payload signed as JWS
+newtype JWS a = JWS ByteString
 
 encodeHeaders ::
-  Aeson.ToJSON payload => PrivateKey -> NoncePool -> payload -> IO JWS
+  Aeson.ToJSON payload => PrivateKey -> NoncePool -> payload -> IO (JWS payload)
 encodeHeaders key noncePool payload = do
   nonce <- mkNonce noncePool
   now <- getPOSIXTime
-  return $ signed key now nonce (BSL.toStrict $ Aeson.encode payload)
+  let JwsBs bs = signed key now nonce (BSL.toStrict $ Aeson.encode payload)
+  return $ JWS bs
 
 decodeHeaders ::
   Aeson.FromJSON payload =>
      PublicKey
   -> Frame
-  -> JWS
+  -> JWS payload
   -> IO (Either String payload)
-decodeHeaders key nonceFrame sig =
-  case verified key sig of
+decodeHeaders key nonceFrame (JWS sig) =
+  case verified key (JwsBs sig) of
     Nothing -> return $ Left "signature rejected"
     Just (header, encoded) ->
       case Aeson.decode' $ BSL.fromStrict encoded of

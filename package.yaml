@@ -15,6 +15,7 @@ dependencies:
   - text
   - time
   - wai
+  - monad-logger
 
 default-extensions:
   - ApplicativeDo
@@ -56,24 +57,8 @@ default-extensions:
 ghc-options:
     - -Wall
     - -Werror=incomplete-patterns
-
-executables:
-  signed-authorization:
-    dependencies:
-    - signed-authorization
-    ghc-options:
-    - -rtsopts
-    - -threaded
-    - -with-rtsopts=-N
-    - -Wall
-    main: Main.hs
-    source-dirs: app
-    extra-source-files:
-    - CHANGELOG.md
-    - LICENSE.md
-    - README.md
-    - package.yaml
-    - stack.yaml
+    - -Werror=incomplete-uni-patterns
+    - -Werror=incomplete-record-updates
 
 library:
   dependencies:
