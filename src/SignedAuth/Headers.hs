@@ -10,9 +10,12 @@ import           Data.ByteString       (ByteString)
 import qualified Data.ByteString       as BS
 import qualified Data.ByteString.Lazy  as BSL
 import           Data.Functor          ((<&>))
+import qualified Data.Text.Encoding    as Text
 import           Data.Time.Clock
 import           Data.Time.Clock.POSIX (getPOSIXTime)
 import           Data.Word
+import           Servant
+import Data.ByteString.Builder (byteString)
 
 import           SignedAuth.JWS
 import           SignedAuth.Nonce
@@ -20,6 +23,17 @@ import           SignedAuth.Sign
 
 -- JSON-encoded payload signed as JWS
 newtype JWS a = JWS ByteString
+
+instance ToHttpApiData (JWS a) where
+  toUrlPiece (JWS bs) = Text.decodeUtf8 bs
+  toEncodedUrlPiece (JWS bs) = byteString bs
+  toHeader (JWS bs) = bs
+  toQueryParam (JWS bs) = Text.decodeUtf8 bs
+
+instance FromHttpApiData (JWS a) where
+  parseUrlPiece = Right . JWS . Text.encodeUtf8
+  parseHeader = Right . JWS
+  parseQueryParam = Right . JWS . Text.encodeUtf8
 
 encodeHeaders ::
   Aeson.ToJSON payload => PrivateKey -> NoncePool -> payload -> IO (JWS payload)

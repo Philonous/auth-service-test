@@ -1,14 +1,20 @@
 module SignedAuth
-  ( -- | Parsing auth headers
-    AuthJWS
+  ( -- | Keys
+    PrivateKey
+  , PublicKey
+    -- | Parsing auth headers
+  , AuthJWS
   , AuthContext(..)
   , mkAuthContext
   -- | Creating auth headers
+  , NoncePool
   , newNoncePool
   , encodeHeaders
-
-  -- | PEM
+  , JWS
+  -- | Keys
+  , readPublicKeyDer
   , readPublicKeyPem
+  , readPrivateKeyDer
   , readPrivateKeyPem
   , mkKeys
   )
