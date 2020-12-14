@@ -9,6 +9,9 @@ import           Data.Text         (Text)
 import qualified Data.Text         as Text
 import           Servant.API
 
+import           SignedAuth
+
+
 type LoginAPI = "login"
               :> ReqBody '[JSON] Login
               :> Post '[JSON] (Headers '[Header "X-Token" B64Token] ReturnLogin)
@@ -30,10 +33,7 @@ type CheckTokenAPI = "check-token"
                   :> Header "X-Original-URI" Text
                   :> Header "X-Token" B64Token
                   :> Header "X-Instance" InstanceID
-                  :> Get '[JSON] (Headers '[ Header "X-User-ID" UserID
-                                           , Header "X-User-Email" Email
-                                           , Header "X-User-Name" Name
-                                           , Header "X-Roles" Roles
+                  :> Get '[JSON] (Headers '[ Header "Authorization" (JWS AuthHeader)
                                            ] ReturnUser)
 
 type PublicCheckTokenAPI = "check-token"

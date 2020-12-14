@@ -275,7 +275,9 @@ case_password_reset_render_error_email _pool = do
 -- during render
 case_password_reset_render_email_errors :: Case ()
 case_password_reset_render_email_errors _pool = do
-  let Right tmpl = Mustache.compileMustacheText "test" "{{bogus}}"
+  let tmpl = case Mustache.compileMustacheText "test" "{{bogus}}" of
+               Right t -> t
+               Left e -> error $ show e
   runNoLoggingT (renderEmail testEmailConfig tmpl Nothing)
     `shouldThrow` (== EmailRenderError)
 

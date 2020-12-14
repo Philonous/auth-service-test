@@ -21,10 +21,14 @@ import qualified Data.List            as List
 import           Data.Maybe           (fromMaybe, maybeToList)
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
+import qualified Data.Text.Encoding   as Text
+import qualified Data.Text.IO         as Text
 import           Database.Persist.Sql
 import qualified NejlaCommon          as NC
 import           Network.Wai
 import           Servant
+import qualified SignedAuth
+import           System.IO
 import           Types
 
 import           Logging              hiding (token)
@@ -106,11 +110,11 @@ serveChangePassword pool conf tok chpass = chPassHandler >> return NoContent
        Left ChangePasswordUserDoesNotExistError{} -> throwError err403
 
 serveCheckToken :: ConnectionPool -> ApiState -> Server CheckTokenAPI
-serveCheckToken pool conf req (Just tok) (Just inst) = checkTokenHandler
+serveCheckToken pool st req (Just tok) (Just inst) = checkTokenHandler
   where
     checkTokenHandler = do
       res <-
-        liftHandler . runAPI pool conf $ do
+        liftHandler . runAPI pool st $ do
           logDebug $
             "Checking token " <> showText tok <> " for instance " <>
             showText inst
@@ -121,10 +125,21 @@ serveCheckToken pool conf req (Just tok) (Just inst) = checkTokenHandler
       case res of
         Nothing -> throwError err403
         Just (usr, userEmail, userName, roles') -> do
-          return . addHeader usr
-                 . addHeader userEmail
-                 . addHeader userName
-                 . addHeader (Roles roles')
+          let authHeader = AuthHeader
+                           { authHeaderUserID = usr
+                           , authHeaderEmail = userEmail
+                           , authHeaderName = userName
+                           , authHeaderRoles = roles'
+                           }
+
+          signedAuthHeader <- liftIO $ SignedAuth.encodeHeaders
+                                   (st ^. config . headerPrivateKey)
+                                   (st ^. noncePool)
+                                   authHeader
+
+          liftIO $ Text.hPutStrLn stderr $
+            "signedAuth: " <> (Text.decodeUtf8 $ toHeader signedAuthHeader)
+          return . addHeader signedAuthHeader
                  $ ReturnUser { returnUserUser = usr
                               , returnUserRoles = roles'
                               }
@@ -192,7 +207,7 @@ serveGetUsersAPI :: ConnectionPool
                  -> Server GetUsersAPI
 serveGetUsersAPI pool conf tok = do
   _ <- isAdmin desc pool conf tok
-  liftHandler $ runAPI pool conf $ getUsers
+  liftHandler $ runAPI pool conf getUsers
   where
     desc = "get users"
 
@@ -242,10 +257,10 @@ apiPrx = Proxy
 serveRequestPasswordResetAPI ::
      ConnectionPool -> ApiState -> Server RequestPasswordResetAPI
 serveRequestPasswordResetAPI pool conf req = do
-  case (conf ^. config . email) of
+  case conf ^. config . email of
     Nothing -> do
-      liftHandler . runAPI pool conf $ logError $ "Password reset: email not configured"
-      throwError $ err404
+      liftHandler . runAPI pool conf $ logError "Password reset: email not configured"
+      throwError err404
     Just _emailCfg -> do
       res <- Ex.try . liftHandler . runAPI pool conf $
                passwordResetRequest (req ^. email)
@@ -282,8 +297,8 @@ servePasswordResetTokenInfo pool conf (Just token) = do
 
 serveCreateAccountApi :: ConnectionPool -> ApiState -> Server CreateAccountAPI
 serveCreateAccountApi pool conf xinstance createAccount =
-  case (accountCreationConfigEnabled
-          . configAccountCreation $ apiStateConfig  conf) of
+  case accountCreationConfigEnabled
+          . configAccountCreation $ apiStateConfig  conf of
     False -> throwError err403
     True -> liftHandler . runAPI pool conf $ do
       dis <- getConfig (accountCreation . defaultInstances)
@@ -295,17 +310,18 @@ serveCreateAccountApi pool conf xinstance createAccount =
           , addUserPassword = createAccountPassword createAccount
           , addUserName = createAccountName createAccount
           , addUserPhone = createAccountPhone createAccount
-          , addUserInstances = (List.nub $ maybeToList xinstance ++ dis)
+          , addUserInstances = List.nub $ maybeToList xinstance ++ dis
           , addUserRoles = []
           }
       return NoContent
 
 
-serveAPI :: ConnectionPool -> Config -> Application
-serveAPI pool conf =
+serveAPI :: ConnectionPool -> SignedAuth.NoncePool -> Config -> Application
+serveAPI pool noncePool conf =
   Audit.withAuditHttp $ \auditHttp ->
     let ctx = ApiState { apiStateConfig = conf
                        , apiStateAuditSource = auditHttp
+                       , apiStateNoncePool = noncePool
                        }
     in serve apiPrx $ serveStatus
                                :<|> serveLogin pool ctx

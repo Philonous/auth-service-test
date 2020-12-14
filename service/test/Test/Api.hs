@@ -19,8 +19,9 @@ import qualified                Data.Text.Encoding               as Text
 import                          Data.Time.Clock                  (getCurrentTime)
 import                          Data.UUID                        (UUID)
 import qualified                Data.UUID                        as UUID
-import                          Test.Hspec.Core.Spec
+import qualified                SignedAuth
 import                          Test.Hspec
+import                          Test.Hspec.Core.Spec
 import                          Test.Hspec.Wai
 import                          Test.Hspec.Wai.JSON
 
@@ -28,7 +29,7 @@ import                          Network.Wai                      (Application)
 import                          Network.Wai.Test                 (SResponse)
 
 import qualified "auth-service" Api
-import                          Audit (AuditSource(AuditSourceTest))
+import                          Audit                            (AuditSource(AuditSourceTest))
 import                          Backend
 import                          Monad
 import                          Test.Common
@@ -37,19 +38,23 @@ import                          Types
 import                          NejlaCommon.Test                 as NC
 
 iid :: UUID
-Just iid = UUID.fromString "3afe62f4-7235-4b86-a418-923aaa4a5c28"
+iid = case UUID.fromString "3afe62f4-7235-4b86-a418-923aaa4a5c28" of
+        Just uuid -> uuid
+        Nothing -> error "uuid"
 
 runTest :: SpecWith ((), (Config -> Config)-> Application) -> IO ()
 runTest spec = withTestDB $ \pool -> do
   hspec $ flip around spec $ \f -> do
     conf <- mkConfig pool
+    noncePool <- SignedAuth.newNoncePool
     let apiState = ApiState { apiStateConfig = conf
                             , apiStateAuditSource = AuditSourceTest
+                            , apiStateNoncePool = noncePool
                             }
     _ <- runAPI pool apiState $ do
       createUser adminUser
       addInstance (Just $ InstanceID iid) "instance1"
-    f ((), \cc -> Api.serveAPI pool $ cc conf)
+    f ((), \cc -> Api.serveAPI pool noncePool $ cc conf)
   where
     adminUser = AddUser { addUserUuid      = Nothing
                         , addUserEmail     = "admin@example.com"

@@ -36,8 +36,21 @@ auth-web.image: $(auth-web-deps)
 run: service/image auth-web.image
 	docker-compose up
 
+dev/ed25519.priv.der:
+	mkdir -p dev
+	openssl genpkey -algorithm Ed25519 -outform der \
+	  | base64 > dev/ed25519.priv.der
+
+dev/ed25519.priv.env: dev/ed25519.priv.der
+	bash -c 'echo "SIGNED_HEADERS_PRIVATE_KEY=$$(cat dev/ed25519.priv.der)" > dev/ed25519.priv.env'
+
+dev/ed25519.pub.der: dev/ed25519.priv.der
+	base64 -d dev/ed25519.priv.der \
+	  | openssl pkey -inform der -pubout -outform der \
+	  | base64 > dev/ed25519.pub.der
+
 .PHONY: up
-up: service/image auth-web.image
+up: service/image auth-web.image dev/ed25519.priv.env
 	docker-compose up -d
 
 .PHONY: down
@@ -53,3 +66,4 @@ push:
 .PHONY: clean
 clean:
 	$(MAKE) -C service clean
+	rm -r dev

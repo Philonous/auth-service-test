@@ -23,15 +23,17 @@ import qualified Data.Aeson              as Aeson
 import qualified Data.Configurator.Types as Conf
 import           Data.Default            (def)
 import           Data.Maybe              (maybeToList)
-import           Data.Monoid
 import qualified Data.Text               as Text
+import qualified Data.Text.Encoding      as Text
 import qualified Data.Text.Lazy          as LText
 import qualified Data.Text.Lazy.IO       as LText
 import           Data.UUID               (UUID)
 import qualified Data.UUID               as UUID
 import qualified Network.Mail.Mime       as Mail
+import qualified SignedAuth
 import qualified System.Exit             as Exit
-import           System.IO               (stderr, hFlush)
+import           System.Exit             (exitFailure)
+import           System.IO               (hPutStrLn, stderr)
 import qualified Text.Microstache        as Mustache
 import qualified Twilio
 
@@ -106,6 +108,15 @@ getAuthServiceConfig conf = do
     haveEmail <- setEmailConf conf
     let configOtp = fmap Twilio.sendMessage twilioConf
     accountCreationConfig <- getAccountCreationConfig conf
+    signedHeaderKeyTxt <-
+      getConf "SIGNED_HEADERS_PRIVATE_KEY" "signed-headers.private-key"
+        (Left "Bas64-encoded DER ED25510 private key") conf
+    signedHeaderKey <- case SignedAuth.readPrivateKeyDer
+                              $ Text.encodeUtf8 signedHeaderKeyTxt of
+                         Left e -> liftIO $ do
+                           hPutStrLn stderr $ "Could not parse DER-encoded key: " ++ e
+                           exitFailure
+                         Right r -> return r
     return Config{ configTimeout = to
                  , configOTPLength = otpl
                  , configOTPTimeoutSeconds = otpt
@@ -114,6 +125,7 @@ getAuthServiceConfig conf = do
                  , configUseTransactionLevels = True
                  , configEmail = haveEmail
                  , configAccountCreation = accountCreationConfig
+                 , configHeaderPrivateKey = signedHeaderKey
                  }
 
 -- Default template loaded from src/password-reset-email-template.html.mustache

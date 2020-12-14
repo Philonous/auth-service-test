@@ -33,6 +33,8 @@ services:
       - RESET_LINK_EXPIRATION_TIME=24 hours
       - ACCOUNT_CREATION=true
       - DEFAULT_INSTANCE=de305d54-75b4-431b-adb2-eb6b9e546014
+    env_file:
+      ./dev/ed25519.priv.env
 
     # logging:
     #   driver: gelf

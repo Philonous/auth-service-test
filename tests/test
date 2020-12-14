@@ -500,11 +500,17 @@ docker_test() {
     testing "Checking Roles"
     docker_setup &> /dev/null
     login
-    RES=$($CURL -H "X-Instance: $INSTANCE" \
-                -H "X-Token: $TOKEN" \
-                http://$API/roles \
-       )
-    [[ "$RES"  == "Roles:testrole,user" ]] || fail "Roles were not set"
+    echo "token=\"$token\""
+    # RES=$($CURL -H "X-Instance: $INSTANCE" \
+    #             -H "X-Token: $TOKEN" \
+    #             http://$API/auth \
+    #    )
+    curl -v  -H "X-Instance: $INSTANCE" \
+             -H "X-Token: $TOKEN" \
+                http://$API/auth \
+
+    exit 0
+    # [[ "$RES"  == "Roles:testrole,user" ]] || fail "Roles were not set: $RES"
 
     testing "Account Creation"
     http "http://$API/create-account" \

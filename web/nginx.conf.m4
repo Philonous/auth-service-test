@@ -55,17 +55,10 @@ http {
         resolver 127.0.0.11;
         location / {
             auth_request /auth;
-            auth_request_set $user $upstream_http_x_user_id;
-            auth_request_set $useremail $upstream_http_x_user_email;
-            auth_request_set $username $upstream_http_x_user_name;
-            auth_request_set $roles $upstream_http_x_roles;
-            # The variable $user now contains the user ID when the check was
-            # successful.
+            auth_request_set $auth $upstream_http_authorization;
+            # The variable $auth now contains the the signed authentication info
             proxy_pass http://$http_x_instance;
-            proxy_set_header X-User-ID $user;
-            proxy_set_header X-User-Email $useremail;
-            proxy_set_header X-User-Name $username;
-            proxy_set_header X-Roles $roles;
+            proxy_set_header AUTHORIZATION $auth;
             proxy_set_header X-Original-URI $request_uri;
 
             # [1] Set the "Upgrade" and "Connection" headers when we receive
