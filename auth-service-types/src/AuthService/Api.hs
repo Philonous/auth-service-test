@@ -33,7 +33,7 @@ type CheckTokenAPI = "check-token"
                   :> Header "X-Original-URI" Text
                   :> Header "X-Token" B64Token
                   :> Header "X-Instance" InstanceID
-                  :> Get '[JSON] (Headers '[ Header "Authorization" (JWS AuthHeader)
+                  :> Get '[JSON] (Headers '[ Header "X-Auth" (JWS AuthHeader)
                                            ] ReturnUser)
 
 type PublicCheckTokenAPI = "check-token"

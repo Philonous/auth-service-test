@@ -251,6 +251,21 @@ check_connection() {
     [[ $res = 200 ]]
 }
 
+function decode_b64 {
+  read -r input
+  _l=$((${#input} % 4))
+  if [ $_l -eq 2 ]; then _s="$input"'=='
+  elif [ $_l -eq 3 ]; then _s="$input"'='
+  else _s="$input" ;
+  fi
+  echo "$_s" | tr '_-' '/+' | openssl enc -d -a -A
+}
+
+# Parse JWS (ignore signature and header)
+parse_jws () {
+  cut -d '.' -f 2 | decode_b64
+}
+
 docker_test() {
 
     if ! check_connection; then
@@ -500,17 +515,13 @@ docker_test() {
     testing "Checking Roles"
     docker_setup &> /dev/null
     login
-    echo "token=\"$token\""
-    # RES=$($CURL -H "X-Instance: $INSTANCE" \
-    #             -H "X-Token: $TOKEN" \
-    #             http://$API/auth \
-    #    )
-    curl -v  -H "X-Instance: $INSTANCE" \
-             -H "X-Token: $TOKEN" \
-                http://$API/auth \
-
-    exit 0
-    # [[ "$RES"  == "Roles:testrole,user" ]] || fail "Roles were not set: $RES"
+    RES=$($CURL -H "X-Instance: $INSTANCE" \
+                -H "X-Token: $TOKEN" \
+                http://$API/auth-header \
+            | parse_jws \
+            | jq -r '.roles | sort | join(",")'
+       )
+    [[ "$RES"  == "testrole,user" ]] || fail "Roles were not set: $RES"
 
     testing "Account Creation"
     http "http://$API/create-account" \

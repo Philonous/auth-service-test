@@ -1,4 +1,9 @@
-resolver: lts-16.10
+resolver: lts-16.24
+
+extra-deps:
+  - git: git@git.nejla.com:nejla-ab/signed-auth.git
+    commit: 7bbde4facbd3977948f09d0c000b8255db66ac24
+  - base64-bytestring-1.2.0.1
 
 packages:
   - .
