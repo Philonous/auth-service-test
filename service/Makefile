@@ -6,20 +6,21 @@ ifeq (${TERM},dumb)
 export stack_build_args := ${stack_build_args} --colour=never
 endif
 
-build-env-file=../build.env
+build-env-file:=../build.env
 ifdef env-file
-build-env-file=$(env-file)
+build-env-file:=$(env-file)
 endif
 include $(build-env-file)
 
 
-SERVICE_IMAGE=$(REGISTRY)/$(APP_IMAGE_NAME)
-TEST_IMAGE = $(REGISTRY)/$(APP_TEST_BASEIMAGE_NAME)
+SERVICE_IMAGE:=$(REGISTRY)/$(APP_IMAGE_NAME)
+TEST_IMAGE := $(REGISTRY)/$(APP_TEST_BASEIMAGE_NAME)
 
-tests = dist/tests/api-tests dist/tests/unit-tests
+tests := dist/tests/api-tests dist/tests/unit-tests
 
-srcfiles=$(shell find src -type f)
-test-srcfiles=$(shell find test -type f)
+auth-service-types:=$(shell find ../auth-service-types -type f)
+srcfiles:=$(shell find src -type f)
+test-srcfiles:=$(shell find test -type f)
 
 
 .PHONY: all
@@ -50,7 +51,7 @@ push-baseimage:
 	docker push $(TEST_IMAGE):$(TAG)
 
 
-dist/auth-service: $(srcfiles) $(test-srcfiles) package.yaml stack.yaml
+dist/auth-service: $(auth-service-types) $(srcfiles) $(test-srcfiles) package.yaml stack.yaml
 	rm -f *.cabal
 	rm -f stack.yaml.lock
 	mkdir -p ./dist
