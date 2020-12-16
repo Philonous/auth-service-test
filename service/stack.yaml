@@ -3,7 +3,7 @@ resolver: lts-16.24
 extra-deps:
   - git: git@git.nejla.com:nejla-ab/common.git
     commit: a5fbeb7f3aa4de723dc7cd5f2482178f1dba992c
-  - '../auth-service-types'
+  - '../auth-service-core'
   - git: git@git.nejla.com:nejla-ab/signed-auth.git
     commit: 7bbde4facbd3977948f09d0c000b8255db66ac24
   - base64-bytestring-1.2.0.1

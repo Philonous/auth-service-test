@@ -18,7 +18,7 @@ TEST_IMAGE := $(REGISTRY)/$(APP_TEST_BASEIMAGE_NAME)
 
 tests := dist/tests/api-tests dist/tests/unit-tests
 
-auth-service-types:=$(shell find ../auth-service-types -type f)
+auth-service-core:=$(shell find ../auth-service-core -type f)
 srcfiles:=$(shell find src -type f)
 test-srcfiles:=$(shell find test -type f)
 
@@ -51,7 +51,7 @@ push-baseimage:
 	docker push $(TEST_IMAGE):$(TAG)
 
 
-dist/auth-service: $(auth-service-types) $(srcfiles) $(test-srcfiles) package.yaml stack.yaml
+dist/auth-service: $(auth-service-core) $(srcfiles) $(test-srcfiles) package.yaml stack.yaml
 	rm -f *.cabal
 	rm -f stack.yaml.lock
 	mkdir -p ./dist
