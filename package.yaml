@@ -11,11 +11,8 @@ dependencies:
   - lens
   - lens-aeson
   - mtl
-  - servant-server
   - text
   - time
-  - wai
-  - monad-logger
 
 default-extensions:
   - ApplicativeDo
