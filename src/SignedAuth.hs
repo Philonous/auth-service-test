@@ -2,10 +2,6 @@ module SignedAuth
   ( -- | Keys
     PrivateKey
   , PublicKey
-    -- | Parsing auth headers
-  , AuthJWS
-  , AuthContext(..)
-  , mkAuthContext
   -- | Creating auth headers
   , NoncePool
   , newNoncePool
@@ -21,6 +17,5 @@ module SignedAuth
 where
 
 import SignedAuth.Headers
-import SignedAuth.ServantAuth
 import SignedAuth.Sign
 import SignedAuth.Nonce
