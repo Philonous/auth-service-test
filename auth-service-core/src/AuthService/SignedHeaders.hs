@@ -28,6 +28,7 @@ import qualified SignedAuth.Sign         as Sign
 
 import AuthService.Types
 import qualified Data.Swagger.ParamSchema as Swagger
+import qualified Servant.Swagger as Swagger
 
 data AuthContext = AuthContext { authContextPubKey ::  Sign.PublicKey
                                , authContextNonceFrame :: Nonce.Frame
@@ -48,10 +49,17 @@ mkAuthContext pubKey = do
     , authContextLogger = logfun defaultLoc "signed-auth" LevelInfo . toLogStr
     }
 
-newtype AuthJWS a = AuthJWS a
+data AuthRequired = AuthRequired | AuthOptional
 
-instance Swagger.ToParamSchema (AuthJWS a) where
+newtype AuthJWS (required :: AuthRequired) a = AuthJWS  a
+
+makePrisms ''AuthJWS
+
+instance Swagger.ToParamSchema (AuthJWS required a) where
   toParamSchema _ = Swagger.toParamSchema (Proxy :: Proxy String)
+
+instance Swagger.HasSwagger rest => Swagger.HasSwagger (AuthJWS required a :> rest) where
+  toSwagger _ = Swagger.toSwagger (Proxy :: Proxy (Header "X-Auth" String :> rest))
 
 runAuth ::
   Aeson.FromJSON a =>
@@ -59,17 +67,29 @@ runAuth ::
   -> Request
   -> DelayedIO a
 runAuth ctx req = do
-  case List.lookup "Authorization" $ requestHeaders req of
+  runAuthMaybe ctx req >>= \case
     Nothing -> do
       liftIO $ logError "Authorization header missing"
       delayedFailFatal err403
+    Just x -> return x
+  where
+    logError e = ctx ^. logger $ "Authorization error: "  ++ e
+
+runAuthMaybe ::
+  Aeson.FromJSON a =>
+     AuthContext
+  -> Request
+  -> DelayedIO (Maybe a)
+runAuthMaybe ctx req = do
+  case List.lookup "X-Auth" $ requestHeaders req of
+    Nothing -> return Nothing
     Just authH -> liftIO (Headers.decodeHeaders (ctx ^. pubKey) (ctx ^. nonceFrame)
                            (Headers.JWS authH))
       >>= \case
         Left e -> do
           liftIO . logError $ "Error handling Authorization header: " ++ e
           delayedFailFatal err403
-        Right r -> return r
+        Right r -> return $ Just r
   where
     logError e = ctx ^. logger $ "Authorization error: "  ++ e
 
@@ -78,14 +98,31 @@ instance ( HasServer api context
          , HasContextEntry context AuthContext
          , Aeson.FromJSON a
          )
-    => HasServer (AuthJWS a :> api) context where
+    => HasServer (AuthJWS 'AuthRequired a :> api) context where
 
-  type ServerT (AuthJWS a :> api) m = a -> ServerT api m
+  type ServerT (AuthJWS 'AuthRequired a :> api) m = a -> ServerT api m
 
   route Proxy context subserver =
     route (Proxy :: Proxy api) context (subserver `addAuthCheck` authCheck)
     where
        authContext = getContextEntry context
        authCheck = withRequest $ runAuth authContext
+
+  hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
+
+-- | Basic Authentication
+instance ( HasServer api context
+         , HasContextEntry context AuthContext
+         , Aeson.FromJSON a
+         )
+    => HasServer (AuthJWS 'AuthOptional a :> api) context where
+
+  type ServerT (AuthJWS 'AuthOptional a :> api) m = Maybe a -> ServerT api m
+
+  route Proxy context subserver =
+    route (Proxy :: Proxy api) context (subserver `addAuthCheck` authCheck)
+    where
+       authContext = getContextEntry context
+       authCheck = withRequest $ runAuthMaybe authContext
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
