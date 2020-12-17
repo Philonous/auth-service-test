@@ -33,6 +33,7 @@ library
                      , servant
                      , servant-server
                      , signed-authorization
+                     , swagger2
                      , text >=1.2
                      , time
                      , uuid

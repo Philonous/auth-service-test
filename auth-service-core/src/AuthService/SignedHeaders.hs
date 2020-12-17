@@ -27,6 +27,7 @@ import qualified SignedAuth.Nonce        as Nonce
 import qualified SignedAuth.Sign         as Sign
 
 import AuthService.Types
+import qualified Data.Swagger.ParamSchema as Swagger
 
 data AuthContext = AuthContext { authContextPubKey ::  Sign.PublicKey
                                , authContextNonceFrame :: Nonce.Frame
@@ -48,6 +49,9 @@ mkAuthContext pubKey = do
     }
 
 newtype AuthJWS a = AuthJWS a
+
+instance Swagger.ToParamSchema (AuthJWS a) where
+  toParamSchema _ = Swagger.toParamSchema (Proxy :: Proxy String)
 
 runAuth ::
   Aeson.FromJSON a =>
