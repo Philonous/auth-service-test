@@ -61,6 +61,8 @@ instance Swagger.ToParamSchema (AuthJWS required a) where
 instance Swagger.HasSwagger rest => Swagger.HasSwagger (AuthJWS required a :> rest) where
   toSwagger _ = Swagger.toSwagger (Proxy :: Proxy (Header "X-Auth" String :> rest))
 
+type instance IsElem' e (AuthJWS required a :> s) = IsElem e s
+
 runAuth ::
   Aeson.FromJSON a =>
      AuthContext
