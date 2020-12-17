@@ -17,7 +17,6 @@ library
       SignedAuth.Headers
       SignedAuth.JWS
       SignedAuth.Nonce
-      SignedAuth.ReadSecret
       SignedAuth.Sign
       SignedAuth.Util
   other-modules:
