@@ -9,7 +9,15 @@
 
 -- Handling of signed headers in upstream application
 
-module AuthService.SignedHeaders where
+module AuthService.SignedHeaders
+  ( module AuthService.SignedHeaders
+  , Sign.PublicKey
+  , Sign.readPublicKeyDer
+  , Sign.readPublicKeyPem
+  , Nonce.Frame
+  , Nonce.newFrame
+  ) where
+
 
 import           Control.Lens
 import           Control.Monad.Logger
@@ -37,17 +45,26 @@ data AuthContext = AuthContext { authContextPubKey ::  Sign.PublicKey
 
 makeLensesWith camelCaseFields ''AuthContext
 
+-- | Create an auth context
+authContext ::
+  Sign.PublicKey ->
+  Nonce.Frame ->
+  (Loc -> LogSource -> LogLevel -> LogStr -> IO ()) ->
+  AuthContext
+authContext pubKey frame logfun =
+  AuthContext
+    { authContextPubKey = pubKey
+    , authContextNonceFrame = frame
+    , authContextLogger = logfun defaultLoc "signed-auth" LevelInfo . toLogStr
+    }
+
 -- | Create a new nonce frame, get the ambient logging function and create an
 -- auth context
 mkAuthContext :: MonadLoggerIO m => Sign.PublicKey -> m AuthContext
 mkAuthContext pubKey = do
   frame <- liftIO Nonce.newFrame
   logfun <- askLoggerIO
-  return AuthContext
-    { authContextPubKey = pubKey
-    , authContextNonceFrame = frame
-    , authContextLogger = logfun defaultLoc "signed-auth" LevelInfo . toLogStr
-    }
+  return $ authContext pubKey frame logfun
 
 data AuthRequired = AuthRequired | AuthOptional
 
