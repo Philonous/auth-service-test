@@ -248,27 +248,26 @@ adminApiSpec = do
                 `shouldReturnA` (Proxy @[Types.ReturnUserInfo])
         -- "admin@example.com" is always added since we need admin privileges to
         -- run admin endpoints
-        res ^.. each . email `NC.shouldBe` ([ "admin@example.com"
-                                            , "peter@example.com"
-                                            , "robert@example.com"])
+        res ^.. each . email `NC.shouldBe` [ "admin@example.com"
+                                           , "peter@example.com"
+                                           , "robert@example.com"]
 
   describe "/admin/users/<uid>/deactivate" $ do
     describe "now" $ do
       it "prevents a user from logging in"
-       $ withDefaultConfig $ withAdminToken $ \admin-> do
+       $ withDefaultConfig $ withAdminToken $ \admin -> do
         uid <- addUser admin "robert" []
         postToken admin [i|/login|] [json|{ "user": "robert@example.com"
-                                , "password": "pwd"
-                                }|] `shouldRespondWith` 200
-
+                                          , "password": "pwd"
+                                          }|] `shouldRespondWith` 200
 
         postToken admin [i|/admin/users/#{uid}/deactivate|]
                         [json|{"deactivate_at": "now"}|]
               `shouldRespondWith` 204
 
         postToken admin [i|/login|] [json|{ "user": "robert@example.com"
-                                , "password": "pwd"
-                                }|] `shouldRespondWith` 403
+                                          , "password": "pwd"
+                                          }|] `shouldRespondWith` 403
       it "disables existing tokens"
        $ withDefaultConfig $ withAdminToken $ \admin-> do
         uid <- addUser admin "robert" []
