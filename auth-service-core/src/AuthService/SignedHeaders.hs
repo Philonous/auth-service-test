@@ -16,6 +16,12 @@ module AuthService.SignedHeaders
   , Sign.readPublicKeyPem
   , Nonce.Frame
   , Nonce.newFrame
+   -- Encoding headers
+  , Sign.PrivateKey
+  , Sign.mkKeys
+  , Sign.readPrivateKeyDer
+  , Sign.readPrivateKeyPem
+  , Headers.encodeHeaders
   ) where
 
 
