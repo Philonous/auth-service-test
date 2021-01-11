@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -28,21 +29,26 @@ module AuthService.SignedHeaders
 import           Control.Lens
 import           Control.Monad.Logger
 import           Control.Monad.Trans
-import qualified Data.Aeson              as Aeson
-import qualified Data.List               as List
-import           GHC.TypeLits            (KnownSymbol)
-import           Network.Wai             (requestHeaders, Request)
+import qualified Data.Aeson               as Aeson
+import           Data.ByteString          (ByteString)
+import qualified Data.ByteString          as BS
+import qualified Data.List                as List
+import           Data.Text                (Text)
+import qualified Data.Text                as Text
+import           GHC.TypeLits             (KnownSymbol)
+import qualified Network.HTTP.Types       as HTTP
+import           Network.Wai              (requestHeaders, Request)
 import           Servant
 import           Servant.Server
-import           Servant.Server.Internal (delayedFailFatal, DelayedIO, withRequest, addAuthCheck)
+import           Servant.Server.Internal  (delayedFailFatal, DelayedIO, withRequest, addAuthCheck)
 
-import qualified SignedAuth.Headers      as Headers
-import qualified SignedAuth.Nonce        as Nonce
-import qualified SignedAuth.Sign         as Sign
+import qualified SignedAuth.Headers       as Headers
+import qualified SignedAuth.Nonce         as Nonce
+import qualified SignedAuth.Sign          as Sign
 
-import AuthService.Types
+import           AuthService.Types
 import qualified Data.Swagger.ParamSchema as Swagger
-import qualified Servant.Swagger as Swagger
+import qualified Servant.Swagger          as Swagger
 
 data AuthContext = AuthContext { authContextPubKey ::  Sign.PublicKey
                                , authContextNonceFrame :: Nonce.Frame
@@ -151,3 +157,13 @@ instance ( HasServer api context
        authCheck = withRequest $ runAuthMaybe authContext
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
+
+-- | Create an auth header (for debugging / testing)
+mkAuthHeader ::
+     Nonce.NoncePool
+  -> Sign.PrivateKey
+  -> AuthHeader
+  -> IO HTTP.Header
+mkAuthHeader noncePool privKey authHeader = do
+  Headers.JWS jws <-  Headers.encodeHeaders privKey noncePool authHeader
+  return ("X-Auth", jws)

@@ -26,6 +26,7 @@ library
                      , bytestring >=0.10
                      , bytestring-conversion
                      , http-api-data
+                     , http-types
                      , lens
                      , monad-logger
                      , mtl
