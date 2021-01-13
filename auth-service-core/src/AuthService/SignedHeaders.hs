@@ -38,6 +38,7 @@ import qualified Data.Text                as Text
 import           GHC.TypeLits             (KnownSymbol)
 import qualified Network.HTTP.Types       as HTTP
 import           Network.Wai              (requestHeaders, Request)
+import qualified Network.Wai              as Wai
 import           Servant
 import           Servant.Server
 import           Servant.Server.Internal  (delayedFailFatal, DelayedIO, withRequest, addAuthCheck)
@@ -50,10 +51,18 @@ import           AuthService.Types
 import qualified Data.Swagger.ParamSchema as Swagger
 import qualified Servant.Swagger          as Swagger
 
-data AuthContext = AuthContext { authContextPubKey ::  Sign.PublicKey
-                               , authContextNonceFrame :: Nonce.Frame
-                               , authContextLogger :: String -> IO ()
-                               }
+import qualified Data.Vault.Lazy          as Vault
+import System.IO.Unsafe (unsafePerformIO)
+
+-- | The context needed to create
+data AuthContext =
+  AuthContext
+  { authContextPubKey ::  Sign.PublicKey
+  , authContextNonceFrame :: Nonce.Frame
+  , authContextLogger :: String -> IO ()
+  -- ^ Key at which we store the resolved
+  -- authentiation information in the WAI request
+  }
 
 makeLensesWith camelCaseFields ''AuthContext
 
@@ -78,6 +87,53 @@ mkAuthContext pubKey = do
   logfun <- askLoggerIO
   return $ authContext pubKey frame logfun
 
+--------------------------------------------------------------------------------
+-- Request handling ------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Factored out because both resolveAuthHeader and runAuthMaybe need it
+handleRequest ctx req =
+    case List.lookup "X-Auth" (requestHeaders req) of
+      Nothing -> return Nothing
+      Just authH -> do
+        res <- liftIO (Headers.decodeHeaders (ctx ^. pubKey) (ctx ^. nonceFrame)
+                 (Headers.JWS authH))
+        case res of
+          Left e -> do
+            liftIO . logError $ "Error handling Authorization header: " ++ e
+            return (Just $ Left e)
+          Right r -> return $ Just (Right r)
+  where
+    logError e = ctx ^. logger $ "Authorization error: "  ++ e
+
+--------------------------------------------------------------------------------
+-- Middleware ------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+-- | Globaly unique value to identify resolved key in
+authContextRequestKey :: Vault.Key (Maybe AuthHeader)
+authContextRequestKey = unsafePerformIO Vault.newKey
+{-# NOINLINE authContextRequestKey #-}
+
+-- | Parse and verify authentication headers, pass the resolved value downstream
+-- in the request "vault"
+resolveAuthHeader :: AuthContext -> Wai.Middleware
+resolveAuthHeader ctx downstream req respond = do
+  handleRequest ctx req >>= \case
+    Nothing -> next Nothing
+    Just (Left e) -> err403
+    Just (Right r) -> next $ Just r
+  where
+    next hdr =
+      downstream req{ Wai.vault = Vault.insert authContextRequestKey hdr
+                                               (Wai.vault req)
+                    }
+                 respond
+    err403 = respond $ Wai.responseLBS HTTP.status403 [] "Authentication denied"
+
+--------------------------------------------------------------------------------
+-- Servant ---------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
 data AuthRequired = AuthRequired | AuthOptional
 
 newtype AuthJWS (required :: AuthRequired) a = AuthJWS  a
@@ -93,10 +149,9 @@ instance Swagger.HasSwagger rest => Swagger.HasSwagger (AuthJWS required a :> re
 type instance IsElem' e (AuthJWS required a :> s) = IsElem e s
 
 runAuth ::
-  Aeson.FromJSON a =>
      AuthContext
   -> Request
-  -> DelayedIO a
+  -> DelayedIO AuthHeader
 runAuth ctx req = do
   runAuthMaybe ctx req >>= \case
     Nothing -> do
@@ -107,31 +162,27 @@ runAuth ctx req = do
     logError e = ctx ^. logger $ "Authorization error: "  ++ e
 
 runAuthMaybe ::
-  Aeson.FromJSON a =>
      AuthContext
   -> Request
-  -> DelayedIO (Maybe a)
+  -> DelayedIO (Maybe AuthHeader)
 runAuthMaybe ctx req = do
-  case List.lookup "X-Auth" $ requestHeaders req of
-    Nothing -> return Nothing
-    Just authH -> liftIO (Headers.decodeHeaders (ctx ^. pubKey) (ctx ^. nonceFrame)
-                           (Headers.JWS authH))
-      >>= \case
-        Left e -> do
-          liftIO . logError $ "Error handling Authorization header: " ++ e
-          delayedFailFatal err403
-        Right r -> return $ Just r
-  where
-    logError e = ctx ^. logger $ "Authorization error: "  ++ e
+  case Vault.lookup authContextRequestKey $ Wai.vault req of
+    -- The auth-header hasn't been resolved yet (middleware is not installed)
+    -- We just handle it here instead
+    Nothing -> handleRequest ctx req >>= \case
+      Nothing -> return Nothing
+      Just (Left e) -> delayedFailFatal err403
+      Just (Right r) -> return $ Just r
+    Just r -> return r
 
 -- | Basic Authentication
 instance ( HasServer api context
          , HasContextEntry context AuthContext
-         , Aeson.FromJSON a
          )
-    => HasServer (AuthJWS 'AuthRequired a :> api) context where
+    => HasServer (AuthJWS 'AuthRequired AuthHeader :> api) context where
 
-  type ServerT (AuthJWS 'AuthRequired a :> api) m = a -> ServerT api m
+  type ServerT (AuthJWS 'AuthRequired AuthHeader :> api) m
+    = AuthHeader -> ServerT api m
 
   route Proxy context subserver =
     route (Proxy :: Proxy api) context (subserver `addAuthCheck` authCheck)
@@ -144,11 +195,11 @@ instance ( HasServer api context
 -- | Basic Authentication
 instance ( HasServer api context
          , HasContextEntry context AuthContext
-         , Aeson.FromJSON a
          )
-    => HasServer (AuthJWS 'AuthOptional a :> api) context where
+    => HasServer (AuthJWS 'AuthOptional AuthHeader :> api) context where
 
-  type ServerT (AuthJWS 'AuthOptional a :> api) m = Maybe a -> ServerT api m
+  type ServerT (AuthJWS 'AuthOptional AuthHeader :> api) m
+    = Maybe AuthHeader -> ServerT api m
 
   route Proxy context subserver =
     route (Proxy :: Proxy api) context (subserver `addAuthCheck` authCheck)
