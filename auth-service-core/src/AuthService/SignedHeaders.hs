@@ -168,15 +168,14 @@ Aeson.deriveJSON Aeson.defaultOptions
 -- [@id@]: Unique user ID of the user
 logRequestBasic ::
      AuthContext
-  -> (Maybe AuthHeader -> Application)
-  ->  Maybe AuthHeader -> Application
+  -> Application
+  -> Maybe AuthHeader -> Application
 logRequestBasic ctx next mbAuthHeader req respond = do
   begin <- getCurrentTime
   rStatus <- newIORef Nothing
   handled <- Ex.try
-             $ next mbAuthHeader
-               req (\res -> writeIORef rStatus (Just $ Wai.responseStatus res)
-                            >> respond res)
+             $ next req (\res -> writeIORef rStatus (Just $ Wai.responseStatus res)
+                                 >> respond res)
   end <- getCurrentTime
   let runTime = round $ (end `diffUTCTime` begin)  * 1000
       -- NominalDiffTime is treated like seconds by conversion functions
