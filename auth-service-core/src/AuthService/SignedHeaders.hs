@@ -12,6 +12,7 @@
 
 module AuthService.SignedHeaders
   ( module AuthService.SignedHeaders
+  , AuthHeader(..)
   , Sign.PublicKey
   , Sign.readPublicKeyDer
   , Sign.readPublicKeyPem
