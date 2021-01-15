@@ -168,9 +168,9 @@ Aeson.deriveJSON Aeson.defaultOptions
 -- [@id@]: Unique user ID of the user
 logRequestBasic ::
      AuthContext
-  -> Application
-  -> Maybe AuthHeader -> Application
-logRequestBasic ctx next mbAuthHeader req respond = do
+  -> Maybe AuthHeader
+  -> Wai.Middleware
+logRequestBasic ctx mbAuthHeader next  req respond = do
   begin <- getCurrentTime
   rStatus <- newIORef Nothing
   handled <- Ex.try
