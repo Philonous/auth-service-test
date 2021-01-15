@@ -51,7 +51,6 @@ import           AuthService.Types
 import qualified Data.Swagger.ParamSchema as Swagger
 import qualified Servant.Swagger          as Swagger
 
-import qualified Data.Vault.Lazy          as Vault
 import System.IO.Unsafe (unsafePerformIO)
 
 -- | The context needed to create
@@ -60,8 +59,6 @@ data AuthContext =
   { authContextPubKey ::  Sign.PublicKey
   , authContextNonceFrame :: Nonce.Frame
   , authContextLogger :: String -> IO ()
-  -- ^ Key at which we store the resolved
-  -- authentiation information in the WAI request
   }
 
 makeLensesWith camelCaseFields ''AuthContext
@@ -108,15 +105,15 @@ handleRequest ctx req =
 --------------------------------------------------------------------------------
 -- Middleware ------------------------------------------------------------------
 --------------------------------------------------------------------------------
+-- Middleware = Application -> Application
+-- Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
+-- Middleware = (Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived)
+--            -> Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
 
--- | Globaly unique value to identify resolved key in
-authContextRequestKey :: Vault.Key (Maybe AuthHeader)
-authContextRequestKey = unsafePerformIO Vault.newKey
-{-# NOINLINE authContextRequestKey #-}
+type MiddlewareWith a = (a -> Application) -> Application
 
 -- | Parse and verify authentication headers, pass the resolved value downstream
--- in the request "vault"
-resolveAuthHeader :: AuthContext -> Wai.Middleware
+resolveAuthHeader :: AuthContext -> MiddlewareWith (Maybe AuthHeader)
 resolveAuthHeader ctx downstream req respond = do
   handleRequest ctx req >>= \case
     Nothing -> next Nothing
@@ -124,10 +121,7 @@ resolveAuthHeader ctx downstream req respond = do
     Just (Right r) -> next $ Just r
   where
     next hdr =
-      downstream req{ Wai.vault = Vault.insert authContextRequestKey hdr
-                                               (Wai.vault req)
-                    }
-                 respond
+      downstream hdr req respond
     err403 = respond $ Wai.responseLBS HTTP.status403 [] "Authentication denied"
 
 --------------------------------------------------------------------------------
@@ -150,33 +144,18 @@ type instance IsElem' e (AuthJWS required a :> s) = IsElem e s
 
 runAuth ::
      AuthContext
+  -> Maybe AuthHeader
   -> Request
   -> DelayedIO AuthHeader
-runAuth ctx req = do
-  runAuthMaybe ctx req >>= \case
-    Nothing -> do
-      liftIO $ logError "Authorization header missing"
-      delayedFailFatal err403
-    Just x -> return x
-  where
-    logError e = ctx ^. logger $ "Authorization error: "  ++ e
-
-runAuthMaybe ::
-     AuthContext
-  -> Request
-  -> DelayedIO (Maybe AuthHeader)
-runAuthMaybe ctx req = do
-  case Vault.lookup authContextRequestKey $ Wai.vault req of
-    -- The auth-header hasn't been resolved yet (middleware is not installed)
-    -- We just handle it here instead
-    Nothing -> handleRequest ctx req >>= \case
-      Nothing -> return Nothing
-      Just (Left e) -> delayedFailFatal err403
-      Just (Right r) -> return $ Just r
-    Just r -> return r
+runAuth ctx Nothing req = do
+  liftIO $ ctx ^. logger $ "Authorization error: Authorization header missing"
+  delayedFailFatal err403
+runAuth _ctx (Just authHeader) _ = do
+  return authHeader
 
 -- | Basic Authentication
 instance ( HasServer api context
+         , HasContextEntry context (Maybe AuthHeader)
          , HasContextEntry context AuthContext
          )
     => HasServer (AuthJWS 'AuthRequired AuthHeader :> api) context where
@@ -187,14 +166,15 @@ instance ( HasServer api context
   route Proxy context subserver =
     route (Proxy :: Proxy api) context (subserver `addAuthCheck` authCheck)
     where
-       authContext = getContextEntry context
-       authCheck = withRequest $ runAuth authContext
+       authContext = getContextEntry context :: AuthContext
+       authHeader = getContextEntry context :: (Maybe AuthHeader)
+       authCheck = withRequest $ runAuth authContext authHeader
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
 -- | Basic Authentication
 instance ( HasServer api context
-         , HasContextEntry context AuthContext
+         , HasContextEntry context (Maybe AuthHeader)
          )
     => HasServer (AuthJWS 'AuthOptional AuthHeader :> api) context where
 
@@ -204,8 +184,8 @@ instance ( HasServer api context
   route Proxy context subserver =
     route (Proxy :: Proxy api) context (subserver `addAuthCheck` authCheck)
     where
-       authContext = getContextEntry context
-       authCheck = withRequest $ runAuthMaybe authContext
+       authHeader = getContextEntry context :: Maybe AuthHeader
+       authCheck = withRequest $ \_request -> return authHeader
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
@@ -218,3 +198,7 @@ mkAuthHeader ::
 mkAuthHeader noncePool privKey authHeader = do
   Headers.JWS jws <-  Headers.encodeHeaders privKey noncePool authHeader
   return ("X-Auth", jws)
+
+--------------------------------------------------------------------------------
+-- Log Auth Information --------------------------------------------------------
+--------------------------------------------------------------------------------
