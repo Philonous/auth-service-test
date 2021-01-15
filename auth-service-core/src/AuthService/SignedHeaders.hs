@@ -7,6 +7,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StrictData #-}
 
 -- Handling of signed headers in upstream application
 
@@ -28,14 +29,22 @@ module AuthService.SignedHeaders
 
 
 import           Control.Lens
+import qualified Control.Monad.Catch      as Ex
 import           Control.Monad.Logger
 import           Control.Monad.Trans
 import qualified Data.Aeson               as Aeson
+import qualified Data.Aeson.TH            as Aeson
 import           Data.ByteString          (ByteString)
 import qualified Data.ByteString          as BS
+import           Data.IORef
 import qualified Data.List                as List
 import           Data.Text                (Text)
 import qualified Data.Text                as Text
+import qualified Data.Text.Encoding       as Text
+import qualified Data.Text.Encoding.Error as Text
+import           Data.Time.Clock
+import           Data.UUID                (UUID)
+import qualified Data.UUID                as UUID
 import           GHC.TypeLits             (KnownSymbol)
 import qualified Network.HTTP.Types       as HTTP
 import           Network.Wai              (requestHeaders, Request)
@@ -52,30 +61,19 @@ import           AuthService.Types
 import qualified Data.Swagger.ParamSchema as Swagger
 import qualified Servant.Swagger          as Swagger
 
-import System.IO.Unsafe (unsafePerformIO)
+import           System.IO.Unsafe         (unsafePerformIO)
+
+import           Helpers
 
 -- | The context needed to create
 data AuthContext =
   AuthContext
   { authContextPubKey ::  Sign.PublicKey
   , authContextNonceFrame :: Nonce.Frame
-  , authContextLogger :: String -> IO ()
+  , authContextLogger :: (Loc -> LogSource -> LogLevel -> LogStr -> IO ())
   }
 
 makeLensesWith camelCaseFields ''AuthContext
-
--- | Create an auth context
-authContext ::
-  Sign.PublicKey ->
-  Nonce.Frame ->
-  (Loc -> LogSource -> LogLevel -> LogStr -> IO ()) ->
-  AuthContext
-authContext pubKey frame logfun =
-  AuthContext
-    { authContextPubKey = pubKey
-    , authContextNonceFrame = frame
-    , authContextLogger = logfun defaultLoc "signed-auth" LevelInfo . toLogStr
-    }
 
 -- | Create a new nonce frame, get the ambient logging function and create an
 -- auth context
@@ -83,7 +81,7 @@ mkAuthContext :: MonadLoggerIO m => Sign.PublicKey -> m AuthContext
 mkAuthContext pubKey = do
   frame <- liftIO Nonce.newFrame
   logfun <- askLoggerIO
-  return $ authContext pubKey frame logfun
+  return $ AuthContext pubKey frame logfun
 
 --------------------------------------------------------------------------------
 -- Request handling ------------------------------------------------------------
@@ -97,24 +95,27 @@ handleRequest ctx req =
                  (Headers.JWS authH))
         case res of
           Left e -> do
-            liftIO . logError $ "Error handling Authorization header: " ++ e
+            liftIO $ logWarn e
             return (Just $ Left e)
           Right r -> return $ Just (Right r)
   where
-    logError e = ctx ^. logger $ "Authorization error: "  ++ e
+    logWarn e = authContextLogger ctx defaultLoc "auth-service" LevelWarn
+                   . toLogStr $ "Error handling authorization header: "  ++ e
+
+
 
 --------------------------------------------------------------------------------
 -- Middleware ------------------------------------------------------------------
 --------------------------------------------------------------------------------
--- Middleware = Application -> Application
--- Application = Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
--- Middleware = (Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived)
---            -> Request -> (Response -> IO ResponseReceived) -> IO ResponseReceived
-
-type MiddlewareWith a = (a -> Application) -> Application
 
 -- | Parse and verify authentication headers, pass the resolved value downstream
-resolveAuthHeader :: AuthContext -> MiddlewareWith (Maybe AuthHeader)
+--
+-- Use like a 'Middleware' just with the "downstream" application taking another
+-- argument
+resolveAuthHeader ::
+      AuthContext
+  -> (Maybe AuthHeader -> Application)
+  -> Application
 resolveAuthHeader ctx downstream req respond = do
   handleRequest ctx req >>= \case
     Nothing -> next Nothing
@@ -124,6 +125,102 @@ resolveAuthHeader ctx downstream req respond = do
     next hdr =
       downstream hdr req respond
     err403 = respond $ Wai.responseLBS HTTP.status403 [] "Authentication denied"
+
+-- Logging middleware
+---------------------
+
+data RequestLogUser =
+  RequestLogUser
+  { requestLogUserName :: Text
+  , requestLogUserEmail :: Text
+  , requestLogUserId :: Text
+  , requestLogUserRoles :: [Text]
+  } deriving (Show)
+
+Aeson.deriveJSON Aeson.defaultOptions
+  {Aeson.fieldLabelModifier = dropPrefix "requestLogUser"} ''RequestLogUser
+
+data RequestLog =
+  RequestLog
+  { requestLogTime :: UTCTime
+  , requestLogPath :: Text
+  , requestLogUser :: Maybe RequestLogUser
+  , requestLogResponseStatus :: Int
+  , requestLogResponseTimeMs :: Integer
+  }
+
+Aeson.deriveJSON Aeson.defaultOptions
+  {Aeson.fieldLabelModifier = dropPrefix "requestLog"} ''RequestLog
+
+-- | Log basic facts about an HTTP requests including resolved authentication
+-- details as json
+--
+-- Fields:
+-- [@time@]: ISO 861 time when the request was received
+-- [@path@]: Request path
+-- [@user@]: Information about the user making the request (if available)
+-- [@reponse_status@]: Numeric HTTP response status
+-- [@response_time_ms@]: Number of milliseconds taken to formulate a response
+--
+-- User has the following fields:
+-- [@name@]: Name of the user
+-- [@email@]: Email address
+-- [@id@]: Unique user ID of the user
+logRequestBasic ::
+     AuthContext
+  -> (Maybe AuthHeader -> Application)
+  ->  Maybe AuthHeader -> Application
+logRequestBasic ctx next mbAuthHeader req respond = do
+  begin <- getCurrentTime
+  rStatus <- newIORef Nothing
+  handled <- Ex.try
+             $ next mbAuthHeader
+               req (\res -> writeIORef rStatus (Just $ Wai.responseStatus res)
+                            >> respond res)
+  end <- getCurrentTime
+  let runTime = round $ (end `diffUTCTime` begin)  * 1000
+      -- NominalDiffTime is treated like seconds by conversion functions
+      user = mbAuthHeader <&> \hdr ->
+        RequestLogUser
+        { requestLogUserName = hdr ^. name . _Name
+        , requestLogUserEmail = hdr ^. email . _Email
+        , requestLogUserId = hdr ^. userID . _UserID . to UUID.toText
+        , requestLogUserRoles = hdr ^. roles
+        }
+  case handled of
+    Left (e :: Ex.SomeException) -> do
+      -- unhandled exception, ignore any set reqponse status
+      log RequestLog
+          { requestLogTime = begin
+          , requestLogPath = Text.decodeUtf8With Text.lenientDecode
+                               $ Wai.rawPathInfo req
+          , requestLogUser = user
+          , requestLogResponseStatus = 500
+          , requestLogResponseTimeMs = runTime
+          }
+      Ex.throwM e
+    Right responseReceived -> do
+      mbStatus <- readIORef rStatus
+      statuscode <- case mbStatus of
+        Nothing -> do
+          -- This should not happen
+          logLine "auth-service-core" LevelError
+                  "Subhandler did not return response status"
+          return 0
+        Just s -> return $ HTTP.statusCode s
+      log RequestLog
+          { requestLogTime = begin
+          , requestLogPath = Text.decodeUtf8With Text.lenientDecode
+                               $ Wai.rawPathInfo req
+          , requestLogUser = user
+          , requestLogResponseStatus = statuscode
+          , requestLogResponseTimeMs = runTime
+          }
+      return responseReceived
+  where
+    logLine = authContextLogger ctx defaultLoc
+    log = authContextLogger ctx defaultLoc "simple-request-json" LevelInfo
+            . toLogStr . Aeson.encode
 
 --------------------------------------------------------------------------------
 -- Servant ---------------------------------------------------------------------
@@ -149,7 +246,8 @@ runAuth ::
   -> Request
   -> DelayedIO AuthHeader
 runAuth ctx Nothing req = do
-  liftIO $ ctx ^. logger $ "Authorization error: Authorization header missing"
+  liftIO $ authContextLogger ctx defaultLoc "auth-service" LevelWarn
+    "Authorization error: Authorization header missing"
   delayedFailFatal err403
 runAuth _ctx (Just authHeader) _ = do
   return authHeader
