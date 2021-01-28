@@ -1,4 +1,4 @@
-version: '3'
+version: '3.1'
 
 services:
   database:
@@ -33,9 +33,9 @@ services:
       - RESET_LINK_EXPIRATION_TIME=24 hours
       - ACCOUNT_CREATION=true
       - DEFAULT_INSTANCE=de305d54-75b4-431b-adb2-eb6b9e546014
-    env_file:
-      ./dev/ed25519.priv.env
-
+      - SIGNED_HEADERS_PRIVATE_KEY_PATH=/run/secrets/header_signing_private_key
+    secrets:
+      - header_signing_private_key
     # logging:
     #   driver: gelf
     #   options:
@@ -97,3 +97,7 @@ services:
 
 networks:
   auth-service:
+
+secrets:
+  header_signing_private_key:
+    file: ./dev/ed25519.priv.der

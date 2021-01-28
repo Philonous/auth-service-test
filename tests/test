@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
 
+# This is the system test suite for auth-service.
+#
+# How to run:
+# In the parent directory:
+# > make up
+# Then run this script like this:
+# > ./test dockertest
+
 set -e
 
 if [[ -n $DEBUG ]]; then

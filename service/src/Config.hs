@@ -1,46 +1,55 @@
-{-# LANGUAGE FlexibleContexts #-}
--- Copyright (c) 2015 Lambdatrade AB
+-- Copyright (c) 2015-2021 Lambdatrade AB
 -- All Rights Reserved
 
+{-# LANGUAGE DeriveLift #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE DeriveLift #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Config
   ( module NejlaCommon.Config
   , module Config
   ) where
 
-import           Control.Lens            ((^.))
+import           Control.Lens             ((^.))
+import qualified Control.Monad.Catch      as Ex
 import           Control.Monad.Logger
 import           Control.Monad.Trans
-import qualified Data.Aeson              as Aeson
-import qualified Data.Configurator.Types as Conf
-import           Data.Default            (def)
-import           Data.Maybe              (maybeToList)
-import qualified Data.Text               as Text
-import qualified Data.Text.Encoding      as Text
-import qualified Data.Text.Lazy          as LText
-import qualified Data.Text.Lazy.IO       as LText
-import           Data.UUID               (UUID)
-import qualified Data.UUID               as UUID
-import qualified Network.Mail.Mime       as Mail
+import qualified Data.Aeson               as Aeson
+import           Data.ByteString          (ByteString)
+import qualified Data.ByteString          as BS
+import qualified Data.ByteString.Char8    as BS8
+import qualified Data.Char                as Char
+import qualified Data.Configurator.Types  as Conf
+import           Data.Default             (def)
+import           Data.Maybe               (maybeToList)
+import qualified Data.Text                as Text
+import qualified Data.Text.Encoding       as Text
+import           Data.Text.Encoding.Error (lenientDecode)
+import qualified Data.Text.Lazy           as LText
+import qualified Data.Text.Lazy.IO        as LText
+import           Data.UUID                (UUID)
+import qualified Data.UUID                as UUID
+import qualified Network.Mail.Mime        as Mail
 import qualified SignedAuth
-import qualified System.Exit             as Exit
-import           System.Exit             (exitFailure)
-import           System.IO               (hPutStrLn, stderr)
-import qualified Text.Microstache        as Mustache
+import           System.Exit              (exitFailure)
+import qualified System.Exit              as Exit
+import           System.IO                (hPutStrLn, stderr)
+import           System.IO.Error          (isDoesNotExistError, isPermissionError)
+import qualified Text.Microstache         as Mustache
 import qualified Twilio
 
 import           Types
 import           Util
 
-import           NejlaCommon.Config      hiding (Config)
+import           NejlaCommon.Config       hiding (Config)
 
 --------------------------------------------------------------------------------
 -- Configuration
@@ -95,6 +104,37 @@ getAccountCreationConfig conf = do
       conf
   return AccountCreationConfig{..}
 
+readSignedHeaderKey :: MonadIO m => FilePath -> m SignedAuth.PrivateKey
+readSignedHeaderKey path = liftIO $ do
+  hPutStrLn stderr $ "Reader key from " ++ path
+  keyBS <- Ex.catch (stripEnd <$> BS.readFile path)
+    ( \(e :: IOError) -> do
+      if
+        | isDoesNotExistError e  ->
+            hPutStrLn stderr
+            $ path ++ " does not exist. Please create it before starting or set\
+                      \ SIGNED_HEADERS_PRIVATE_KEY_PATH to the correct path"
+        | isPermissionError e ->
+            hPutStrLn stderr
+            $ "Permission error reading " ++ path ++ ". Please check permissions\
+              \ or set SIGNED_HEADERS_PRIVATE_KEY_PATH to the correct path"
+        | otherwise ->
+            hPutStrLn stderr
+            $ path ++ " could not be read. Encountered error: " ++ show e
+            ++ ". Check if SIGNED_HEADERS_PRIVATE_KEY_PATH is set to the correct path"
+      exitFailure)
+  case SignedAuth.readPrivateKeyDer keyBS of
+    Left e -> liftIO $ do
+      hPutStrLn stderr $ "Could not parse DER-encoded key: \""
+        ++ Text.unpack (Text.decodeUtf8With lenientDecode keyBS)
+        ++ "\" reason: " ++ e
+      exitFailure
+    Right r -> return r
+  where
+    stripEnd bs =
+      let (bs', _end) = BS8.spanEnd Char.isSpace bs
+      in bs'
+
 getAuthServiceConfig :: (MonadIO m, MonadLogger m) =>
                         Conf.Config
                      -> m Config
@@ -108,15 +148,10 @@ getAuthServiceConfig conf = do
     haveEmail <- setEmailConf conf
     let configOtp = fmap Twilio.sendMessage twilioConf
     accountCreationConfig <- getAccountCreationConfig conf
-    signedHeaderKeyTxt <-
-      getConf "SIGNED_HEADERS_PRIVATE_KEY" "signed-headers.private-key"
-        (Left "Bas64-encoded DER ED25510 private key") conf
-    signedHeaderKey <- case SignedAuth.readPrivateKeyDer
-                              $ Text.encodeUtf8 signedHeaderKeyTxt of
-                         Left e -> liftIO $ do
-                           hPutStrLn stderr $ "Could not parse DER-encoded key: " ++ e
-                           exitFailure
-                         Right r -> return r
+    signedHeaderKeyPath <-
+      getConf "SIGNED_HEADERS_PRIVATE_KEY_PATH" "signed-headers.private-key-path"
+        (Right "/run/secrets/header_signing_private_key") conf
+    signedHeaderKey <- readSignedHeaderKey $ Text.unpack signedHeaderKeyPath
     return Config{ configTimeout = to
                  , configOTPLength = otpl
                  , configOTPTimeoutSeconds = otpt
