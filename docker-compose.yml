@@ -34,8 +34,8 @@ services:
       - ACCOUNT_CREATION=true
       - DEFAULT_INSTANCE=de305d54-75b4-431b-adb2-eb6b9e546014
       - SIGNED_HEADERS_PRIVATE_KEY_PATH=/run/secrets/header_signing_private_key
-    secrets:
-      - header_signing_private_key
+    volumes:
+      - ./secrets:/run/secrets
     # logging:
     #   driver: gelf
     #   options:
@@ -97,7 +97,3 @@ services:
 
 networks:
   auth-service:
-
-secrets:
-  header_signing_private_key:
-    file: ./dev/ed25519.priv.der

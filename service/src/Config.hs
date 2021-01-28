@@ -106,7 +106,6 @@ getAccountCreationConfig conf = do
 
 readSignedHeaderKey :: MonadIO m => FilePath -> m SignedAuth.PrivateKey
 readSignedHeaderKey path = liftIO $ do
-  hPutStrLn stderr $ "Reader key from " ++ path
   keyBS <- Ex.catch (stripEnd <$> BS.readFile path)
     ( \(e :: IOError) -> do
       if
