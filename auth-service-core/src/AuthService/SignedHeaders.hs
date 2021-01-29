@@ -102,8 +102,6 @@ handleRequest ctx req =
     logWarn e = authContextLogger ctx defaultLoc "auth-service" LevelWarn
                    . toLogStr $ "Error handling authorization header: "  ++ e
 
-
-
 --------------------------------------------------------------------------------
 -- Middleware ------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -143,6 +141,7 @@ Aeson.deriveJSON Aeson.defaultOptions
 data RequestLog =
   RequestLog
   { requestLogTime :: UTCTime
+  , requestLogMethod :: Text
   , requestLogPath :: Text
   , requestLogUser :: Maybe RequestLogUser
   , requestLogResponseStatus :: Int
@@ -191,6 +190,8 @@ logRequestBasic ctx mbAuthHeader next  req respond = do
       -- unhandled exception, ignore any set reqponse status
       log RequestLog
           { requestLogTime = begin
+          , requestLogMethod = Text.decodeUtf8With Text.lenientDecode
+                                 $ Wai.requestMethod req
           , requestLogPath = Text.decodeUtf8With Text.lenientDecode
                                $ Wai.rawPathInfo req
           , requestLogUser = user
@@ -209,6 +210,8 @@ logRequestBasic ctx mbAuthHeader next  req respond = do
         Just s -> return $ HTTP.statusCode s
       log RequestLog
           { requestLogTime = begin
+          , requestLogMethod = Text.decodeUtf8With Text.lenientDecode
+                                 $ Wai.requestMethod req
           , requestLogPath = Text.decodeUtf8With Text.lenientDecode
                                $ Wai.rawPathInfo req
           , requestLogUser = user
