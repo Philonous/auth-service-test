@@ -15,6 +15,7 @@ import           Database.Persist.Sql              as P
 import qualified NejlaCommon                       as NC
 import qualified NejlaCommon.Config                as NC
 import           NejlaCommon.Persistence.Migration (sql)
+import qualified SignedAuth
 import qualified Text.Microstache                  as Mustache
 
 import           Persist.Migration                 (doMigrate)
@@ -37,8 +38,8 @@ testEmailConfig =
   , emailConfigFrom     = "testuser@localhost"
   , emailConfigUser     = "testuser"
   , emailConfigPassword = "pwd"
-  , emailConfigPWResetTemplate = tmpl
-  , emailConfigPWResetUnknownTemplate = tmpl2
+  , emailConfigPWResetTemplate = tmpl "please click on {{link}}"
+  , emailConfigPWResetUnknownTemplate = tmpl "Your email is unknown"
   , emailConfigSendmail =
       SendmailConfig
       { sendmailConfigPath = "/usr/bin/cat"
@@ -49,15 +50,9 @@ testEmailConfig =
   , emailConfigMkLink = \tok -> "http://localhost/reset?token=" <> tok
   }
   where
-    Right tmpl =
-      Mustache.compileMustacheText
-        "email template"
-        "please click on {{link}}"
-    Right tmpl2 =
-      Mustache.compileMustacheText
-        "email template"
-        "Your email is unknown"
-
+    tmpl x = case Mustache.compileMustacheText "email template" x of
+               Right template -> template
+               Left e -> error $ show e
 
 accountCreationConfig :: AccountCreationConfig
 accountCreationConfig = AccountCreationConfig
@@ -117,6 +112,7 @@ mkConfig :: ConnectionPool
            -> IO Config
 mkConfig pool = do
     runSqlPool cleanDB pool
+    (privateKey, publicKey) <- SignedAuth.mkKeys
     let conf =
           Config
           { configTimeout = Nothing
@@ -127,6 +123,7 @@ mkConfig pool = do
           , configUseTransactionLevels = False
           , configEmail = Just testEmailConfig
           , configAccountCreation = accountCreationConfig
+          , configHeaderPrivateKey = privateKey
           }
     return conf
   where
@@ -158,8 +155,10 @@ withRunAPI :: (Config -> Config)
            -> IO b
 withRunAPI changeConf pool f = do
   conf <- mkConfig pool
+  noncePool <- SignedAuth.newNoncePool
   let apiState = ApiState { apiStateConfig = changeConf conf
                           , apiStateAuditSource = AuditSourceTest
+                          , apiStateNoncePool = noncePool
                           }
   f $ runAPI pool apiState
 

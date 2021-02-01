@@ -19,8 +19,9 @@ import qualified                Data.Text.Encoding               as Text
 import                          Data.Time.Clock                  (getCurrentTime)
 import                          Data.UUID                        (UUID)
 import qualified                Data.UUID                        as UUID
-import                          Test.Hspec.Core.Spec
+import qualified                SignedAuth
 import                          Test.Hspec
+import                          Test.Hspec.Core.Spec
 import                          Test.Hspec.Wai
 import                          Test.Hspec.Wai.JSON
 
@@ -28,7 +29,7 @@ import                          Network.Wai                      (Application)
 import                          Network.Wai.Test                 (SResponse)
 
 import qualified "auth-service" Api
-import                          Audit (AuditSource(AuditSourceTest))
+import                          Audit                            (AuditSource(AuditSourceTest))
 import                          Backend
 import                          Monad
 import                          Test.Common
@@ -37,19 +38,23 @@ import                          Types
 import                          NejlaCommon.Test                 as NC
 
 iid :: UUID
-Just iid = UUID.fromString "3afe62f4-7235-4b86-a418-923aaa4a5c28"
+iid = case UUID.fromString "3afe62f4-7235-4b86-a418-923aaa4a5c28" of
+        Just uuid -> uuid
+        Nothing -> error "uuid"
 
 runTest :: SpecWith ((), (Config -> Config)-> Application) -> IO ()
 runTest spec = withTestDB $ \pool -> do
   hspec $ flip around spec $ \f -> do
     conf <- mkConfig pool
+    noncePool <- SignedAuth.newNoncePool
     let apiState = ApiState { apiStateConfig = conf
                             , apiStateAuditSource = AuditSourceTest
+                            , apiStateNoncePool = noncePool
                             }
     _ <- runAPI pool apiState $ do
       createUser adminUser
       addInstance (Just $ InstanceID iid) "instance1"
-    f ((), \cc -> Api.serveAPI pool $ cc conf)
+    f ((), \cc -> Api.serveAPI pool noncePool $ cc conf)
   where
     adminUser = AddUser { addUserUuid      = Nothing
                         , addUserEmail     = "admin@example.com"
@@ -243,27 +248,26 @@ adminApiSpec = do
                 `shouldReturnA` (Proxy @[Types.ReturnUserInfo])
         -- "admin@example.com" is always added since we need admin privileges to
         -- run admin endpoints
-        res ^.. each . email `NC.shouldBe` ([ "admin@example.com"
-                                            , "peter@example.com"
-                                            , "robert@example.com"])
+        res ^.. each . email `NC.shouldBe` [ "admin@example.com"
+                                           , "peter@example.com"
+                                           , "robert@example.com"]
 
   describe "/admin/users/<uid>/deactivate" $ do
     describe "now" $ do
       it "prevents a user from logging in"
-       $ withDefaultConfig $ withAdminToken $ \admin-> do
+       $ withDefaultConfig $ withAdminToken $ \admin -> do
         uid <- addUser admin "robert" []
         postToken admin [i|/login|] [json|{ "user": "robert@example.com"
-                                , "password": "pwd"
-                                }|] `shouldRespondWith` 200
-
+                                          , "password": "pwd"
+                                          }|] `shouldRespondWith` 200
 
         postToken admin [i|/admin/users/#{uid}/deactivate|]
                         [json|{"deactivate_at": "now"}|]
               `shouldRespondWith` 204
 
         postToken admin [i|/login|] [json|{ "user": "robert@example.com"
-                                , "password": "pwd"
-                                }|] `shouldRespondWith` 403
+                                          , "password": "pwd"
+                                          }|] `shouldRespondWith` 403
       it "disables existing tokens"
        $ withDefaultConfig $ withAdminToken $ \admin-> do
         uid <- addUser admin "robert" []

@@ -30,18 +30,34 @@ auth-web-deps := $(shell find web)
 
 auth-web.image: $(auth-web-deps)
 	docker build -t $(WEB_IMAGE):$(TAG) web
+	docker tag $(WEB_IMAGE):$(TAG) $(WEB_IMAGE):latest
 	echo -n "$(TAG)" > auth-web.image
 
 .PHONY: run
-run: service/image auth-web.image
-	docker-compose up
+run: up
+	docker-compose logs --follow
+
+dev/ed25519.priv.der:
+	mkdir -p dev
+	openssl genpkey -algorithm Ed25519 -outform der \
+	  | base64 > dev/ed25519.priv.der
+
+dev/ed25519.pub.der: dev/ed25519.priv.der
+	base64 -d dev/ed25519.priv.der \
+	  | openssl pkey -inform der -pubout -outform der \
+	  | base64 > dev/ed25519.pub.der
+
+secrets/header_signing_private_key: dev/ed25519.priv.der
+	mkdir -p secrets
+	cp dev/ed25519.priv.der secrets/header_signing_private_key
 
 .PHONY: up
-up: service/image auth-web.image
-	docker-compose up -d
+up: service/image auth-web.image dev/ed25519.priv.der dev/ed25519.pub.der secrets/header_signing_private_key
+	env "AUTHWEBTAG=$$(cat auth-web.image)" docker-compose up -d
 
 .PHONY: down
 down:
+	docker-compose kill -s 9
 	docker-compose down --remove-orphans -v
 
 .PHONY: push
@@ -53,3 +69,5 @@ push:
 .PHONY: clean
 clean:
 	$(MAKE) -C service clean
+	rm -r dev
+	rm -rf secrets

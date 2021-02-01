@@ -31,8 +31,9 @@ import qualified NejlaCommon          as NC
 import           Network.Mail.Mime    (Address)
 import qualified Text.Microstache     as Mustache
 
+import qualified SignedAuth
 import           AuthService.Types
-import Control.Monad.Logger (LoggingT)
+import           Control.Monad.Logger (LoggingT)
 
 --------------------------------------------------------------------------------
 -- Error
@@ -120,6 +121,7 @@ data Config = Config
   , configEmail                :: Maybe EmailConfig
 
   , configAccountCreation      :: AccountCreationConfig
+  , configHeaderPrivateKey     :: SignedAuth.PrivateKey
   }
 
 -- | Necessary data to fill in a password reset email

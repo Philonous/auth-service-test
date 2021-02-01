@@ -7,14 +7,24 @@ license: AllRightsReserved
 extra-source-files:
 - src/schema
 
+default-extensions:
+  - TypeSynonymInstances
+  - FlexibleInstances
+  - RankNTypes
+  - FunctionalDependencies
+  - MultiParamTypeClasses
+  - StrictData
+
+ghc-options:
+  - -Wall
+  - -Werror=incomplete-patterns
+  - -Werror=incomplete-uni-patterns
+  - -Werror=incomplete-record-updates
+
 library:
   source-dirs:
   - client
   - src
-  ghc-options:
-  - -Wall
-  - -O2
-  - -Werror=incomplete-patterns
   exposed-modules:
   - Api
   - Audit
@@ -34,7 +44,7 @@ library:
   dependencies:
   - base >=4 && <5
   - aeson
-  - auth-service-types
+  - auth-service-core
   - base64-bytestring >=1.0
   - bcrypt
   - bytestring
@@ -61,6 +71,7 @@ library:
   - persistent-template >=2.1
   - random >=1.1
   - servant-server >=0.4.4
+  - signed-authorization
   - template-haskell
   - text
   - time >=1.5
@@ -107,6 +118,7 @@ tests:
     - persistent-postgresql
     - persistent-sqlite
     - resource-pool
+    - signed-authorization
     - text
     - time
     - unliftio-core
@@ -138,6 +150,7 @@ tests:
     - persistent-sqlite
     - persistent-postgresql
     - resource-pool
+    - signed-authorization
     - tasty
     - tasty-hunit
     - tasty-quickcheck
