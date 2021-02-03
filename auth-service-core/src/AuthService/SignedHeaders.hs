@@ -232,17 +232,17 @@ logRequestBasic ctx mbAuthHeader next  req respond = do
 
 data AuthRequired = AuthRequired | AuthOptional
 
-newtype AuthJWS (required :: AuthRequired) a = AuthJWS  a
+newtype AuthCredentials (required :: AuthRequired) a = AuthCredentials  a
 
-makePrisms ''AuthJWS
+makePrisms ''AuthCredentials
 
-instance Swagger.ToParamSchema (AuthJWS required a) where
+instance Swagger.ToParamSchema (AuthCredentials required a) where
   toParamSchema _ = Swagger.toParamSchema (Proxy :: Proxy String)
 
-instance Swagger.HasSwagger rest => Swagger.HasSwagger (AuthJWS required a :> rest) where
+instance Swagger.HasSwagger rest => Swagger.HasSwagger (AuthCredentials required a :> rest) where
   toSwagger _ = Swagger.toSwagger (Proxy :: Proxy (Header "X-Auth" String :> rest))
 
-type instance IsElem' e (AuthJWS required a :> s) = IsElem e s
+type instance IsElem' e (AuthCredentials required a :> s) = IsElem e s
 
 runAuth ::
      AuthContext
@@ -261,9 +261,9 @@ instance ( HasServer api context
          , HasContextEntry context (Maybe AuthHeader)
          , HasContextEntry context AuthContext
          )
-    => HasServer (AuthJWS 'AuthRequired AuthHeader :> api) context where
+    => HasServer (AuthCredentials 'AuthRequired AuthHeader :> api) context where
 
-  type ServerT (AuthJWS 'AuthRequired AuthHeader :> api) m
+  type ServerT (AuthCredentials 'AuthRequired AuthHeader :> api) m
     = AuthHeader -> ServerT api m
 
   route Proxy context subserver =
@@ -279,9 +279,9 @@ instance ( HasServer api context
 instance ( HasServer api context
          , HasContextEntry context (Maybe AuthHeader)
          )
-    => HasServer (AuthJWS 'AuthOptional AuthHeader :> api) context where
+    => HasServer (AuthCredentials 'AuthOptional AuthHeader :> api) context where
 
-  type ServerT (AuthJWS 'AuthOptional AuthHeader :> api) m
+  type ServerT (AuthCredentials 'AuthOptional AuthHeader :> api) m
     = Maybe AuthHeader -> ServerT api m
 
   route Proxy context subserver =
