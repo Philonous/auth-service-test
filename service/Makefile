@@ -62,6 +62,7 @@ dist/auth-service: $(auth-service-core) $(srcfiles) $(test-srcfiles) package.yam
 	            --copy-bins --local-bin-path ./dist
 
 dist/doc: dist/auth-service
+	rm -rf dist/doc
 	cp -fr $(shell stack path ${stack_args} --dist-dir)/doc/html/auth-service \
                dist/doc
 

@@ -19,7 +19,7 @@ module AuthService.SignedHeaders
   , Sign.readPublicKeyPem
   , Nonce.Frame
   , Nonce.newFrame
-   -- Encoding headers
+   -- | Encoding headers
   , Sign.PrivateKey
   , Sign.mkKeys
   , Sign.readPrivateKeyDer
@@ -155,16 +155,18 @@ Aeson.deriveJSON Aeson.defaultOptions
 -- details as json
 --
 -- Fields:
--- [@time@]: ISO 861 time when the request was received
--- [@path@]: Request path
--- [@user@]: Information about the user making the request (if available)
--- [@reponse_status@]: Numeric HTTP response status
--- [@response_time_ms@]: Number of milliseconds taken to formulate a response
+--
+--   [@time@]: ISO 861 time when the request was received
+--   [@path@]: Request path
+--   [@user@]: Information about the user making the request (if available)
+--   [@reponse_status@]: Numeric HTTP response status
+--   [@response_time_ms@]: Number of milliseconds taken to formulate a response
 --
 -- User has the following fields:
--- [@name@]: Name of the user
--- [@email@]: Email address
--- [@id@]: Unique user ID of the user
+--
+--   [@name@]: Name of the user
+--   [@email@]: Email address
+--   [@id@]: Unique user ID of the user
 logRequestBasic ::
      AuthContext
   -> Maybe AuthHeader

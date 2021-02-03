@@ -22,6 +22,7 @@ dist/lib: $(srcfiles) auth-service-core.cabal stack.yaml
 
 
 dist/doc: dist/lib
+	rm -rf dist/doc
 	cp -fr $(shell stack path ${stack_args} --dist-dir)/doc/html/auth-service-core \
                dist/doc
 

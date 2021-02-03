@@ -14,6 +14,7 @@ all: auth-web.image dist/doc
 dist/doc:
 	$(MAKE) -C auth-service-core dist/doc
 	$(MAKE) -C service dist/doc
+	rm -rf dist/doc
 	mkdir -p dist/doc
 	cp -rf auth-service-core/dist/doc dist/doc/auth-service-core
 	cp -rf service/dist/doc dist/doc/auth-service
