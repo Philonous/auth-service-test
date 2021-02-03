@@ -7,8 +7,17 @@ include $(build-env-file)
 WEB_IMAGE=$(REGISTRY)/$(WEB_IMAGE_NAME)
 
 .PHONY: all
-all: auth-web.image
+all: auth-web.image dist/doc
 	$(MAKE) -C service all
+
+.PHONY: dist/doc
+dist/doc:
+	$(MAKE) -C auth-service-core dist/doc
+	$(MAKE) -C service dist/doc
+	mkdir -p dist/doc
+	cp -rf auth-service-core/dist/doc dist/doc/auth-service-core
+	cp -rf service/dist/doc dist/doc/auth-service
+	pandoc Doc/API.md -o dist/doc/index.html
 
 .PHONY: service/image
 service/image:
