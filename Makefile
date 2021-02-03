@@ -17,7 +17,8 @@ dist/doc:
 	mkdir -p dist/doc
 	cp -rf auth-service-core/dist/doc dist/doc/auth-service-core
 	cp -rf service/dist/doc dist/doc/auth-service
-	pandoc Doc/API.md -o dist/doc/index.html
+	# pandoc Doc/API.md -o dist/doc/index.html
+	cp -f Doc/API.html dist/doc/index.html
 
 .PHONY: service/image
 service/image:
