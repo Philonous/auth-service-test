@@ -24,7 +24,7 @@ build:
   script:
     - make all
     - make push
-    - if [[ $CI_COMMIT_BRANCH = "master" ]]; then; make push-latest; else; echo "Not master, not pushing latest"; fi
+    - if [[ $CI_COMMIT_BRANCH = "master" ]]; then make push-latest; else echo "Not master, not pushing latest"; fi
   artifacts:
     paths:
       - service/dist
