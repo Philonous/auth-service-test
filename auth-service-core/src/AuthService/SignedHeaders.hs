@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -29,41 +31,37 @@ module AuthService.SignedHeaders
 
 
 import           Control.Lens
-import qualified Control.Monad.Catch      as Ex
+import           Control.Monad
+import qualified Control.Monad.Catch             as Ex
 import           Control.Monad.Logger
 import           Control.Monad.Trans
-import qualified Data.Aeson               as Aeson
-import qualified Data.Aeson.TH            as Aeson
-import           Data.ByteString          (ByteString)
-import qualified Data.ByteString          as BS
+import qualified Data.Aeson                      as Aeson
+import qualified Data.Aeson.TH                   as Aeson
 import           Data.IORef
-import qualified Data.List                as List
-import           Data.Text                (Text)
-import qualified Data.Text                as Text
-import qualified Data.Text.Encoding       as Text
-import qualified Data.Text.Encoding.Error as Text
+import qualified Data.List                       as List
+import           Data.Text                       (Text)
+import qualified Data.Text                       as Text
+import qualified Data.Text.Encoding              as Text
+import qualified Data.Text.Encoding.Error        as Text
 import           Data.Time.Clock
-import           Data.UUID                (UUID)
-import qualified Data.UUID                as UUID
-import           GHC.TypeLits             (KnownSymbol)
-import qualified Network.HTTP.Types       as HTTP
-import           Network.Wai              (requestHeaders, Request)
-import qualified Network.Wai              as Wai
+import qualified Data.UUID                       as UUID
+import           GHC.TypeLits                    (symbolVal, Symbol, KnownSymbol)
+import qualified Network.HTTP.Types              as HTTP
+import           Network.Wai                     (requestHeaders, Request)
+import qualified Network.Wai                     as Wai
 import           Servant
-import           Servant.Server
-import           Servant.Server.Internal  (delayedFailFatal, DelayedIO, withRequest, addAuthCheck)
+import           Servant.Server.Internal         (delayedFailFatal, DelayedIO, withRequest, addAuthCheck)
 
-import qualified SignedAuth.Headers       as Headers
-import qualified SignedAuth.Nonce         as Nonce
-import qualified SignedAuth.Sign          as Sign
+import qualified SignedAuth.Headers              as Headers
+import qualified SignedAuth.Nonce                as Nonce
+import qualified SignedAuth.Sign                 as Sign
 
 import           AuthService.Types
-import qualified Data.Swagger.ParamSchema as Swagger
-import qualified Servant.Swagger          as Swagger
-
-import           System.IO.Unsafe         (unsafePerformIO)
+import qualified Data.Swagger.ParamSchema        as Swagger
+import qualified Servant.Swagger                 as Swagger
 
 import           Helpers
+import           Servant.Server.Internal.Delayed (Delayed(..))
 
 -- | The context needed to create
 data AuthContext =
@@ -87,6 +85,8 @@ mkAuthContext pubKey = do
 -- Request handling ------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- Factored out because both resolveAuthHeader and runAuthMaybe need it
+handleRequest :: (MonadIO m, Aeson.FromJSON b) =>
+                 AuthContext -> Request -> m (Maybe (Either String b))
 handleRequest ctx req =
     case List.lookup "X-Auth" (requestHeaders req) of
       Nothing -> return Nothing
@@ -117,7 +117,7 @@ resolveAuthHeader ::
 resolveAuthHeader ctx downstream req respond = do
   handleRequest ctx req >>= \case
     Nothing -> next Nothing
-    Just (Left e) -> err403
+    Just (Left _e) -> err403
     Just (Right r) -> next $ Just r
   where
     next hdr =
@@ -303,5 +303,41 @@ mkAuthHeader noncePool privKey authHeader = do
   return ("X-Auth", jws)
 
 --------------------------------------------------------------------------------
--- Log Auth Information --------------------------------------------------------
+-- Servant Combinators ---------------------------------------------------------
 --------------------------------------------------------------------------------
+
+class IsRole (r :: k) where
+  toRole :: proxy r -> Text
+
+instance KnownSymbol s => IsRole (s :: Symbol) where
+  toRole proxy = Text.pack $ symbolVal proxy
+
+data NeedsRole (a :: k)
+
+instance ( HasServer api context
+         , IsRole r
+         , HasContextEntry context (Maybe AuthHeader)
+         )
+    => HasServer (NeedsRole (r :: Symbol) :> api) context where
+  type ServerT (NeedsRole (r :: Symbol) :> api) m
+    = ServerT api m
+
+  route Proxy context subserver =
+    route (Proxy :: Proxy api) context (subserver `addAuthCheck_` authCheck)
+    where
+       mbAuthHeader = getContextEntry context :: Maybe AuthHeader
+       wantedHeader = toRole (Proxy :: Proxy r)
+       authCheck =
+         case mbAuthHeader of
+           Nothing -> delayedFailFatal err401
+           Just authHeader ->
+             unless (wantedHeader `List.elem` (authHeader ^. roles))
+               $ delayedFailFatal err403
+       -- Adds auth check that doesn't return anything
+       addAuthCheck_ Delayed{..} new =
+         Delayed
+         { authD   = authD <* new
+         , ..
+         }
+
+  hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt s
