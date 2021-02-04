@@ -17,7 +17,7 @@ dist/lib: $(srcfiles) auth-service-core.cabal stack.yaml
 	stack build --install-ghc --test --no-run-tests \
 	            ${stack_args} \
 	            ${stack_build_args} \
-	            --haddock --no-haddock-deps
+	            --haddock --no-haddock-deps --haddock-hyperlink-source
 	git rev-parse HEAD > dist/lib
 
 

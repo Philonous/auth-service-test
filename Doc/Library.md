@@ -146,7 +146,7 @@ handler = _
 
 ## Using auth-service credentials in servant
 
-You can use the "AuthCredentials" combinator to retrieve the credentials. It
+We can use the "AuthCredentials" combinator to retrieve the credentials. It
 accepts either an `'AuthOptional` parameter, in which case the handler should
 expect a `Maybe AuthHeader` or `'AuthRequired`, which will automatically reject
 requests without credentials with status code 403 and always passes `AuthHeader`
@@ -157,3 +157,20 @@ type myAPI = AuthCredentials 'AuthOptional AuthHeader
            :> [...]
 
 ```
+
+## Logging user requests
+
+We can use `logRequestBasic` to logbasic facts about an HTTP requests including
+resolved authentication details as json
+
+Fields:
+  * time: ISO 861 time when the request was received
+  * path: Request path
+  * user: Information about the user making the request (if available)
+  * reponse_status: Numeric HTTP response status
+  * response_time_ms: Number of milliseconds taken to formulate a response
+
+User has the following fields:
+  * name: Name of the user
+  * email: Email address
+  * id: Unique user ID of the user
