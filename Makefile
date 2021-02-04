@@ -30,7 +30,6 @@ auth-web-deps := $(shell find web)
 
 auth-web.image: $(auth-web-deps)
 	docker build -t $(WEB_IMAGE):$(TAG) web
-	docker tag $(WEB_IMAGE):$(TAG) $(WEB_IMAGE):latest
 	echo -n "$(TAG)" > auth-web.image
 
 .PHONY: run
@@ -64,6 +63,11 @@ down:
 push:
 	$(MAKE) -C service push
 	docker push $(WEB_IMAGE):$(TAG)
+
+.PHONY: push-latest
+push-latest:
+	$(MAKE) -C service push-latest
+	docker tag $(WEB_IMAGE):$(TAG) $(WEB_IMAGE):latest
 	docker push $(WEB_IMAGE):latest
 
 .PHONY: clean
