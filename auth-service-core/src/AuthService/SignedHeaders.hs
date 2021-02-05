@@ -33,9 +33,9 @@ module AuthService.SignedHeaders
   , RequestLog(..)
   -- * Servant
   , AuthCredentials(..)
-  , AuthRequired(..)
+  , Requiredness(..)
   , IsRole(..)
-  , NeedsRole
+  , HasRole
    -- * Encoding headers
   , Sign.PrivateKey
   , Sign.mkKeys
@@ -65,7 +65,7 @@ import           GHC.TypeLits                    (symbolVal, Symbol, KnownSymbol
 import qualified Network.HTTP.Types              as HTTP
 import           Network.Wai                     (requestHeaders, Request)
 import qualified Network.Wai                     as Wai
-import           Servant
+import           Servant                         hiding (Required, Optional)
 import           Servant.Server.Internal         (delayedFailFatal, DelayedIO, withRequest, addAuthCheck)
 
 import qualified SignedAuth.Headers              as Headers
@@ -247,7 +247,7 @@ logRequestBasic ctx mbAuthHeader next  req respond = do
 --------------------------------------------------------------------------------
 
 -- | Parameter to 'AuthCredentials', see there.
-data AuthRequired = AuthRequired | AuthOptional
+data Requiredness = Required | Optional
 
 -- | Servant combinator to fetch user credentials. If the parameter is
 -- ''AuthRequired' the request will be denied with 403 if the user has not
@@ -259,7 +259,7 @@ data AuthRequired = AuthRequired | AuthOptional
 --
 -- The handler should take an 'AuthHeader' if ''AuthRequired' is set and @Maybe
 -- 'AuthHeader'@ for ''AuthOptional'
-newtype AuthCredentials (required :: AuthRequired) a = AuthCredentials a
+newtype AuthCredentials (required :: Requiredness) a = AuthCredentials a
 
 makePrisms ''AuthCredentials
 
@@ -275,9 +275,9 @@ type instance IsElem' e (AuthCredentials required a :> s) = IsElem e s
 instance ( HasServer api context
          , HasContextEntry context (Maybe AuthHeader)
          )
-    => HasServer (AuthCredentials 'AuthRequired AuthHeader :> api) context where
+    => HasServer (AuthCredentials 'Required AuthHeader :> api) context where
 
-  type ServerT (AuthCredentials 'AuthRequired AuthHeader :> api) m
+  type ServerT (AuthCredentials 'Required AuthHeader :> api) m
     = AuthHeader -> ServerT api m
 
   route Proxy context subserver =
@@ -294,16 +294,16 @@ instance ( HasServer api context
 instance ( HasServer api context
          , HasContextEntry context (Maybe AuthHeader)
          )
-    => HasServer (AuthCredentials 'AuthOptional AuthHeader :> api) context where
+    => HasServer (AuthCredentials 'Optional AuthHeader :> api) context where
 
-  type ServerT (AuthCredentials 'AuthOptional AuthHeader :> api) m
+  type ServerT (AuthCredentials 'Optional AuthHeader :> api) m
     = Maybe AuthHeader -> ServerT api m
 
   route Proxy context subserver =
     route (Proxy :: Proxy api) context (subserver `addAuthCheck` authCheck)
     where
        authHeader = getContextEntry context :: Maybe AuthHeader
-       authCheck = withRequest $ \_request -> return authHeader
+       authCheck = return authHeader
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
@@ -333,32 +333,39 @@ instance KnownSymbol s => IsRole (s :: Symbol) where
 
 -- | Combinator for checking for the presence of a role. Doesn't return anything.
 --
--- Use it either with a Symbol (type-level string) or a custom value that has an
--- IsRole instance
+-- The first argument is the role to check. It expects it either a Symbol
+-- (type-level string) or a custom value that has an IsRole instance
+--
+-- The second argument is either 'Required' or 'Optional'. If it is the to
+-- 'Required' 403 will be returned if the role is not present (or 401 if no
+-- authentication credentials are found) and nothing is passed to the handler.
+--
+-- If it is 'Optional' no error is thrown and a Boolean indicating if the role
+-- requirement is met (True) or not (False)
 --
 -- Example:
 --
--- > type myAPI = "users" :> NeedsRole "admin" :> Get '[JSON] User
+-- > type myAPI = "users" :> HasRole "admin" :> Get '[JSON] User
 --
 -- Another example
 --
 -- > data MyRole = RoleAdmin | RoleUser
 -- >
--- > instance IsRole 'RoleAdmin where
+-- > instance IsRole 'RoleAdmin 'Required where
 -- >   checkRole _ = List.elem "admin"
 -- >
--- > instance IsRole 'RoleUser
+-- > instance IsRole 'RoleUser 'Required
 -- >   checkRole _ = List.elem "user"
 -- >
--- > type MyAPI = "users" :> NeedsRole 'RoleAdmin :> Get '[JSON] User
-data NeedsRole (a :: k)
+-- > type MyAPI = "users" :> HasRole 'RoleAdmin 'Optional :> Get '[JSON] User
+data HasRole (a :: k) (req :: Requiredness)
 
 instance ( HasServer api context
          , IsRole r
          , HasContextEntry context (Maybe AuthHeader)
          )
-    => HasServer (NeedsRole r :> api) context where
-  type ServerT (NeedsRole r :> api) m
+    => HasServer (HasRole r 'Required :> api) context where
+  type ServerT (HasRole r 'Required :> api) m
     = ServerT api m
 
   route Proxy context subserver =
@@ -380,10 +387,30 @@ instance ( HasServer api context
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt s
 
-instance Swagger.ToParamSchema (NeedsRole r) where
+instance ( HasServer api context
+         , IsRole r
+         , HasContextEntry context (Maybe AuthHeader)
+         )
+    => HasServer (HasRole r 'Optional :> api) context where
+  type ServerT (HasRole r 'Optional :> api) m
+    = Bool -> ServerT api m
+
+  route Proxy context subserver =
+    route (Proxy :: Proxy api) context (subserver `addAuthCheck` authCheck)
+    where
+       mbAuthHeader = getContextEntry context :: Maybe AuthHeader
+       authCheck =
+         case mbAuthHeader of
+           Nothing -> delayedFailFatal err401
+           Just authHeader ->
+             return $ checkRole (Proxy :: Proxy r) (authHeader ^. roles)
+  hoistServerWithContext _ pc nt s =
+    hoistServerWithContext (Proxy :: Proxy api) pc nt . s
+
+instance Swagger.ToParamSchema (HasRole r 'Required) where
   toParamSchema _ = Swagger.toParamSchema (Proxy :: Proxy String)
 
-instance Swagger.HasSwagger rest => Swagger.HasSwagger (NeedsRole r :> rest) where
+instance Swagger.HasSwagger rest => Swagger.HasSwagger (HasRole r :> rest) where
   toSwagger _ = Swagger.toSwagger (Proxy :: Proxy (Header "X-Auth" String :> rest))
 
-type instance IsElem' e (NeedsRole r :> s) = IsElem e s
+type instance IsElem' e (HasRole r :> s) = IsElem e s
