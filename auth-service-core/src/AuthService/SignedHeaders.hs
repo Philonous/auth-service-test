@@ -407,10 +407,10 @@ instance ( HasServer api context
   hoistServerWithContext _ pc nt s =
     hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
-instance Swagger.ToParamSchema (HasRole r 'Required) where
+instance Swagger.ToParamSchema (HasRole r required) where
   toParamSchema _ = Swagger.toParamSchema (Proxy :: Proxy String)
 
-instance Swagger.HasSwagger rest => Swagger.HasSwagger (HasRole r :> rest) where
+instance Swagger.HasSwagger rest => Swagger.HasSwagger (HasRole r required :> rest) where
   toSwagger _ = Swagger.toSwagger (Proxy :: Proxy (Header "X-Auth" String :> rest))
 
-type instance IsElem' e (HasRole r :> s) = IsElem e s
+type instance IsElem' e (HasRole r required :> s) = IsElem e s
