@@ -271,22 +271,9 @@ instance Swagger.HasSwagger rest => Swagger.HasSwagger (AuthCredentials required
 
 type instance IsElem' e (AuthCredentials required a :> s) = IsElem e s
 
-runAuth ::
-     AuthContext
-  -> Maybe AuthHeader
-  -> Request
-  -> DelayedIO AuthHeader
-runAuth ctx Nothing _req = do
-  liftIO $ authContextLogger ctx defaultLoc "auth-service" LevelWarn
-    "Authorization error: Authorization header missing"
-  delayedFailFatal err403
-runAuth _ctx (Just authHeader) _ = do
-  return authHeader
-
 -- | Basic Authentication
 instance ( HasServer api context
          , HasContextEntry context (Maybe AuthHeader)
-         , HasContextEntry context AuthContext
          )
     => HasServer (AuthCredentials 'AuthRequired AuthHeader :> api) context where
 
@@ -296,9 +283,10 @@ instance ( HasServer api context
   route Proxy context subserver =
     route (Proxy :: Proxy api) context (subserver `addAuthCheck` authCheck)
     where
-       authContext = getContextEntry context :: AuthContext
-       authHeader = getContextEntry context :: (Maybe AuthHeader)
-       authCheck = withRequest $ runAuth authContext authHeader
+       mbAuthHeader = getContextEntry context :: (Maybe AuthHeader)
+       authCheck = case mbAuthHeader of
+                     Nothing -> delayedFailFatal err401
+                     Just authHeader -> return authHeader
 
   hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt . s
 
