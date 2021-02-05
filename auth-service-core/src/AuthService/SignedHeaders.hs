@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -14,19 +15,34 @@
 -- Handling of signed headers in upstream application
 
 module AuthService.SignedHeaders
-  ( module AuthService.SignedHeaders
-  , AuthHeader(..)
+  (
+   -- * Verifying headers
+    AuthContext(..)
+  , mkAuthContext
   , Sign.PublicKey
   , Sign.readPublicKeyDer
   , Sign.readPublicKeyPem
   , Nonce.Frame
   , Nonce.newFrame
-   -- | Encoding headers
+   -- * Wai Middleware
+  , AuthHeader(..)
+  , resolveAuthHeader
+   -- * Logging
+  , logRequestBasic
+  , RequestLogUser(..)
+  , RequestLog(..)
+  -- * Servant
+  , AuthCredentials(..)
+  , AuthRequired(..)
+  , IsRole(..)
+  , NeedsRole
+   -- * Encoding headers
   , Sign.PrivateKey
   , Sign.mkKeys
   , Sign.readPrivateKeyDer
   , Sign.readPrivateKeyPem
   , Headers.encodeHeaders
+  , mkAuthHeader
   ) where
 
 
@@ -230,9 +246,20 @@ logRequestBasic ctx mbAuthHeader next  req respond = do
 -- Servant ---------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
+-- | Parameter to 'AuthCredentials', see there.
 data AuthRequired = AuthRequired | AuthOptional
 
-newtype AuthCredentials (required :: AuthRequired) a = AuthCredentials  a
+-- | Servant combinator to fetch user credentials. If the parameter is
+-- ''AuthRequired' the request will be denied with 403 if the user has not
+-- provided credentials.
+--
+-- Example:
+--
+-- > type MyAPI = "posts" :> AuthCredentials 'AuthOptional :> GET '[ JSON ] [Post]
+--
+-- The handler should take an 'AuthHeader' if ''AuthRequired' is set and @Maybe
+-- 'AuthHeader'@ for ''AuthOptional'
+newtype AuthCredentials (required :: AuthRequired) a = AuthCredentials a
 
 makePrisms ''AuthCredentials
 
@@ -249,7 +276,7 @@ runAuth ::
   -> Maybe AuthHeader
   -> Request
   -> DelayedIO AuthHeader
-runAuth ctx Nothing req = do
+runAuth ctx Nothing _req = do
   liftIO $ authContextLogger ctx defaultLoc "auth-service" LevelWarn
     "Authorization error: Authorization header missing"
   delayedFailFatal err403
@@ -306,32 +333,55 @@ mkAuthHeader noncePool privKey authHeader = do
 -- Servant Combinators ---------------------------------------------------------
 --------------------------------------------------------------------------------
 
-class IsRole (r :: k) where
-  toRole :: proxy r -> Text
+class IsRole (t :: k) where
+  -- | How to check if the user has the approriate role. Return "true" if the
+  -- role is present.
+  checkRole :: Proxy t -> [Text] -> Bool
 
 instance KnownSymbol s => IsRole (s :: Symbol) where
-  toRole proxy = Text.pack $ symbolVal proxy
+  checkRole proxy roles =
+    let wantedHeader = Text.pack $ symbolVal proxy
+    in wantedHeader `List.elem` roles
 
+-- | Combinator for checking for the presence of a role. Doesn't return anything.
+--
+-- Use it either with a Symbol (type-level string) or a custom value that has an
+-- IsRole instance
+--
+-- Example:
+--
+-- > type myAPI = "users" :> NeedsRole "admin" :> Get '[JSON] User
+--
+-- Another example
+--
+-- > data MyRole = RoleAdmin | RoleUser
+-- >
+-- > instance IsRole 'RoleAdmin where
+-- >   checkRole _ = List.elem "admin"
+-- >
+-- > instance IsRole 'RoleUser
+-- >   checkRole _ = List.elem "user"
+-- >
+-- > type MyAPI = "users" :> NeedsRole 'RoleAdmin :> Get '[JSON] User
 data NeedsRole (a :: k)
 
 instance ( HasServer api context
          , IsRole r
          , HasContextEntry context (Maybe AuthHeader)
          )
-    => HasServer (NeedsRole (r :: Symbol) :> api) context where
-  type ServerT (NeedsRole (r :: Symbol) :> api) m
+    => HasServer (NeedsRole r :> api) context where
+  type ServerT (NeedsRole r :> api) m
     = ServerT api m
 
   route Proxy context subserver =
     route (Proxy :: Proxy api) context (subserver `addAuthCheck_` authCheck)
     where
        mbAuthHeader = getContextEntry context :: Maybe AuthHeader
-       wantedHeader = toRole (Proxy :: Proxy r)
        authCheck =
          case mbAuthHeader of
            Nothing -> delayedFailFatal err401
            Just authHeader ->
-             unless (wantedHeader `List.elem` (authHeader ^. roles))
+             unless (checkRole (Proxy :: Proxy r) (authHeader ^. roles))
                $ delayedFailFatal err403
        -- Adds auth check that doesn't return anything
        addAuthCheck_ Delayed{..} new =
