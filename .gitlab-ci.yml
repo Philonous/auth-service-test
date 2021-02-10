@@ -8,11 +8,7 @@ stages:
 variables:
   stack_args: --no-docker
   TAG: $CI_COMMIT_SHA
-  REGISTRY: registry.nejla.com/nejla-ab/auth-service
   APP_TEST_BASEIMAGE_NAME: baseimage
-  APP_IMAGE: auth-service
-  WEB_IMAGE: auth-web
-  BASE_IMAGE: baseimage
 
 build:
   stage: build
@@ -40,8 +36,9 @@ build:
 build-auth-web-image:
   stage: build-images
   variables:
-    DESTINATION: $REGISTRY/$WEB_IMAGE:$CI_COMMIT_SHA
-    EXTRA_DESTINATION: $REGISTRY/$WEB_IMAGE:latest
+    IMAGE_NAME: auth-web
+    DESTINATION: $REGISTRY/$IMAGE_NAME:$CI_COMMIT_SHA
+    EXTRA_DESTINATION: $REGISTRY/$IMAGE_NAME:latest
   image:
     # The debug image contains the shell needed by gitlab-ci, resetting the
     # entrypoint makes it available as a command
@@ -49,7 +46,7 @@ build-auth-web-image:
     entrypoint: [""]
   before_script:
     - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"registry.nejla.com\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" \
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" \
       > /kaniko/.docker/config.json
   script:
     - if [ $CI_COMMIT_BRANCH = "master" ]; then EXTRA_ARGS="--destination $EXTRA_DESTINATION"; fi
@@ -64,7 +61,8 @@ build-auth-web-image:
 build-auth-service-baseimage:
   stage: build-images
   variables:
-    DESTINATION: $REGISTRY/$BASE_IMAGE:$CI_COMMIT_SHA
+    IMAGE_NAME: baseimage
+    DESTINATION: $CI_REGISTRY_IMAGE/$IMAGE_NAME:$CI_COMMIT_SHA
   image:
     # The debug image contains the shell needed by gitlab-ci, resetting the
     # entrypoint makes it available as a command
@@ -72,7 +70,7 @@ build-auth-service-baseimage:
     entrypoint: [""]
   before_script:
     - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"registry.nejla.com\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" \
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" \
       > /kaniko/.docker/config.json
   script:
     - 'echo "Building: $DESTINATION"'
@@ -89,8 +87,9 @@ build-auth-service-baseimage:
 build-auth-service-image:
   stage: build-images
   variables:
-    DESTINATION: $REGISTRY/$BASE_IMAGE:$CI_COMMIT_SHA
-    EXTRA_DESTINATION: $REGISTRY/$WEB_IMAGE:latest
+    IMAGE_NAME: auth-service
+    DESTINATION: $CI_REGISTRY_IMAGE/$IMAGE_NAME:$CI_COMMIT_SHA
+    EXTRA_DESTINATION: $REGISTRY/$IMAGE_NAME:latest
   image:
     # The debug image contains the shell needed by gitlab-ci, resetting the
     # entrypoint makes it available as a command
@@ -98,7 +97,7 @@ build-auth-service-image:
     entrypoint: [""]
   before_script:
     - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"registry.nejla.com\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" \
+    - echo "{\"auths\":{\"CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" \
       > /kaniko/.docker/config.json
   script:
     - if [ $CI_COMMIT_BRANCH = "master" ]; then EXTRA_ARGS="--destination $EXTRA_DESTINATION"; fi
