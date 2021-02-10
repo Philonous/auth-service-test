@@ -27,6 +27,7 @@ build:
   artifacts:
     paths:
       - service/dist
+      - dist/doc
   cache:
     paths:
       - '.stack-cache'

@@ -24,7 +24,7 @@ test-srcfiles:=$(shell find test -type f)
 
 
 .PHONY: all
-all: image baseimage $(tests)
+all: image baseimage $(tests) dist/doc
 
 .PHONY: push
 push: push-image push-baseimage
@@ -58,7 +58,13 @@ dist/auth-service: $(auth-service-core) $(srcfiles) $(test-srcfiles) package.yam
 	stack build --install-ghc --test --no-run-tests \
 	            ${stack_args} \
 	            ${stack_build_args} \
+	            --haddock --no-haddock-deps --haddock-hyperlink-source \
 	            --copy-bins --local-bin-path ./dist
+
+dist/doc: dist/auth-service
+	rm -rf dist/doc
+	cp -fr $(shell stack path ${stack_args} --dist-dir)/doc/html/auth-service \
+               dist/doc
 
 
 # Tests

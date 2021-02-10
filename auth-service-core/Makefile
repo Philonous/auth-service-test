@@ -16,8 +16,15 @@ dist/lib: $(srcfiles) auth-service-core.cabal stack.yaml
 	mkdir -p ./dist
 	stack build --install-ghc --test --no-run-tests \
 	            ${stack_args} \
-	            ${stack_build_args}
+	            ${stack_build_args} \
+	            --haddock --no-haddock-deps --haddock-hyperlink-source
 	git rev-parse HEAD > dist/lib
+
+
+dist/doc: dist/lib
+	rm -rf dist/doc
+	cp -fr $(shell stack path ${stack_args} --dist-dir)/doc/html/auth-service-core \
+               dist/doc
 
 
 # Tests
