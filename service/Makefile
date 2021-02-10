@@ -29,6 +29,9 @@ all: image baseimage $(tests) dist/doc
 .PHONY: push
 push: push-image push-baseimage
 
+.PHONY: push-latest
+push-latest: push-image-latest push-baseimage-latest
+
 image: dist/auth-service Dockerfile ../.git
 	docker build --pull \
 	  -t "${SERVICE_IMAGE}:${TAG}" .
@@ -40,6 +43,12 @@ image: dist/auth-service Dockerfile ../.git
 push-image: image
 	docker push "$(SERVICE_IMAGE):$(shell cat image)"
 
+.PHONY: push-image-latest
+push-image-latest: image
+	docker tag "$(SERVICE_IMAGE):$(shell cat image)" "$(SERVICE_IMAGE):latest"
+	docker push "$(SERVICE_IMAGE):latest"
+
+
 # Depend on image to ensure that baseimage is up to date with latest built image
 baseimage: image
 	docker build . --pull --target baseimage \
@@ -49,6 +58,11 @@ baseimage: image
 .PHONY: push-baseimage
 push-baseimage:
 	docker push $(TEST_IMAGE):$(TAG)
+
+.PHONY: push-baseimage-latest
+push-baseimage-latest:
+	docker tag $(TEST_IMAGE):$(TAG) $(TEST_IMAGE):latest
+	docker push $(TEST_IMAGE):latest
 
 
 dist/auth-service: $(auth-service-core) $(srcfiles) $(test-srcfiles) package.yaml stack.yaml
