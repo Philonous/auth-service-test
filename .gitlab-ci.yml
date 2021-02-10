@@ -59,7 +59,7 @@ build-auth-web-image:
                        --cache=true
                        --destination "$TARGET"
                        $EXTRA_ARGS
-    - 'echo "Built: "$TARGET"'
+    - 'echo "Built: $TARGET"'
 
 build-auth-service-baseimage:
   stage: build-images
@@ -80,7 +80,7 @@ build-auth-service-baseimage:
                        --dockerfile $CI_PROJECT_DIR/service/Dockerfile
                        --cache=true
                        --destination "$TARGET"
-    - 'echo "Built: "$TARGET"'
+    - 'echo "Built: TARGET"'
   dependencies:
     - build
 
@@ -107,7 +107,7 @@ build-auth-service-image:
                        --cache=true
                        --destination "$TARGET"
                        $EXTRA_ARGS
-    - 'echo "Built: "$TARGET"'
+    - 'echo "Built: $TARGET"'
   dependencies:
     - build
 
