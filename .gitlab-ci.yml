@@ -79,7 +79,7 @@ build-auth-service-baseimage:
                        --cache=true
                        --target baseimage
                        --destination "$DESTINATION"
-    - 'echo "Built: DESTINATION"'
+    - 'echo "Built: $DESTINATION"'
   dependencies:
     - build
 
@@ -97,7 +97,7 @@ build-auth-service-image:
     entrypoint: [""]
   before_script:
     - mkdir -p /kaniko/.docker
-    - echo "{\"auths\":{\"CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" \
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" \
       > /kaniko/.docker/config.json
   script:
     - if [ $CI_COMMIT_BRANCH = "master" ]; then EXTRA_ARGS="--destination $EXTRA_DESTINATION"; fi
