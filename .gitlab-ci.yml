@@ -79,6 +79,7 @@ build-auth-service-baseimage:
     - /kaniko/executor --context $CI_PROJECT_DIR/service
                        --dockerfile $CI_PROJECT_DIR/service/Dockerfile
                        --cache=true
+                       --target baseimage
                        --destination "$TARGET"
     - 'echo "Built: TARGET"'
   dependencies:
