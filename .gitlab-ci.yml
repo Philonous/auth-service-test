@@ -26,7 +26,7 @@ build:
     - '[[ -d $HOME/.stack ]] || ln -s $PWD/.stack-cache $HOME/.stack'
     - scripts/registry-login
   script:
-    - make -C service dist/auth-service
+    - make -C service dist/auth-service tests
   artifacts:
     paths:
       - service/dist
