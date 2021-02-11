@@ -88,11 +88,8 @@ $(tests): dist/tests/% : dist/auth-service $(test-srcfiles) package.yaml stack.y
 	mkdir -p dist/tests
 	cp "$(shell stack ${stack_args} path --dist-dir)/build/$(notdir $@)/$(notdir $@)" dist/tests/
 
-# Bring up required services before running test suite
-.PHONY: test-up
-test-up: $(tests) baseimage
-	docker-compose -f docker-compose.test.yaml -p auth-service-test up -d
-	$(MAKE) test
+.PHONY: tests
+tests: $(tests)
 
 .PHONY: test-down
 test-down:
