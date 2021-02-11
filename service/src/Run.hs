@@ -80,7 +80,8 @@ runMain = runStderrLoggingT . filterLogger (\_source level -> level >= LevelWarn
                                                  }
                                 , apiStateNoncePool = noncePool
                                 }
-        let run = liftIO . runAPI pool appState
+        let run :: forall a m. MonadIO m => API a -> m a
+            run = liftIO . runAPI pool appState
         _ <- runPoolRetry pool doMigrate
         case args of
          ("adduser": args') -> do
@@ -98,9 +99,9 @@ runMain = runStderrLoggingT . filterLogger (\_source level -> level >= LevelWarn
          ("removeinstance": args') -> run $ userRemoveInstance args'
          ("deactivateuser": args') -> run $ userDeactivate' args'
          ("reactivateuser": args') -> run $ userReactivate args'
-         ["run"] -> liftIO $ do
-
-           Warp.run 80 (logM $ serveAPI pool noncePool conf)
+         ["run"] -> do
+           secrets <- getSecrets confFile
+           liftIO $ Warp.run 80 (logM $ serveAPI pool noncePool conf secrets)
          _ -> liftIO $ do
              hPutStrLn stderr
                "Usage: auth-service [run|adduser|chpass|addrole|rmrole|newinstance|addinstance|removeinstance|\

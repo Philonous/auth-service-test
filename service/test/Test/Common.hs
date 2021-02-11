@@ -109,7 +109,7 @@ withTestDB f =
 type TestCase = Postgres.ConnectionPool -> IO ()
 
 mkConfig :: ConnectionPool
-           -> IO Config
+         -> IO (Config, Secrets)
 mkConfig pool = do
     runSqlPool cleanDB pool
     (privateKey, publicKey) <- SignedAuth.mkKeys
@@ -123,9 +123,9 @@ mkConfig pool = do
           , configUseTransactionLevels = False
           , configEmail = Just testEmailConfig
           , configAccountCreation = accountCreationConfig
-          , configHeaderPrivateKey = privateKey
           }
-    return conf
+        secrets = Secrets { secretsHeaderPrivateKey = privateKey }
+    return (conf, secrets)
   where
     -- | Delete all rows from all tables (Don't use TRUNACE TABLE since it's
     -- slower)
@@ -154,7 +154,7 @@ withRunAPI :: (Config -> Config)
            -> ((forall a. API a -> IO a) -> IO b)
            -> IO b
 withRunAPI changeConf pool f = do
-  conf <- mkConfig pool
+  (conf, secrets) <- mkConfig pool
   noncePool <- SignedAuth.newNoncePool
   let apiState = ApiState { apiStateConfig = changeConf conf
                           , apiStateAuditSource = AuditSourceTest

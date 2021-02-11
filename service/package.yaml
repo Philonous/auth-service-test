@@ -14,6 +14,10 @@ default-extensions:
   - FunctionalDependencies
   - MultiParamTypeClasses
   - StrictData
+  - GADTs
+  - KindSignatures
+  - DataKinds
+
 
 ghc-options:
   - -Wall

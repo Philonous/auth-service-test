@@ -121,8 +121,12 @@ data Config = Config
   , configEmail                :: Maybe EmailConfig
 
   , configAccountCreation      :: AccountCreationConfig
-  , configHeaderPrivateKey     :: SignedAuth.PrivateKey
   }
+
+data Secrets =
+  Secrets
+    { secretsHeaderPrivateKey     :: SignedAuth.PrivateKey
+    }
 
 -- | Necessary data to fill in a password reset email
 data EmailData =
@@ -135,6 +139,7 @@ data EmailData =
 makeLensesWith camelCaseFields ''EmailData
 makeLensesWith camelCaseFields ''AccountCreationConfig
 makeLensesWith camelCaseFields ''Config
+makeLensesWith camelCaseFields ''Secrets
 makeLensesWith camelCaseFields ''EmailConfig
 makeLensesWith camelCaseFields ''SendmailConfig
 makeLensesWith camelCaseFields ''TwilioConfig

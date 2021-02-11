@@ -147,10 +147,7 @@ getAuthServiceConfig conf = do
     haveEmail <- setEmailConf conf
     let configOtp = fmap Twilio.sendMessage twilioConf
     accountCreationConfig <- getAccountCreationConfig conf
-    signedHeaderKeyPath <-
-      getConf "SIGNED_HEADERS_PRIVATE_KEY_PATH" "signed-headers.private-key-path"
-        (Right "/run/secrets/header_signing_private_key") conf
-    signedHeaderKey <- readSignedHeaderKey $ Text.unpack signedHeaderKeyPath
+
     return Config{ configTimeout = to
                  , configOTPLength = otpl
                  , configOTPTimeoutSeconds = otpt
@@ -159,8 +156,15 @@ getAuthServiceConfig conf = do
                  , configUseTransactionLevels = True
                  , configEmail = haveEmail
                  , configAccountCreation = accountCreationConfig
-                 , configHeaderPrivateKey = signedHeaderKey
                  }
+
+getSecrets :: (MonadIO m, MonadLogger m) => Conf.Config -> m Secrets
+getSecrets conf = do
+  signedHeaderKeyPath <-
+    getConf "SIGNED_HEADERS_PRIVATE_KEY_PATH" "signed-headers.private-key-path"
+      (Right "/run/secrets/header_signing_private_key") conf
+  signedHeaderKey <- readSignedHeaderKey $ Text.unpack signedHeaderKeyPath
+  return Secrets {secretsHeaderPrivateKey = signedHeaderKey }
 
 -- Default template loaded from src/password-reset-email-template.html.mustache
 defaultPwResetTemplate :: Mustache.Template
