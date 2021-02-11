@@ -50,7 +50,7 @@ build-auth-web-image:
       > /kaniko/.docker/config.json
   script:
     - if [ $CI_COMMIT_BRANCH = "master" ]; then EXTRA_ARGS="--destination $EXTRA_DESTINATION"; fi
-    - 'echo "Building with --destination \"$DESTINATION\" $EXTRA_ARGS'
+    - 'echo "Building with --destination $DESTINATION $EXTRA_ARGS"'
     - /kaniko/executor --context $CI_PROJECT_DIR/web
                        --dockerfile $CI_PROJECT_DIR/web/Dockerfile
                        --cache=true
@@ -101,7 +101,7 @@ build-auth-service-image:
       > /kaniko/.docker/config.json
   script:
     - if [ $CI_COMMIT_BRANCH = "master" ]; then EXTRA_ARGS="--destination $EXTRA_DESTINATION"; fi
-    - 'echo "Building with --destination \"$DESTINATION\" $EXTRA_ARGS'
+    - 'echo "Building with --destination $DESTINATION $EXTRA_ARGS"'
     - /kaniko/executor --context $CI_PROJECT_DIR/service
                        --dockerfile $CI_PROJECT_DIR/service/Dockerfile
                        --cache=true
