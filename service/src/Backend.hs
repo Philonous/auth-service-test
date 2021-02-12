@@ -392,7 +392,7 @@ createOTP otpHandler p userEmail userId = do
         }
   return ()
 
--- | Check that one time password is valid for user
+-- | Check that one time password is valid for user and deactivate it
 checkOTP :: UserID -> Password -> API (Either LoginError (Entity DB.UserOtp))
 checkOTP userId (Password otpC) = do
   let otp' = Password $ Text.toUpper otpC

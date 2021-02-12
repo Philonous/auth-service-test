@@ -19,6 +19,7 @@ module Config
   ) where
 
 import           Control.Lens             ((^.))
+import           Control.Monad            (when)
 import qualified Control.Monad.Catch      as Ex
 import           Control.Monad.Logger
 import           Control.Monad.Trans
@@ -43,6 +44,7 @@ import           System.Exit              (exitFailure)
 import qualified System.Exit              as Exit
 import           System.IO                (hPutStrLn, stderr)
 import           System.IO.Error          (isDoesNotExistError, isPermissionError)
+import qualified System.Posix.Files       as Posix
 import qualified Text.Microstache         as Mustache
 import qualified Twilio
 
@@ -106,6 +108,7 @@ getAccountCreationConfig conf = do
 
 readSignedHeaderKey :: MonadIO m => FilePath -> m SignedAuth.PrivateKey
 readSignedHeaderKey path = liftIO $ do
+  isPipe <- Posix.isNamedPipe <$> Posix.getFileStatus path
   keyBS <- Ex.catch (stripEnd <$> BS.readFile path)
     ( \(e :: IOError) -> do
       if
@@ -122,6 +125,11 @@ readSignedHeaderKey path = liftIO $ do
             $ path ++ " could not be read. Encountered error: " ++ show e
             ++ ". Check if SIGNED_HEADERS_PRIVATE_KEY_PATH is set to the correct path"
       exitFailure)
+  when (BS.null keyBS && isPipe) $ do
+    hPutStrLn stderr $ path ++ " is a named pipe and is empty.\
+                               \ Did you forget to write the secret to it?"
+    exitFailure
+
   case SignedAuth.readPrivateKeyDer keyBS of
     Left e -> liftIO $ do
       hPutStrLn stderr $ "Could not parse DER-encoded key: \""
@@ -133,6 +141,8 @@ readSignedHeaderKey path = liftIO $ do
     stripEnd bs =
       let (bs', _end) = BS8.spanEnd Char.isSpace bs
       in bs'
+
+
 
 getAuthServiceConfig :: (MonadIO m, MonadLogger m) =>
                         Conf.Config
