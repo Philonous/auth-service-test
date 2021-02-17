@@ -362,13 +362,13 @@ rateLimitSpec =
 
     it "Does not count successful attempts" $
       WithConfig (  (maxAttempts .~ 1)
-                  . (attemptsTimeframe .~ 0.1)
+                  . (attemptsTimeframe .~ 0.5)
                   ) $ do
         replicateM_ 5 $ loginReq "admin" "pwd"
 
     it "Allows more login attempts after the time frame runs out" $
       WithConfig (  (maxAttempts .~ 1)
-                  . (attemptsTimeframe .~ 0.1)
+                  . (attemptsTimeframe .~ 0.5)
                   ) $ do
         postJ [i|/login|] [json|{ "user": "user@example.com"
                                 , "password": "false"
@@ -377,7 +377,7 @@ rateLimitSpec =
                                 , "password": "false"
                                 }|] `shouldRespondWith` 429
 
-        liftIO $ threadDelay 100_000
+        liftIO $ threadDelay 500_000
         postJ [i|/login|] [json|{ "user": "user@example.com"
                                 , "password": "false"
                                 }|] `shouldRespondWith` 403
