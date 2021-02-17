@@ -116,6 +116,8 @@ mkConfig pool = do
     let conf =
           Config
           { configTimeout = Nothing
+          , configMaxAttempts = 10000
+          , configAttemptsTimeframe  =1
           , configOTPLength = 6
           , configOTPTimeoutSeconds = 10
           , configTFARequired = True

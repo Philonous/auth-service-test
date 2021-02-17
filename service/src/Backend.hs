@@ -3,7 +3,6 @@
 
 {-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -446,25 +445,76 @@ handleOTP usr mbOtp = do
         Right k -> do
           return . Right $ Just k
 
+checkLoginRateLimit ::
+     UTCTime
+  -> Int
+  -> Text
+  -> Email
+  -> API (Either LoginError ())
+checkLoginRateLimit cutoff max address (Email email) = do
+  -- First clean up table
+  db' $ E.delete . E.from $ \(attempt :: SV DB.LoginAttempt) -> do
+    whereL  [ attempt E.^. DB.LoginAttemptTime E.<. E.val cutoff ]
+  [E.Value attempts] <-
+    db' $ E.select . E.from $ \(attempt :: SV DB.LoginAttempt) -> do
+      whereL [ attempt E.^. DB.LoginAttemptTime >=. val cutoff
+             , attempt E.^. DB.LoginAttemptEmail ==. val email
+             , attempt E.^. DB.LoginAttemptRemoteAddress ==. val address
+             ]
+      return countRows
+  return $ if attempts >= max
+    then Left LoginErrorRatelimit
+    else Right ()
 
-login :: Login -> API (Either LoginError ReturnLogin)
-login Login {loginUser = userEmail, loginPassword = pwd, loginOtp = mbOtp} = do
-  mbError <- checkUserPassword userEmail pwd
-  case mbError of
-    Left e -> do
-      Log.logES $
-        Log.AuthFailed
-        {Log.user = userEmail, Log.reason = Log.AuthFailedReasonWrongPassword}
-      return $ Left e
-    Right usr -> do
-      handleOTP usr mbOtp >>= \case
-        Left e -> return $ Left e
-        Right _r -> do
-          (tid, rl) <- createToken (usr ^. DB.uuid)
-          Log.logES Log.AuthSuccess {Log.user = userEmail, Log.tokenId = tid}
-          return $ Right rl
+rateLimitAddAttempt ::
+     UTCTime
+  -> Text
+  -> Email
+  -> API ()
+rateLimitAddAttempt now address (Email email) = do
+    _ <- db' $ insert DB.LoginAttempt
+      { DB.loginAttemptTime = now
+      , DB.loginAttemptRemoteAddress = address
+      , DB.loginAttemptEmail = email
+      }
+    return ()
+
+login ::
+     NominalDiffTime
+  -> Text
+  -> Int
+  -> Login
+  -> API (Either LoginError ReturnLogin)
+login timeframe remoteAddress maxAttempts
+      Login{loginUser = userEmail, loginPassword = pwd, loginOtp = mbOtp}
+    = runExceptT $ do
+        now <- liftIO getCurrentTime
+        let cutoff = addUTCTime (negate timeframe) now
+        checkLoginRateLimit cutoff maxAttempts remoteAddress userEmail
+                 `logFailed` Log.AuthFailedReasonRateLimit
+        usr <- (checkUserPassword userEmail pwd >>= \case
+                 x@Left{} -> do
+                   rateLimitAddAttempt now remoteAddress userEmail
+                   return x
+                 x -> return x)
+                   `logFailed` Log.AuthFailedReasonWrongPassword
+        _ <- handleOTP usr mbOtp
+                 `logFailed` Log.AuthFailedReasonWrongOtp
+
+        (tid, rl) <- createToken (usr ^. DB.uuid)
+        Log.logES Log.AuthSuccess {Log.user = userEmail, Log.tokenId = tid}
+        return rl
   where
-    createToken userId = do
+    logFailed m reason = do
+      lift m >>= \case
+        Left e -> do
+            Log.logES $ Log.AuthFailed
+              { Log.user = userEmail
+              , Log.reason = reason
+              }
+            throwError e
+        Right r -> return r
+    createToken userId = lift $ do
       now <- liftIO getCurrentTime
       mbTokenExpiration <- getConfig timeout
       let tokenExpires = mbTokenExpiration <&> \texp ->

@@ -19,6 +19,8 @@ mkDevConf = do
   return ApiState
     { apiStateConfig = Config
       { configTimeout              = Nothing
+      , configMaxAttempts          = 5
+      , configAttemptsTimeframe    = 60
       , configOTPLength            = 1
       , configOTPTimeoutSeconds    = 3600
       , configTFARequired          = False

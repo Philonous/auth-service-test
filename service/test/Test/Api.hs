@@ -4,6 +4,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE NumericUnderscores #-}
 
 module Main where
 
@@ -36,6 +37,7 @@ import                          Test.Common
 import                          Types
 
 import                          NejlaCommon.Test                 as NC
+import Control.Concurrent (threadDelay)
 
 iid :: UUID
 iid = case UUID.fromString "3afe62f4-7235-4b86-a418-923aaa4a5c28" of
@@ -83,6 +85,7 @@ spec :: SpecWith ((), (Config -> Config) -> Application)
 spec = do
   describe "admin API" adminApiSpec
   describe "create account API" createAccountSpec
+  describe "rate limiting" rateLimitSpec
 
 
 exampleUser :: Text -> [Text] -> BSL.ByteString
@@ -318,7 +321,7 @@ adminApiSpec = do
                               , "password": "pwd"
                               }|] `shouldRespondWith` 200
   describe "/admin/users/<uid>/reactivate" $ do
-    it "Should allow a user to log in again"
+    it "Allows a user to log in again"
      $ withDefaultConfig $ withAdminToken $ \admin-> do
       uid <- addUser admin "robert" []
       postToken admin [i|/admin/users/#{uid}/deactivate|]
@@ -331,3 +334,50 @@ adminApiSpec = do
       postToken admin [i|/login|] [json|{ "user": "robert@example.com"
                               , "password": "pwd"
                               }|] `shouldRespondWith` 200
+
+rateLimitSpec :: SpecWith ((), (Config -> Config) -> Application)
+rateLimitSpec =
+  describe "/login" $ do
+    it "Limits login attempts" $
+      WithConfig (  (maxAttempts .~ 1)
+                  . (attemptsTimeframe .~ 0.1)
+                  ) $ do
+        postJ [i|/login|] [json|{ "user": "user@example.com"
+                                , "password": "false"
+                                }|] `shouldRespondWith` 403
+        postJ [i|/login|] [json|{ "user": "user@example.com"
+                                , "password": "false"
+                                }|] `shouldRespondWith` 429
+
+    it "Also limits correct credentials" $
+      WithConfig (  (maxAttempts .~ 1)
+                  . (attemptsTimeframe .~ 0.1)
+                  ) $ do
+        postJ [i|/login|] [json|{ "user": "admin@example.com"
+                                , "password": "false"
+                                }|] `shouldRespondWith` 403
+        postJ [i|/login|] [json|{ "user": "admin@example.com"
+                                , "password": "pwd"
+                                }|] `shouldRespondWith` 429
+
+    it "Does not count successful attempts" $
+      WithConfig (  (maxAttempts .~ 1)
+                  . (attemptsTimeframe .~ 0.1)
+                  ) $ do
+        replicateM_ 5 $ loginReq "admin" "pwd"
+
+    it "Allows more login attempts after the time frame runs out" $
+      WithConfig (  (maxAttempts .~ 1)
+                  . (attemptsTimeframe .~ 0.1)
+                  ) $ do
+        postJ [i|/login|] [json|{ "user": "user@example.com"
+                                , "password": "false"
+                                }|] `shouldRespondWith` 403
+        postJ [i|/login|] [json|{ "user": "user@example.com"
+                                , "password": "false"
+                                }|] `shouldRespondWith` 429
+
+        liftIO $ threadDelay 100_000
+        postJ [i|/login|] [json|{ "user": "user@example.com"
+                                , "password": "false"
+                                }|] `shouldRespondWith` 403
