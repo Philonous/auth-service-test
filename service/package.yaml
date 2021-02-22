@@ -14,6 +14,10 @@ default-extensions:
   - FunctionalDependencies
   - MultiParamTypeClasses
   - StrictData
+  - GADTs
+  - KindSignatures
+  - DataKinds
+
 
 ghc-options:
   - -Wall
@@ -75,6 +79,7 @@ library:
   - template-haskell
   - text
   - time >=1.5
+  - unix
   - uuid >=1.3
   - wai >=3.0
   - warp

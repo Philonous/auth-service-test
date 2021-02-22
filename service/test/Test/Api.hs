@@ -42,10 +42,10 @@ iid = case UUID.fromString "3afe62f4-7235-4b86-a418-923aaa4a5c28" of
         Just uuid -> uuid
         Nothing -> error "uuid"
 
-runTest :: SpecWith ((), (Config -> Config)-> Application) -> IO ()
+runTest :: SpecWith ((), (Config -> Config) -> Application) -> IO ()
 runTest spec = withTestDB $ \pool -> do
   hspec $ flip around spec $ \f -> do
-    conf <- mkConfig pool
+    (conf, secrets) <- mkConfig pool
     noncePool <- SignedAuth.newNoncePool
     let apiState = ApiState { apiStateConfig = conf
                             , apiStateAuditSource = AuditSourceTest
@@ -54,7 +54,7 @@ runTest spec = withTestDB $ \pool -> do
     _ <- runAPI pool apiState $ do
       createUser adminUser
       addInstance (Just $ InstanceID iid) "instance1"
-    f ((), \cc -> Api.serveAPI pool noncePool $ cc conf)
+    f ((), \cc -> Api.serveAPI pool noncePool (cc conf) secrets)
   where
     adminUser = AddUser { addUserUuid      = Nothing
                         , addUserEmail     = "admin@example.com"

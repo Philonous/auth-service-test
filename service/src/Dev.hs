@@ -29,7 +29,6 @@ mkDevConf = do
         { accountCreationConfigEnabled = True
         , accountCreationConfigDefaultInstances = []
         }
-      , configHeaderPrivateKey     = privKey
       }
     , apiStateAuditSource = AuditSourceManual
     , apiStateNoncePool = noncePool

@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 -- Copyright (c) 2015 Lambdatrade AB
 -- All rights reserved
 
@@ -9,6 +8,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Api where
 
@@ -114,8 +114,8 @@ instance ToHttpApiData (JWS a) where
   toUrlPiece (JWS bs) = Text.decodeUtf8 bs
   toHeader (JWS bs) = bs
 
-serveCheckToken :: ConnectionPool -> ApiState -> Server CheckTokenAPI
-serveCheckToken pool st req (Just tok) (Just inst) = checkTokenHandler
+serveCheckToken :: ConnectionPool -> ApiState -> Secrets -> Server CheckTokenAPI
+serveCheckToken pool st secrets req (Just tok) (Just inst) = checkTokenHandler
   where
     checkTokenHandler = do
       res <-
@@ -136,9 +136,8 @@ serveCheckToken pool st req (Just tok) (Just inst) = checkTokenHandler
                            , authHeaderName = userName
                            , authHeaderRoles = roles'
                            }
-
           signedAuthHeader <- liftIO $ SignedAuth.encodeHeaders
-                                   (st ^. config . headerPrivateKey)
+                                   (secrets ^. headerPrivateKey)
                                    (st ^. noncePool)
                                    authHeader
 
@@ -146,7 +145,7 @@ serveCheckToken pool st req (Just tok) (Just inst) = checkTokenHandler
                  $ ReturnUser { returnUserUser = usr
                               , returnUserRoles = roles'
                               }
-serveCheckToken _ _ _ _ _ = throwError err400
+serveCheckToken _ _ _ _ _ _ = throwError err400
 
 servePublicCheckToken :: ConnectionPool -> ApiState -> Server PublicCheckTokenAPI
 servePublicCheckToken pool conf tok = checkTokenHandler
@@ -316,8 +315,13 @@ serveCreateAccountApi pool conf xinstance createAccount =
     return NoContent else throwError err403
 
 
-serveAPI :: ConnectionPool -> SignedAuth.NoncePool -> Config -> Application
-serveAPI pool noncePool conf =
+serveAPI ::
+     ConnectionPool
+  -> SignedAuth.NoncePool
+  -> Config
+  -> Secrets
+  -> Application
+serveAPI pool noncePool conf secrets =
   Audit.withAuditHttp $ \auditHttp ->
     let ctx = ApiState { apiStateConfig = conf
                        , apiStateAuditSource = auditHttp
@@ -325,7 +329,7 @@ serveAPI pool noncePool conf =
                        }
     in serve apiPrx $ serveStatus
                                :<|> serveLogin pool ctx
-                               :<|> serveCheckToken pool ctx
+                               :<|> serveCheckToken pool ctx secrets
                                :<|> servePublicCheckToken pool ctx
                                :<|> serveLogout pool ctx
                                :<|> serverDisableSessions pool ctx

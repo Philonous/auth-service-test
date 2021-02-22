@@ -59,10 +59,11 @@ dev/ed25519.pub.der: dev/ed25519.priv.der
 
 secrets/header_signing_private_key: dev/ed25519.priv.der
 	mkdir -p secrets
-	cp dev/ed25519.priv.der secrets/header_signing_private_key
+	mkfifo secrets/header_signing_private_key
 
 .PHONY: up
 up: service/image auth-web.image dev/ed25519.priv.der dev/ed25519.pub.der secrets/header_signing_private_key
+	cat dev/ed25519.priv.der > secrets/header_signing_private_key &
 	env "AUTHWEBTAG=$$(cat auth-web.image)" docker-compose up -d
 
 .PHONY: down
