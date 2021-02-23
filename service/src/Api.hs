@@ -3,6 +3,7 @@
 
 {-# OPTIONS_GHC -fdefer-typed-holes #-}
 
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -68,10 +69,14 @@ serveStatus = return NoContent
 
 -- Will be transformed into X-Token header and token cookie by the nginx
 serveLogin :: ConnectionPool -> ApiState -> Server LoginAPI
-serveLogin pool conf loginReq = loginHandler
+serveLogin pool st loginReq = loginHandler
   where
     loginHandler = do
-        mbReturnLogin <- liftHandler . runAPI pool conf $ login loginReq
+        let conf = apiStateConfig st
+            timeframe = configAttemptsTimeframe conf
+            maxAttempts = fromInteger $ configMaxAttempts conf
+        mbReturnLogin <- liftHandler . runAPI pool st
+                           $ login timeframe "" maxAttempts loginReq
         case mbReturnLogin of
          Right rl -> return (addHeader (returnLoginToken rl) rl)
          Left LoginErrorOTPRequired ->
@@ -81,10 +86,18 @@ serveLogin pool conf loginReq = loginHandler
                                      "{\"error\":\"One time password required\"}"
                                    , errHeaders = [("Content-Type", "application/json")]
                                    }
-         Left _e -> throwError err403{ errBody = "{\"error\": \"Credentials not accepted\"}"
+         Left LoginErrorFailed -> throwError err403{ errBody = "{\"error\": \"Credentials not accepted\"}"
                                      , errHeaders = [("Content-Type", "application/json")]
                                      }
-
+         Left LoginErrorRatelimit -> throwError err429{ errBody = "{\"error\": \"Too many attempts\"}"
+                                                      , errHeaders = [("Content-Type", "application/json")]
+                                                      }
+         Left LoginErrorTwilioNotConfigured -> throwError err500
+    err429 = ServerError { errHTTPCode     = 429
+                         , errReasonPhrase = "Too Many Requests"
+                         , errBody         = ""
+                         , errHeaders      = []
+                         }
 
 serveLogout :: ConnectionPool -> ApiState -> Server LogoutAPI
 serveLogout pool conf tok = logoutHandler >> return NoContent

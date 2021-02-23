@@ -25,6 +25,7 @@ import qualified Control.Monad.Catch  as Ex
 import           Control.Monad.Reader
 import           Data.Default
 import           Data.Text            (Text)
+import           Data.Time            (NominalDiffTime)
 import           Data.Typeable
 import           Database.Persist.Sql
 import qualified NejlaCommon          as NC
@@ -49,7 +50,8 @@ instance Ex.Exception EmailError
 data LoginError = LoginErrorFailed -- Username not found, password wrong or OTP
                                    -- wrong
                 | LoginErrorOTPRequired
-                | LoginTwilioNotConfigured
+                | LoginErrorTwilioNotConfigured
+                | LoginErrorRatelimit
                   deriving (Show, Eq)
 
 makePrisms ''LoginError
@@ -113,6 +115,11 @@ data AccountCreationConfig =
 
 data Config = Config
   { configTimeout              :: Maybe Integer -- token timeout in seconds
+  , configMaxAttempts          :: Integer -- Number of password attempts per
+                                          -- time frame (e.g. 5 in the last minute)
+  , configAttemptsTimeframe    :: NominalDiffTime
+                                  -- Time frame in which login attempts are
+                                  -- counted (e.g. 60 for one minute)
   , configOTPLength            :: Int
   , configOTPTimeoutSeconds    :: Integer
   , configTFARequired          :: Bool
