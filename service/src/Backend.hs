@@ -2,10 +2,12 @@
 -- All rights reserved
 
 {-# LANGUAGE LambdaCase #-}
-{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DataKinds #-}
+
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
 module Backend
   ( module Backend
@@ -505,6 +507,9 @@ login timeframe remoteAddress maxAttempts
         Log.logES Log.AuthSuccess {Log.user = userEmail, Log.tokenId = tid}
         return rl
   where
+    logFailed :: API (Either LoginError b)
+              -> Log.AuthFailedReason
+              -> ExceptT LoginError (App ApiState 'Privileged 'ReadCommitted) b
     logFailed m reason = do
       lift m >>= \case
         Left e -> do
