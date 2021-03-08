@@ -340,7 +340,7 @@ rateLimitSpec =
   describe "/login" $ do
     it "Limits login attempts" $
       WithConfig (  (maxAttempts .~ 1)
-                  . (attemptsTimeframe .~ 0.1)
+                  . (attemptsTimeframe .~ 1)
                   ) $ do
         postJ [i|/login|] [json|{ "user": "user@example.com"
                                 , "password": "false"
@@ -351,7 +351,7 @@ rateLimitSpec =
 
     it "Also limits correct credentials" $
       WithConfig (  (maxAttempts .~ 1)
-                  . (attemptsTimeframe .~ 0.1)
+                  . (attemptsTimeframe .~ 1)
                   ) $ do
         postJ [i|/login|] [json|{ "user": "admin@example.com"
                                 , "password": "false"
@@ -362,7 +362,7 @@ rateLimitSpec =
 
     it "Does not count successful attempts" $
       WithConfig (  (maxAttempts .~ 1)
-                  . (attemptsTimeframe .~ 0.5)
+                  . (attemptsTimeframe .~ 1)
                   ) $ do
         replicateM_ 5 $ loginReq "admin" "pwd"
 
