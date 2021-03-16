@@ -6,6 +6,7 @@ module Test.Common where
 
 import           Control.Monad.IO.Unlift
 import           Control.Monad.Logger
+import           Control.Monad.Trans
 import           Data.Maybe                        (fromJust)
 import           Data.Pool
 import           Data.Time.Clock
@@ -15,6 +16,7 @@ import           Database.Persist.Sql              as P
 import qualified NejlaCommon                       as NC
 import qualified NejlaCommon.Config                as NC
 import           NejlaCommon.Persistence.Migration (sql)
+import qualified NejlaCommon.Test                  as NC
 import qualified SignedAuth
 import qualified Text.Microstache                  as Mustache
 
@@ -63,48 +65,10 @@ accountCreationConfig = AccountCreationConfig
   }
 
 withTestDB :: (Pool SqlBackend -> IO a) -> IO a
-withTestDB f =
-  withPsqlPool $ \pool -> do
-    liftIO $ do
-      _ <- runLoggingT (NC.runPoolRetry pool dbSetup) (\_ _ _ _ -> return ())
-      f pool
-  where
-    dbSetup = do
-      resetDB
-      doMigrate
-      makeConstraintsDeferrable
-    resetDB = P.rawExecute
-      [sql|
-        SET client_min_messages TO ERROR;
-        DROP SCHEMA IF EXISTS _meta CASCADE;
-        DROP SCHEMA public CASCADE;
-        CREATE SCHEMA public;
-        GRANT ALL ON SCHEMA public TO postgres;
-        GRANT ALL ON SCHEMA public TO public;
-        COMMENT ON SCHEMA public IS 'standard public schema';
-        RESET client_min_messages;
-        |] []
-    -- Iterate over all foreign constraints and make them deferrable (so we can
-    -- DELETE them without having to worry about the order we do it in)
-    makeConstraintsDeferrable = P.rawExecute
-      [sql|
-          DO $$
-            DECLARE
-                statements CURSOR FOR
-                    SELECT c.relname AS tab, con.conname AS con
-                    FROM pg_constraint con
-                    INNER JOIN pg_class c
-                      ON con.conrelid = c.oid
-                    WHERE con.contype='f';
-            BEGIN
-                FOR row IN statements LOOP
-                    EXECUTE 'ALTER TABLE ' ||  quote_ident(row.tab) ||
-                            ' ALTER CONSTRAINT ' || quote_ident(row.con) ||
-                            ' DEFERRABLE;' ;
-                END LOOP;
-            END;
-          $$;
-      |] []
+withTestDB f = runNoLoggingT $ do
+    conf <- NC.loadConf "auth-service-test"
+    ci <- NC.getDBConnectInfo conf
+    NC.withTestDB ci 5 doMigrate $ lift . f
 
 type TestCase = Postgres.ConnectionPool -> IO ()
 
@@ -131,24 +95,7 @@ mkConfig pool = do
   where
     -- | Delete all rows from all tables (Don't use TRUNACE TABLE since it's
     -- slower)
-    cleanDB = P.rawExecute
-      [sql|
-         SET client_min_messages TO ERROR;
-         SET CONSTRAINTS ALL DEFERRED;
-         DO $$
-         DECLARE
-             statements CURSOR FOR
-                 SELECT tablename FROM pg_tables
-                 WHERE schemaname = 'public';
-         BEGIN
-             FOR stmt IN statements LOOP
-                 EXECUTE 'DELETE FROM ' || quote_ident(stmt.tablename)
-                   || ';';
-             END LOOP;
-         END;
-         $$;
-         RESET client_min_messages;
-         |] []
+    cleanDB = NC.cleanDB
 
 
 withRunAPI :: (Config -> Config)

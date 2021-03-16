@@ -7,10 +7,11 @@ module AuthService.Api where
 import           AuthService.Types
 import           Data.Text         (Text)
 import qualified Data.Text         as Text
-import           Servant.API
+import           Servant.API       hiding (PostNoContent)
 
 import           SignedAuth
 
+import           Compat            (PostNoContent)
 
 type LoginAPI = "login"
               :> ReqBody '[JSON] Login
@@ -78,12 +79,12 @@ type DeactivateUserAPI = "users"
                     :> Capture "user" UserID
                     :> "deactivate"
                     :> ReqBody '[JSON] DeactivateUser
-                    :> PostNoContent '[JSON] NoContent
+                    :> PostNoContent
 
 type ReactivateUserAPI = "users"
                     :> Capture "user" UserID
                     :> "reactivate"
-                    :> PostNoContent '[JSON] NoContent
+                    :> PostNoContent
 
 type AdminAPI = "admin"
                  :> Header "X-Token" B64Token

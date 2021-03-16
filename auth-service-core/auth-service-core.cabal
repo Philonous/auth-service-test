@@ -20,6 +20,7 @@ library
                      , AuthService.Api
                      , AuthService.SignedHeaders
   other-modules:       Helpers
+                     , Compat
   other-extensions:    DeriveDataTypeable
   build-depends:       base >=4.9
                      , aeson >=1.0
