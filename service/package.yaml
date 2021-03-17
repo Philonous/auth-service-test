@@ -75,7 +75,6 @@ library:
   - persistent-template >=2.1
   - random >=1.1
   - servant-server >=0.4.4
-  - signed-authorization
   - template-haskell
   - text
   - time >=1.5
@@ -104,9 +103,11 @@ tests:
     ghc-options: -Wall
     dependencies:
     - base
-    - bytestring
     - QuickCheck
     - auth-service
+    - auth-service-core
+    - bytestring
+    - data-default
     - exceptions >=0.8
     - hspec
     - hspec-core
@@ -123,14 +124,12 @@ tests:
     - persistent-postgresql
     - persistent-sqlite
     - resource-pool
-    - signed-authorization
     - text
     - time
     - unliftio-core
     - uuid
     - wai
     - wai-extra
-    - data-default
 
   unit-tests:
     main: Test.hs
@@ -142,6 +141,7 @@ tests:
     - base
     - QuickCheck
     - auth-service
+    - auth-service-core
     - data-default
     - exceptions >=0.8
     - hspec-expectations
@@ -152,10 +152,9 @@ tests:
     - mtl >=2.2
     - nejla-common
     - persistent
-    - persistent-sqlite
     - persistent-postgresql
+    - persistent-sqlite
     - resource-pool
-    - signed-authorization
     - tasty
     - tasty-hunit
     - tasty-quickcheck
