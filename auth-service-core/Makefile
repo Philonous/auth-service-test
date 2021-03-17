@@ -10,8 +10,9 @@ include $(build-env-file)
 
 
 srcfiles:=$(shell find src -type f)
+test-srcfiles = $(shell find test-suite -type f)
 
-dist/lib: $(srcfiles) auth-service-core.cabal stack.yaml
+dist/lib: $(srcfiles) $(test-srcfiles) auth-service-core.cabal stack.yaml
 	rm -f stack.yaml.lock
 	mkdir -p ./dist
 	stack build --install-ghc --test --no-run-tests \
@@ -30,14 +31,17 @@ dist/doc: dist/lib
 # Tests
 #######
 
-$(tests): dist/tests/% : dist/auth-service $(test-srcfiles) package.yaml stack.yaml
+tests = dist/tests/tests
+
+$(tests): dist/tests/% : dist/lib $(srcfiles) $(test-srcfiles) auth-service-core.cabal stack.yaml
 	mkdir -p dist/tests
 	cp "$(shell stack ${stack_args} path --dist-dir)/build/$(notdir $@)/$(notdir $@)" dist/tests/
 
 .PHONY: test
+test: export TASTY_NUM_THREADS=1
 test: $(tests)
-	docker-compose -f docker-compose.test.yaml -p authservice-test \
-	  run --rm test
+	sh -c 'for t in dist/tests/*; do $$t; done'
+
 
 # Clean
 #######
