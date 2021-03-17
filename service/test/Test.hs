@@ -24,13 +24,12 @@ import qualified Data.Text               as Text
 import           Database.Persist.Sql    (ConnectionPool)
 import qualified Prelude
 import           Prelude                 hiding (id)
-import qualified Test.QuickCheck.Monadic as QC
-import qualified Text.Microstache        as Mustache
-
 import           Test.Hspec.Expectations
+import qualified Test.QuickCheck.Monadic as QC
 import           Test.Tasty              (defaultMain, testGroup, TestTree)
 import           Test.Tasty.HUnit        hiding (assertFailure)
 import           Test.Tasty.QuickCheck
+import qualified Text.Microstache        as Mustache
 
 import           Backend
 import           Config                  (defaultPwResetTemplate)

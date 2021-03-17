@@ -271,7 +271,6 @@ instance Swagger.HasSwagger rest => Swagger.HasSwagger (AuthCredentials required
 
 type instance IsElem' e (AuthCredentials required a :> s) = IsElem e s
 
--- | Basic Authentication
 instance ( HasServer api context
          , HasContextEntry context (Maybe AuthHeader)
          )

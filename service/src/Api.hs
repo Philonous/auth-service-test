@@ -61,7 +61,7 @@ liftHandler =
                  }
 
 
-type StatusApi = "status" :> GetNoContent '[JSON] NoContent
+type StatusApi = "status" :> GetNoContent
 
 serveStatus :: Server StatusApi
 serveStatus = return NoContent

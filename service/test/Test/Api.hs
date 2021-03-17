@@ -36,8 +36,9 @@ import                          Monad
 import                          Test.Common
 import                          Types
 
-import                          NejlaCommon.Test                 as NC
-import Control.Concurrent (threadDelay)
+import                          Control.Concurrent               (threadDelay)
+import                          NejlaCommon.Test                 (postJ)
+import qualified                NejlaCommon.Test                 as NC
 
 iid :: UUID
 iid = case UUID.fromString "3afe62f4-7235-4b86-a418-923aaa4a5c28" of
@@ -100,14 +101,14 @@ exampleUser name roles =
 addUser :: Text -> Text -> [Text] -> WaiSession st UUID
 addUser token name roles = do
   res <- postToken token "/admin/users" (exampleUser name roles)
-    `shouldReturnA` (Proxy @Types.ReturnUser)
+    `NC.shouldReturnA` (Proxy @Types.ReturnUser)
   return $ res ^. user . _UserID
 
 loginReq :: Text -> Text -> WaiSession st Text
 loginReq username password = do
   res <- postJ [i|/login|] [json|{ "user": #{username <> "@example.com"}
                                  , "password": #{password}
-                                }|] `shouldReturnA` (Proxy @Types.ReturnLogin)
+                                }|] `NC.shouldReturnA` (Proxy @Types.ReturnLogin)
   return $ res ^. token . _B64Token
 
 withAdminToken :: (Text -> WaiSession st b) -> WaiSession st b
@@ -248,7 +249,7 @@ adminApiSpec = do
         _ <- addUser admin "peter" []
         _ <- addUser admin "robert" []
         res <- getToken admin "/admin/users"
-                `shouldReturnA` (Proxy @[Types.ReturnUserInfo])
+                `NC.shouldReturnA` (Proxy @[Types.ReturnUserInfo])
         -- "admin@example.com" is always added since we need admin privileges to
         -- run admin endpoints
         res ^.. each . email `NC.shouldBe` [ "admin@example.com"
