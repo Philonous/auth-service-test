@@ -143,10 +143,10 @@ newtype B64Token = B64Token { unB64Token :: Text }
                    deriving ( Show, Read, Eq, Ord, Typeable, Data, PathPiece
                             , ToByteString
                             , ToHttpApiData, FromHttpApiData
+                            , ToJSON, FromJSON
                             )
 
 makePrisms ''B64Token
-deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "unB64"} ''B64Token
 
 type Role = Text
 
