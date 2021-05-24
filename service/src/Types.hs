@@ -112,6 +112,7 @@ data AccountCreationConfig =
 
 data Config = Config
   { configTimeout              :: Maybe Integer -- token timeout in seconds
+  , configTokenUnusedTimeout   :: Maybe Integer
   , configMaxAttempts          :: Integer -- Number of password attempts per
                                           -- time frame (e.g. 5 in the last minute)
   , configAttemptsTimeframe    :: NominalDiffTime

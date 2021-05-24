@@ -146,6 +146,8 @@ getAuthServiceConfig :: (MonadIO m, MonadLogger m) =>
                      -> m Config
 getAuthServiceConfig conf = do
     to <- getConfMaybe' "TOKEN_TIMEOUT" "token.timeout" conf
+    tuto <- getConfMaybe' "TOKEN_UNUSED_TIMEOUT" "token.unused-timeout" conf
+
     configMaxAttempts <- getConf' "MAX_LOGIN_ATTEMPTS" "max-login-attempts"
                            (Right 5) conf
     configAttemptsTimeframe <- fromInteger <$> getConf'
@@ -162,6 +164,7 @@ getAuthServiceConfig conf = do
     accountCreationConfig <- getAccountCreationConfig conf
 
     return Config{ configTimeout = to
+                 , configTokenUnusedTimeout = tuto
                  , configMaxAttempts = configMaxAttempts
                  , configAttemptsTimeframe = configAttemptsTimeframe
                  , configOTPLength = otpl

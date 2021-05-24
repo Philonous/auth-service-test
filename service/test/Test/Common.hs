@@ -80,6 +80,7 @@ mkConfig pool = do
     let conf =
           Config
           { configTimeout = Nothing
+          , configTokenUnusedTimeout = Nothing
           , configMaxAttempts = 10000
           , configAttemptsTimeframe  =1
           , configOTPLength = 6
