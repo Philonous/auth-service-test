@@ -43,9 +43,9 @@ getConfig ::  Lens' Config a -> API a
 getConfig g = NC.viewState $ config . g
 
 runAPI :: ConnectionPool -> ApiState -> API a -> IO a
-runAPI pool st m =
+runAPI pool st =
   NC.runApp' (def & NC.useTransactionLevels .~ (st ^. config . useTransactionLevels))
-             pool st m
+             pool st
 
 audit :: AuditEvent -> API ()
 audit event = do
