@@ -13,13 +13,6 @@ import qualified Data.ByteString          as BS
 import qualified Data.ByteString.Base64   as Base64
 import qualified Data.ByteString.Char8    as BS8
 
-import           Data.Char
-import           Data.Text                (Text)
-import qualified Data.Text                as Text
-import qualified Data.Text.Encoding       as Text
-import           Numeric
-import           System.IO
-
 type PrivateKey = (Ed25519.SecretKey, Ed25519.PublicKey)
 type PublicKey = Ed25519.PublicKey
 

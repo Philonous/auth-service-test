@@ -16,16 +16,13 @@ module AuthService.Types where
 import           Control.Lens
 import           Data.Aeson
 import           Data.Aeson.TH
-import           Data.Aeson.Types
 import           Data.ByteString            (ByteString)
 import           Data.ByteString.Conversion
 import           Data.Data
-import           Data.Monoid
 import           Data.String
 import           Data.Text                  (Text)
 import qualified Data.Text                  as Text
 import qualified Data.Text.Encoding         as Text
-import           Data.UUID                  (UUID)
 import qualified Data.UUID                  as UUID
 import           Data.Time.Clock            (UTCTime)
 import           Web.HttpApiData
@@ -241,7 +238,7 @@ makeLensesWith camelCaseFields ''ChangePassword
 -- Password Reset
 --------------------------------------------------------------------------------
 
-data PasswordResetRequest =
+newtype PasswordResetRequest =
   PasswordResetRequest
   { passwordResetRequestEmail :: Email
   } deriving (Show)
@@ -252,7 +249,7 @@ deriveJSON
   defaultOptions {fieldLabelModifier = dropPrefix "passwordResetRequest"}
   ''PasswordResetRequest
 
-data ResetTokenInfo =
+newtype ResetTokenInfo =
   ResetTokenInfo
   { resetTokenInfoEmail :: Email
   } deriving (Show)
@@ -313,7 +310,7 @@ instance FromJSON DeactivateAt where
 
 makePrisms ''DeactivateAt
 
-data DeactivateUser =
+newtype DeactivateUser =
   DeactivateUser
   { deactivateUserDeactivateAt :: DeactivateAt
   } deriving (Show)

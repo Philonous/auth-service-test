@@ -19,13 +19,10 @@ module Types
 
 import           Control.Lens
 import qualified Control.Monad.Catch  as Ex
-import           Control.Monad.Reader
 import           Data.Default
 import           Data.Text            (Text)
 import           Data.Time            (NominalDiffTime)
 import           Data.Typeable
-import           Database.Persist.Sql
-import qualified NejlaCommon          as NC
 import           Network.Mail.Mime    (Address)
 import qualified Text.Microstache     as Mustache
 
@@ -127,7 +124,7 @@ data Config = Config
   , configAccountCreation      :: AccountCreationConfig
   }
 
-data Secrets =
+newtype Secrets =
   Secrets
     { secretsHeaderPrivateKey     :: SignedAuth.PrivateKey
     }
