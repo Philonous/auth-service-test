@@ -517,8 +517,8 @@ main = withTestDB $ \pool -> do
        , testCase "login otp wrong user"              $ case_login_otp_wrong_user               pool
        , testCase "checkToken"                        $ case_checkToken                         pool
        , testCase "checkToken bogus"                  $ case_checkToken_bogus                   pool
-       , testCase "checkToken token expires"                  $ case_checkToken_expired                 pool
-       , testCase "checkToken unused token expires"                  $ case_checkToken_unused_expired          pool
+       , testCase "checkToken token expires"          $ case_checkToken_expired                 pool
+       , testCase "checkToken unused token expires"   $ case_checkToken_unused_expired          pool
        , testCase "checkTokenInstance"                $ case_checkTokenInstance                 pool
        , testCase "checkTokenInstance not member"     $ case_checkTokenInstance_not_member      pool
        , testCase "logout"                            $ case_logout                             pool
