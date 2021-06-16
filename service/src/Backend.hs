@@ -599,7 +599,6 @@ getUserByToken tokenId = do
   mbTokenUnusedExpiration <- getConfig tokenUnusedTimeout
   let mbExpiresUnused = mbTokenUnusedExpiration <&> \tuexp ->
         addUTCTime (negate $ fromInteger tuexp) now
-  liftIO $ print mbExpiresUnused
   deactivateTokenWhere $ \tok ->
     orLMb
     [ Just (tok E.^. DB.TokenExpires E.<=. val (Just now))
