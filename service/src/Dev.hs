@@ -14,7 +14,6 @@ import qualified SignedAuth
 
 mkDevConf :: IO ApiState
 mkDevConf = do
-  (privKey, _) <- Sign.mkKeys
   noncePool <- SignedAuth.newNoncePool
   return ApiState
     { apiStateConfig = Config
