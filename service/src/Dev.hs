@@ -9,7 +9,6 @@ import           Types
 import           Monad
 import           Audit                       (AuditSource(AuditSourceManual))
 
-import qualified SignedAuth.Sign             as Sign
 import qualified SignedAuth
 
 mkDevConf :: IO ApiState

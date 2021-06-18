@@ -21,8 +21,7 @@ import           System.Environment
 import           System.Exit
 import           System.IO
 
-import           NejlaCommon                 ( withDBPool, getDBConnectInfo
-                                             , runPoolRetry)
+import           NejlaCommon                 ( withDBPool, getDBConnectInfo )
 
 import           Api
 import           Audit
