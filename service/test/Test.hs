@@ -299,7 +299,7 @@ case_add_user_instance = withUser testUser $ \uid run -> do
   iid <- run $ addInstance Nothing "instance1"
   run $ addUserInstance uid iid
   iids <- run $ getUserInstances uid
-  iids ^.. each  `shouldBe` [iid]
+  iids ^.. each . id  `shouldBe` [iid]
 
 case_remove_user_instance :: Case ()
 case_remove_user_instance = withUser testUser $ \uid run -> do
