@@ -1,11 +1,9 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 -- | API tests
 
@@ -301,7 +299,7 @@ case_add_user_instance = withUser testUser $ \uid run -> do
   iid <- run $ addInstance Nothing "instance1"
   run $ addUserInstance uid iid
   iids <- run $ getUserInstances uid
-  iids ^.. each . id  `shouldBe` [iid]
+  iids ^.. each  `shouldBe` [iid]
 
 case_remove_user_instance :: Case ()
 case_remove_user_instance = withUser testUser $ \uid run -> do
@@ -457,7 +455,7 @@ case_closeOtherSesions_same_session =
     res `shouldBe` Just uid
 
 adminTests :: ConnectionPool -> TestTree
-adminTests pool = testGroup "admin" $
+adminTests pool = testGroup "admin"
   [ it "succeeds when user is admin" $ do
       withUserToken (testUser & roles .~ ["admin"]) $ \tok _uid run -> do
         res <- run $ checkAdmin "" tok

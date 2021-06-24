@@ -1,0 +1,3 @@
+- ignore: { name: Eta reduce, within: Main.postToken }
+- ignore: { name: Eta reduce, within: Test.Common.seconds}
+- ignore: { name: Eta reduce, within: Monad.runAPI}
