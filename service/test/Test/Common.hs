@@ -48,7 +48,7 @@ testEmailConfig =
       }
   , emailConfigSiteName = "Test Site"
   , emailConfigResetLinkExpirationTime = 24
-  , emailConfigMkLink = "http://localhost/reset?token=" <>
+  , emailConfigMkLink = ("http://localhost/reset?token=" <>)
   }
   where
     tmpl x = case Mustache.compileMustacheText "email template" x of
