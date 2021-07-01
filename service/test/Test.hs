@@ -1,11 +1,9 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 -- | API tests
 
@@ -466,7 +464,7 @@ case_closeOtherSesions_same_session =
     res `shouldBe` Just uid
 
 adminTests :: ConnectionPool -> TestTree
-adminTests pool = testGroup "admin" $
+adminTests pool = testGroup "admin"
   [ it "succeeds when user is admin" $ do
       withUserToken (testUser & roles .~ ["admin"]) $ \tok _uid run -> do
         res <- run $ checkAdmin "" tok

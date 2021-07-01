@@ -35,7 +35,7 @@ import           NejlaCommon                     as NC
 import qualified Logging                         as Log
 import qualified Persist.Schema                  as DB
 import           Types
-import           Database.Esqueleto.Internal.Sql (unsafeSqlBinOp)
+import           Database.Esqueleto.Internal.Internal (unsafeSqlBinOp)
 
 import           Audit
 import           Monad
@@ -694,15 +694,14 @@ checkAdmin request tok = do
       return Nothing
     Just usr -> do
       roles' <- getUserRoles (usr ^. _2 . uuid)
-      case "admin" `elem` roles' of
-        False -> do
+      if "admin" `elem` roles'
+        then return $ Just IsAdmin -- @TODO
+        else do
           Log.logES Log.AdminRequestNotAdmin
                    { Log.request = request
                    , Log.token = unB64Token tok
                    }
           return Nothing
-        True -> return $ Just IsAdmin -- @TODO
-
 
 checkToken :: B64Token -> API (Maybe UserID)
 checkToken tokenId = fmap (DB.userUuid . snd) <$> getUserByToken tokenId
@@ -733,9 +732,8 @@ closeOtherSessions tokenID = do
                    ]
          , tok E.^. DB.TokenToken E.!=. E.val tokenID
          ]
-  case cnt > 0 of
-    True -> audit AuditOtherTokensDeactivated { auditToken = unB64Token tokenID}
-    False -> return ()
+  when (cnt > 0) $
+    audit AuditOtherTokensDeactivated { auditToken = unB64Token tokenID }
 
 --------------------------------------------------------------------------------
 -- Admin endpoints -------------------------------------------------------------

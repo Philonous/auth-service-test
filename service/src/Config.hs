@@ -21,7 +21,6 @@ import qualified Control.Monad.Catch      as Ex
 import           Control.Monad.Logger
 import           Control.Monad.Trans
 import qualified Data.Aeson               as Aeson
-import           Data.ByteString          (ByteString)
 import qualified Data.ByteString          as BS
 import qualified Data.ByteString.Char8    as BS8
 import qualified Data.Char                as Char
@@ -249,7 +248,7 @@ setEmailConf conf =
                 | (prg:args) <- Text.splitOn " " cmd
                 , not (Text.null prg) ->
                   SendmailConfig
-                  { sendmailConfigPath = Text.unpack $ prg
+                  { sendmailConfigPath = Text.unpack prg
                   , sendmailConfigArguments = Text.unpack <$> args
                   }
               _ -> def
@@ -282,7 +281,7 @@ renderMsmtprc cfg tls auth =
   in case Mustache.renderMustacheW template dt of
        ([], txt) -> return txt
        (warnings, _) -> do
-         $logError $ "Could not render msmtprc: " <> (Text.pack $ show warnings)
+         $logError $ "Could not render msmtprc: " <> Text.pack (show warnings)
          liftIO Exit.exitFailure
   where
     infix 0 .=
