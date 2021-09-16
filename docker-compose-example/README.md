@@ -37,8 +37,8 @@ In another terminal, add an auth-service account:
 ```
 $ cd docker-compose-example
 $ docker-compose exec auth-service-service auth-service adduser user@example.com secret "Example User"
-$ docker-compose exec auth-service-database psql -U postgres -c "INSERT INTO instance (\"uuid\", name) VALUES ('2451cfe5-e4db-46a9-800f-38eeec997105', 'example')"
-$ docker-compose exec auth-service-database psql -U postgres -c "INSERT INTO user_instance (\"user\", instance_id) VALUES ((SELECT \"uuid\" FROM \"user\" WHERE email='user@example.com'), '2451cfe5-e4db-46a9-800f-38eeec997105')"
+$ docker-compose exec auth-service auth-service newinstance example 2451cfe5-e4db-46a9-800f-38eeec997105
+$ docker-compose exec auth-service auth-service addinstance user@example.com 2451cfe5-e4db-46a9-800f-38eeec997105
 ```
 
 ## Accessing the example backend
@@ -60,7 +60,7 @@ However, by signing in...
 
 ```
 $ curl -H "Content-Type: application/json" -d '{ "password": "secret", "user": "user@example.com" }' http://localhost:8080/api/login
-{"token":{"token":"oE8Rj8Xp96ggKmiYqOZclP"},"instances":[{"name":"example","id":"2451cfe5-e4db-46a9-800f-38eeec997105"}]}
+{"token":"oE8Rj8Xp96ggKmiYqOZclP","instances":[{"name":"example","id":"2451cfe5-e4db-46a9-800f-38eeec997105"}]}
 ```
 
 ... the backend can be accessed using a token like so:
