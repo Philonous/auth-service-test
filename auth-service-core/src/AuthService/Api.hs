@@ -71,7 +71,7 @@ type CreateAccountAPI = "create-account"
 
 type CreateUserAPI = "users" :> ReqBody '[JSON] AddUser :> Post '[JSON] ReturnUser
 
-type GetUsersAPI = "users" :> Get '[JSON] [ReturnUserInfo]
+type GetAllUsersAPI = "users" :> Get '[JSON] [ReturnUserInfo]
 
 type DeactivateUserAPI = "users"
                     :> Capture "user" UserID
@@ -87,10 +87,23 @@ type ReactivateUserAPI = "users"
 type AdminAPI = "admin"
                  :> Header "X-Token" B64Token
                  :> (CreateUserAPI
-                      :<|> GetUsersAPI
+                      :<|> GetAllUsersAPI
                       :<|> DeactivateUserAPI
                       :<|> ReactivateUserAPI
                     )
+
+--------------------------------------------------------------------------------
+-- Micro Service Interface -----------------------------------------------------
+--------------------------------------------------------------------------------
+
+type GetUsers = "users"
+              :> QueryParams "uid" UserID
+              :> Get '[JSON] [ReturnUserInfo]
+
+
+type ServiceAPI = "service"
+                :> Header "X-Token" Text
+                :> GetUsers
 
 --------------------------------------------------------------------------------
 -- Interface
@@ -109,3 +122,4 @@ type Api = LoginAPI
            :<|> PasswordResetAPI
            :<|> PasswordResetInfoAPI
            :<|> CreateAccountAPI
+           :<|> ServiceAPI

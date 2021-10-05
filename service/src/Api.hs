@@ -212,7 +212,7 @@ serveCreateUserAPI pool conf tok addUser = do
 serveGetUsersAPI :: ConnectionPool
                  -> ApiState
                  -> Maybe B64Token
-                 -> Server GetUsersAPI
+                 -> Server GetAllUsersAPI
 serveGetUsersAPI pool conf tok = do
   _ <- isAdmin desc pool conf tok
   liftHandler $ runAPI pool conf getUsers
@@ -321,6 +321,35 @@ serveCreateAccountApi pool conf xinstance createAccount =
         }
     return NoContent else throwError err403
 
+--------------------------------------------------------------------------------
+-- Micro Service Interface -----------------------------------------------------
+--------------------------------------------------------------------------------
+
+serveGetUsers :: ConnectionPool
+              -> ApiState
+              -> (forall a. Handler a -> Handler a )
+              -> Server GetUsers
+serveGetUsers pool conf check uids = check $ do
+  liftHandler . runAPI pool conf $ getUsersByUuids uids
+
+--------------------------------------------------------------------------------
+-- Interface -------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+serveServiceAPI :: (HasServiceToken s Text) =>
+                   ConnectionPool
+                -> ApiState
+                -> s
+                -> Maybe Text
+                -> [UserID]
+                -> Handler [ReturnUserInfo]
+serveServiceAPI pool conf secrets token = do
+  serveGetUsers pool conf checkServiceApi
+  where
+    checkServiceApi :: forall a. Handler a -> Handler a
+    checkServiceApi f = if token == Just (secrets ^. serviceToken)
+    then f
+    else throwError err403
 
 serveAPI ::
      ConnectionPool
@@ -348,3 +377,4 @@ serveAPI pool noncePool conf secrets =
                                :<|> servePasswordResetAPI pool ctx
                                :<|> servePasswordResetTokenInfo pool ctx
                                :<|> serveCreateAccountApi pool ctx
+                               :<|> serveServiceAPI pool ctx secrets
