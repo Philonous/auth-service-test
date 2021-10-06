@@ -98,7 +98,7 @@ type AdminAPI = "admin"
 
 type GetUsers = "users"
               :> QueryParams "uid" UserID
-              :> Get '[JSON] [ReturnUserInfo]
+              :> Get '[JSON] [FoundUserInfo]
 
 
 type ServiceAPI = "service"

@@ -15,6 +15,8 @@ import qualified Control.Monad.Catch  as Ex
 import           Control.Monad.Except
 import           Data.Aeson           (encode)
 import qualified Data.List            as List
+import           Data.Map.Strict      (Map)
+import qualified Data.Map.Strict      as Map
 import           Data.Maybe           (fromMaybe, maybeToList)
 import           Data.Text            (Text)
 import qualified Data.Text            as Text
@@ -330,7 +332,14 @@ serveGetUsers :: ConnectionPool
               -> (forall a. Handler a -> Handler a )
               -> Server GetUsers
 serveGetUsers pool conf check uids = check $ do
-  liftHandler . runAPI pool conf $ getUsersByUuids uids
+  users <- liftHandler . runAPI pool conf $ getUsersByUuids uids
+  let uMap = Map.fromList [(returnUserInfoId user, user) | user <- users]
+  return [ FoundUserInfo
+           { foundUserInfoId = uid
+           , foundUserInfoInfo = Map.lookup uid uMap
+           }
+           | uid <- uids
+         ]
 
 --------------------------------------------------------------------------------
 -- Interface -------------------------------------------------------------------
@@ -340,9 +349,7 @@ serveServiceAPI :: (HasServiceToken s Text) =>
                    ConnectionPool
                 -> ApiState
                 -> s
-                -> Maybe Text
-                -> [UserID]
-                -> Handler [ReturnUserInfo]
+                -> Server ServiceAPI
 serveServiceAPI pool conf secrets token = do
   serveGetUsers pool conf checkServiceApi
   where
