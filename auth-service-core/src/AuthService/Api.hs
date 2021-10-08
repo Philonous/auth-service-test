@@ -73,11 +73,16 @@ type CreateUserAPI = "users" :> ReqBody '[JSON] AddUser :> Post '[JSON] ReturnUs
 
 type GetAllUsersAPI = "users" :> Get '[JSON] [ReturnUserInfo]
 
+type GetUsersByRolesAPI = "users"
+                       :> "by-role"
+                       :> Capture "role" Text
+                       :> Get '[JSON] [ReturnUserInfo]
+
 type DeactivateUserAPI = "users"
-                    :> Capture "user" UserID
-                    :> "deactivate"
-                    :> ReqBody '[JSON] DeactivateUser
-                    :> PostNoContent
+                      :> Capture "user" UserID
+                      :> "deactivate"
+                      :> ReqBody '[JSON] DeactivateUser
+                      :> PostNoContent
 
 type ReactivateUserAPI = "users"
                     :> Capture "user" UserID
@@ -88,8 +93,10 @@ type AdminAPI = "admin"
                  :> Header "X-Token" B64Token
                  :> (CreateUserAPI
                       :<|> GetAllUsersAPI
+                      :<|> GetUsersByRolesAPI
                       :<|> DeactivateUserAPI
                       :<|> ReactivateUserAPI
+
                     )
 
 --------------------------------------------------------------------------------
@@ -97,9 +104,9 @@ type AdminAPI = "admin"
 --------------------------------------------------------------------------------
 
 type GetUsers = "users"
+              :> "by-uid"
               :> QueryParams "uid" UserID
               :> Get '[JSON] [FoundUserInfo]
-
 
 type ServiceAPI = "service"
                 :> Header "X-Token" Text

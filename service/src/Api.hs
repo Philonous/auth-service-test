@@ -221,6 +221,14 @@ serveGetUsersAPI pool conf tok = do
   where
     desc = "get users"
 
+serveGetUsersByRoles :: ConnectionPool
+                     -> ApiState
+                     -> Maybe B64Token
+                     -> Server GetUsersByRolesAPI
+serveGetUsersByRoles pool conf tok role = do
+  isAdmin "get users by role" pool conf tok
+  liftHandler $ runAPI pool conf $ getUsersByRole role
+
 
 serveDeactivateUsersAPI :: ConnectionPool
                         -> ApiState
@@ -254,6 +262,7 @@ serveAdminAPI :: ConnectionPool
 serveAdminAPI pool conf tok =
        serveCreateUserAPI      pool conf tok
   :<|> serveGetUsersAPI        pool conf tok
+  :<|> serveGetUsersByRoles    pool conf tok
   :<|> serveDeactivateUsersAPI pool conf tok
   :<|> serveReactivateUsersAPI pool conf tok
 
