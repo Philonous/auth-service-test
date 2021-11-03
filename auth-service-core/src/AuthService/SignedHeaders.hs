@@ -320,14 +320,19 @@ mkAuthHeader noncePool privKey authHeader = do
 --------------------------------------------------------------------------------
 
 class IsRole (t :: k) where
-  -- | How to check if the user has the approriate role. Return "true" if the
-  -- role is present.
-  checkRole :: Proxy t -> [Text] -> Bool
+  -- | How to represent roles (e.g. a Text token or a ADT value)
+  type RoleRepr t
+  -- | How to check if the user has an approriate role. Return the matching role
+  -- if present
+  checkRole :: Proxy t -> [Text] -> Maybe (RoleRepr t)
 
 instance KnownSymbol s => IsRole (s :: Symbol) where
+  type RoleRepr s = Text
   checkRole proxy roles =
     let wantedHeader = Text.pack $ symbolVal proxy
-    in wantedHeader `List.elem` roles
+    in if wantedHeader `List.elem` roles
+       then Just wantedHeader
+       else Nothing
 
 -- | Combinator for checking for the presence of a role. Doesn't return anything.
 --
@@ -364,18 +369,19 @@ instance ( HasServer api context
          )
     => HasServer (HasRole r 'Required :> api) context where
   type ServerT (HasRole r 'Required :> api) m
-    = ServerT api m
+    = RoleRepr r -> ServerT api m
 
   route Proxy context subserver =
-    route (Proxy :: Proxy api) context (subserver `addAuthCheck_` authCheck)
+    route (Proxy :: Proxy api) context (subserver `addAuthCheck` authCheck)
     where
        mbAuthHeader = getContextEntry context :: Maybe AuthHeader
        authCheck =
          case mbAuthHeader of
            Nothing -> delayedFailFatal err401
            Just authHeader ->
-             unless (checkRole (Proxy :: Proxy r) (authHeader ^. roles))
-               $ delayedFailFatal err403
+             case checkRole (Proxy :: Proxy r) (authHeader ^. roles) of
+               Nothing -> delayedFailFatal err403
+               Just role -> return role
        -- Adds auth check that doesn't return anything
        addAuthCheck_ Delayed{..} new =
          Delayed
@@ -383,7 +389,8 @@ instance ( HasServer api context
          , ..
          }
 
-  hoistServerWithContext _ pc nt s = hoistServerWithContext (Proxy :: Proxy api) pc nt s
+  hoistServerWithContext _ pc nt s =
+    hoistServerWithContext (Proxy :: Proxy api) pc  nt . s
 
 instance ( HasServer api context
          , IsRole r
@@ -391,7 +398,7 @@ instance ( HasServer api context
          )
     => HasServer (HasRole r 'Optional :> api) context where
   type ServerT (HasRole r 'Optional :> api) m
-    = Bool -> ServerT api m
+    = Maybe (RoleRepr r) -> ServerT api m
 
   route Proxy context subserver =
     route (Proxy :: Proxy api) context (subserver `addAuthCheck` authCheck)
