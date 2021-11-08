@@ -32,9 +32,6 @@ services:
     depends_on:
       auth-service-service:
         condition: service_healthy
-    healthcheck:
-      interval: 1s
-      test: service nginx status || exit 1
     image: nejla/auth-web
     links:
       - auth-service-service:auth-service
