@@ -406,7 +406,11 @@ instance ( HasServer api context
        authCheck =
          case mbAuthHeader of
            Nothing -> delayedFailFatal err401
-           Just _authHeader -> return ()
+           Just authHeader ->
+             case checkRole (Proxy :: Proxy r) (authHeader ^. roles) of
+               Nothing -> delayedFailFatal err403
+               Just role -> return ()
+
        -- Adds auth check that doesn't return anything
        addAuthCheck_ Delayed{..} new =
          Delayed
