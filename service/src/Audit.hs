@@ -62,10 +62,6 @@ auditSourceType AuditSourceTest = "test"
 data AuditEvent
   = AuditUserCreated
     { auditUserID :: UserID
-    , auditUserName :: Text
-    , auditUserPasswordHash :: Text
-    , auditUserEmail :: Text
-    , auditUserPhone :: Maybe Text
     , auditUserInstances :: [InstanceID]
     , auditUserRoles :: [Text]
     }

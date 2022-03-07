@@ -94,10 +94,6 @@ createUser usr = do
                       }
        audit AuditUserCreated
            { auditUserID = uid
-           , auditUserName = unName $ usr ^. name
-           , auditUserPasswordHash = base64HashedPassword hash
-           , auditUserEmail = unEmail $ usr ^. email
-           , auditUserPhone = unPhone <$>  usr ^. phone
            , auditUserInstances = usr ^. instances
            , auditUserRoles = usr ^. roles
            }
