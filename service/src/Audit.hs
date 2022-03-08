@@ -119,6 +119,8 @@ data AuditEvent
     }
   | AuditUserReactivated
     { auditUserID :: UserID }
+  | AuditUserDeleted
+    { auditUserID :: UserID }
   deriving Show
 
 Aeson.deriveJSON ((aesonTHOptions "audit")
@@ -144,6 +146,8 @@ auditLogType AuditTokenDeactivated{} = "login token deactivated"
 auditLogType AuditOtherTokensDeactivated{} = "other login tokens deactivated"
 auditLogType AuditUserDeactivated{} = "user deactivated"
 auditLogType AuditUserReactivated{} = "user reactivated"
+auditLogType AuditUserDeleted{} = "user information redacted"
+
 
 -- | Retrieve the user ID from the event
 auditLogUser :: AuditEvent -> Maybe UserID
@@ -161,6 +165,7 @@ auditLogUser AuditTokenDeactivated       {} = Nothing
 auditLogUser AuditOtherTokensDeactivated {} = Nothing
 auditLogUser AuditUserDeactivated        {auditUserID = uid} = Just uid
 auditLogUser AuditUserReactivated        {auditUserID = uid} = Just uid
+auditLogUser AuditUserDeleted            {auditUserID = uid} = Just uid
 
 addAuditLog :: AuditSource -> AuditEvent -> ReaderT P.SqlBackend IO ()
 addAuditLog source event = do
