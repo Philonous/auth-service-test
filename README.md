@@ -122,9 +122,6 @@ options are ignored
 * `EMAIL_TLS` (Bool) _optional_: Whether to use TLS to connect to the SMTP server (default: true)
 * `EMAIL_AUTH` (Bool) _optional_: Whether to authenticate to the SMTP server (default: true)
 
-* `RESET_LINK_EXPIRATION_TIME` (Int) _optional_: Time before password reset link expires, in hours (default: 24)
-
-
 ### Two Factor Authentication
 
 Twilio is a mobile messaging service, used in auth-service for Two-factor authentication
