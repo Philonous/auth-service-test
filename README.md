@@ -296,7 +296,7 @@ Login passwords can be changed by users by calling `/api/change-password` :
 
 ```
 POST /api/change-password
-  {"oldPasword":"myOldPassword","newPassword":"myNewPassword"}"
+  {"oldPassword":"myOldPassword","newPassword":"myNewPassword"}"
 ```
 
 The user has to be logged in for the account
