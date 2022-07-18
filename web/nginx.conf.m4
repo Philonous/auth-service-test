@@ -162,7 +162,6 @@ http {
 
 
         location = /auth-service.js {
-            add_header Content-Type text/javascript;
             alias /www/auth-service.js;
         }
 
