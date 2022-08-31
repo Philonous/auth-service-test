@@ -85,5 +85,5 @@ push-latest:
 .PHONY: clean
 clean:
 	$(MAKE) -C service clean
-	rm -r dev
+	rm -rf dev
 	rm -rf secrets

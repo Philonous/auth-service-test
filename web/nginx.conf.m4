@@ -106,6 +106,13 @@ http {
                 add_header Set-Cookie "token=$upstream_http_x_token; SameSite=Lax; Secure; Path=/expire";
         }
 
+        location /sso/ {
+                ifdef(`NORATELIMIT', `', `
+                limit_req zone=login burst=10 nodelay;')
+                proxy_pass http://AUTH_SERVICE/sso/;
+                proxy_set_header X-Original-URI $request_uri;
+        }
+
         location = /logout {
                 set $token $cookie_token;
                 if ($token = '') {
