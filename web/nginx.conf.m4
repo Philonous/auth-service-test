@@ -209,7 +209,7 @@ http {
                 proxy_set_header X-Original-URI $request_uri;
         }
 
-        location = /authservice-status {
+        location = /auth-service-status {
                ifdef(`NORATELIMIT', `', `
                 limit_req zone=service burst=1 nodelay;')
                 proxy_pass http://AUTH_SERVICE/status/;
