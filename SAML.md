@@ -57,6 +57,7 @@ auth-service requires some attributes to function, you can set them up in keyclo
     * Mapper type: Javascript Mapper
     * Script: `user.getFirstName() + " " + user.getLastName()`
     * SAML Attribute name: name
+  * Make sure that all users have email and name set (keycloak admin by default does not)
 
 ## Configuring auth-service
   The following configuration options are required
