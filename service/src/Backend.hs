@@ -897,10 +897,13 @@ getUsersBy selector = do
 getUsers :: API [ReturnUserInfo]
 getUsers = getUsersBy (\ _ -> val True)
 
-getUsersByUuids :: [UserID] -> API [ReturnUserInfo]
-getUsersByUuids uuids = getUsersBy
-  ( \user -> (user E.^. DB.UserUuid) `E.in_` valList uuids
-  )
+getUsersByUids :: [Text] -> API [ReturnUserInfo]
+getUsersByUids uids =
+  let uuids = [UserID uuid | Just uuid <- UUID.fromText <$> uids ]
+  -- We should eventually change the userID type from UUID to Text to conform to
+  -- the public API. However, for now, leaving the internal Type be a UUID is OK
+  in getUsersBy ( \user -> (user E.^. DB.UserUuid) `E.in_` valList uuids
+                )
 
 getUsersByRole :: Text -> API [ReturnUserInfo]
 getUsersByRole role = getUsersBy $

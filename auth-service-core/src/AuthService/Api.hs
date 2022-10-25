@@ -122,7 +122,7 @@ type AdminAPI = "admin"
 
 type GetUsers = "users"
               :> "by-uid"
-              :> QueryParams "uid" UserID
+              :> QueryParams "uid" Text
               :> Get '[JSON] [FoundUserInfo]
 
 type ServiceAPI = "service"

@@ -397,11 +397,11 @@ serveGetUsers :: ConnectionPool
               -> (forall a. Handler a -> Handler a )
               -> Server GetUsers
 serveGetUsers pool conf check uids = check $ do
-  users <- liftHandler . runAPI pool conf $ getUsersByUuids uids
+  users <- liftHandler . runAPI pool conf $ getUsersByUids uids
   let uMap = Map.fromList [(returnUserInfoId user, user) | user <- users]
   return [ FoundUserInfo
            { foundUserInfoId = uid
-           , foundUserInfoInfo = Map.lookup (UUID.toText $ unUserID uid) uMap
+           , foundUserInfoInfo = Map.lookup uid uMap
            }
            | uid <- uids
          ]

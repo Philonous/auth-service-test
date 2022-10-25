@@ -208,7 +208,7 @@ makeLensesWith camelCaseFields ''ReturnUserInfo
 
 -- | User info if found
 data FoundUserInfo = FoundUserInfo
-  { foundUserInfoId :: UserID
+  { foundUserInfoId :: Text
   , foundUserInfoInfo :: Maybe ReturnUserInfo
   } deriving Show
 
