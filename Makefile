@@ -87,3 +87,4 @@ clean:
 	$(MAKE) -C service clean
 	rm -rf dev
 	rm -rf secrets
+	rm auth-web.image
