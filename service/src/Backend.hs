@@ -673,13 +673,14 @@ getSsoToken tokenId = do
     return ( ssoToken E.^. DB.SsoTokenUserId
            , ssoToken E.^. DB.SsoTokenEmail
            , ssoToken E.^. DB.SsoTokenName
+           , ssoToken E.^. DB.SsoTokenInstanceId
            , arrayAgg (ssoRole E.^. DB.SsoTokenRoleRole)
 
            )
   runDB $ P.updateWhere [DB.SsoTokenToken P.==. tokenId]
                         [DB.SsoTokenLastUse P.=. Just now]
-  return $ listToMaybe [ (uid, email, name, fromMaybe [] roles) |
-                         ( Value uid, Value email, Value name
+  return $ listToMaybe [ (uid, email, name, inst, fromMaybe [] roles) |
+                         ( Value uid, Value email, Value name, Value inst
                          , Value roles
                          ) <- tok]
 
@@ -691,12 +692,31 @@ getUserRoles uid =
     return (uRole E.^. DB.UserRoleRole)
 
 getUserInfo :: B64Token -> API (Maybe ReturnUserInfo)
-getUserInfo token' = do
+getUserInfo token'
+  | isSsoToken token' = do
+      mbTok <- getSsoToken token'
+      Traversable.forM mbTok $ \(uid, email, name, iid, roles) -> do
+        mbInst <- getInstance iid
+        return ReturnUserInfo { returnUserInfoId = uid
+                            , returnUserInfoEmail = email
+                            , returnUserInfoName = name
+                            , returnUserInfoPhone = Nothing
+                            , returnUserInfoInstances =
+                                [ ReturnInstance
+                                  { returnInstanceName =
+                                      maybe "" DB.instanceName mbInst
+                                  , returnInstanceId = iid
+                                  }]
+                            , returnUserInfoRoles = roles
+                            , returnUserInfoDeactivate = Nothing
+                            }
+  | otherwise = do
   mbUser <- getUserByToken token'
   Traversable.forM mbUser $ \(_tid, user') -> do
     instances' <- getUserInstances (user' ^. DB.uuid)
     roles <- getUserRoles (user' ^. DB.uuid)
     return ReturnUserInfo { returnUserInfoId = user' ^. DB.uuid
+                                               . to (UUID.toText . unUserID )
                           , returnUserInfoEmail = user' ^. email
                           , returnUserInfoName = user' ^. name
                           , returnUserInfoPhone = user' ^. phone
@@ -729,7 +749,7 @@ checkTokenInstance request tok inst
                                             , Log.instanceId = inst
                                             }
           return Nothing
-        Just (uid, email, name, roles) -> do
+        Just (uid, email, name, _inst,  roles) -> do
           return $ Just (uid, email, name, roles)
 
 checkTokenInstance request tok inst = do
@@ -789,7 +809,7 @@ checkAdmin request tok = do
 checkToken :: B64Token -> API (Maybe Text)
 checkToken token
   | isSsoToken token = do
-      fmap (\(uid, _email, _name, _roles) -> uid ) <$> getSsoToken token
+      fmap (\(uid, _email, _name, _inst, _roles) -> uid ) <$> getSsoToken token
 checkToken token = fmap (UUID.toText . unUserID . DB.userUuid . snd)
                        <$> getUserByToken token
 checkInstance :: InstanceID -> UserID -> API (Maybe DB.UserInstance)
@@ -863,7 +883,7 @@ getUsersBy selector = do
                         , Value roles
                         , Value instanceIDs , Value instanceNames) ->
     ReturnUserInfo
-    { returnUserInfoId         = userId
+    { returnUserInfoId         = UUID.toText $ unUserID userId
     , returnUserInfoEmail      = userEmail
     , returnUserInfoName       = userName
     , returnUserInfoPhone      = userPhone

@@ -193,7 +193,7 @@ makeLensesWith camelCaseFields ''ReturnInstance
 deriveJSON defaultOptions{fieldLabelModifier = dropPrefix "returnInstance"}
     ''ReturnInstance
 
-data ReturnUserInfo = ReturnUserInfo { returnUserInfoId :: UserID
+data ReturnUserInfo = ReturnUserInfo { returnUserInfoId :: Text
                                      , returnUserInfoEmail :: Email
                                      , returnUserInfoName :: Name
                                      , returnUserInfoPhone :: Maybe Phone

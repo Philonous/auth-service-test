@@ -401,7 +401,7 @@ serveGetUsers pool conf check uids = check $ do
   let uMap = Map.fromList [(returnUserInfoId user, user) | user <- users]
   return [ FoundUserInfo
            { foundUserInfoId = uid
-           , foundUserInfoInfo = Map.lookup uid uMap
+           , foundUserInfoInfo = Map.lookup (UUID.toText $ unUserID uid) uMap
            }
            | uid <- uids
          ]
