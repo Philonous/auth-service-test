@@ -33,7 +33,7 @@ getSAMLConfig conf = do
   case (mbSamlPrivateKeyPath, mbSamlCertPath, mbSamlAudience
        , mbSamlConfigDefaultInstanceTxt, mbSamlConfigIPBaseUrl
        ) of
-    (Nothing, Nothing, Nothing, Nothing, Nothing) -> return Nothing
+    (Nothing, Nothing, Nothing, _, Nothing) -> return Nothing
     (Just privateKeyPath, Just certPath, Just samlConfigAudience
       , Just samlConfigDefaultInstanceTxt, Just samlConfigIPBaseUrl
       ) -> do
