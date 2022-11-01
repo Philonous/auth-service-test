@@ -183,7 +183,7 @@ ssoAssertHandler audience defaultInstance cfg response = runExceptT $ do
   email <- getAttr "email"
   userName <- getAttr "name"
   let userId = SAML.nameIdValue . SAML.subjectNameId $ SAML.assertionSubject res
-  role <- getAttrs "Role"
+  role <- getAttrs "role"
   instanceId <-
     case Map.lookup "instanceId" attrs of
       Nothing -> return defaultInstance
