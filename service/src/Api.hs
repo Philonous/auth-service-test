@@ -106,35 +106,44 @@ serveLogin pool st loginReq = loginHandler
                          , errHeaders      = []
                          }
 
-
-
 serveSSOAssertAPI :: ConnectionPool -> ApiState -> Server SSOAssertAPI
-serveSSOAssertAPI pool st samlResponse = do
-  case configSamlConfig $ apiStateConfig st of
+serveSSOAssertAPI pool st Nothing _ = do
+  liftHandler $ runAPI pool st $
+     logWarn "Got SSO assertion, but instance header is not set"
+  throwError err400
+serveSSOAssertAPI pool st (Just inst) samlResponse = do
+  case Map.lookup inst . samlConfigInstances
+       =<< configSamlConfig (apiStateConfig st) of
     Nothing -> do
       liftHandler $ runAPI pool st $
-        logInfo "Got SSO request, but SAML is not configured"
+        logInfo [i|Got SSO request, but SAML is not configured for instance #{inst}|]
       throwError err404
     Just samlConfig -> do
       let cfg = SAML.config2SamlConf samlConfig
       res <- liftHandler . runAPI pool st
                $ SAML.ssoAssertHandler
-                   (samlConfigAudience samlConfig)
-                   (samlConfigDefaultInstance samlConfig)
+                   (samlInstanceConfigAudience samlConfig)
+                   (samlInstanceConfigInstance samlConfig)
                    cfg samlResponse
       case res of
         Left e -> throwError err403
         Right rl -> return (addHeader (returnLoginToken rl) rl)
 
 serveSSOLoginAPI :: ConnectionPool -> ApiState -> Server SSOLoginAPI
-serveSSOLoginAPI pool st = do
-  case configSamlConfig $ apiStateConfig st of
+serveSSOLoginAPI pool st Nothing = do
+  liftHandler $ runAPI pool st $
+    logWarn "Got SSO login request, but instance header is unset"
+  throwError err400
+serveSSOLoginAPI pool st (Just inst) = do
+  case Map.lookup inst . samlConfigInstances
+       =<< configSamlConfig (apiStateConfig st) of
     Nothing -> do
-      liftHandler $ runAPI pool st $ logError "ServeSSOLoginAPI: SAML not configured"
-      throwError err500
+      liftHandler $ runAPI pool st $
+        logInfo [i|ServeSSOLoginAPI: SAML is not configured for instance #{inst}|]
+      throwError err404
     Just samlConf -> do
-      let audience = samlConfigAudience samlConf
-          baseUrl = samlConfigIPBaseUrl samlConf
+      let audience = samlInstanceConfigAudience samlConf
+          baseUrl = samlInstanceConfigIdPBaseUrl samlConf
       param <- liftIO $ SAML.ssoLoginHandler audience
       return $
         addHeader @"Location" ([i|#{baseUrl}?#{param}|] :: Text)

@@ -20,6 +20,8 @@ import           Control.Lens
 import qualified Control.Monad.Catch     as Ex
 import qualified Crypto.PubKey.RSA.Types as RSA
 import           Data.Default
+import           Data.Map.Strict         (Map)
+import qualified Data.Map.Strict         as Map
 import           Data.Text               (Text)
 import           Data.Time               (NominalDiffTime)
 import           Data.Typeable
@@ -110,14 +112,19 @@ data AccountCreationConfig =
   , accountCreationConfigDefaultInstances :: [InstanceID]
   }
 
+data SamlInstanceConfig =
+  SamlInstanceConfig
+  { samlInstanceConfigEncryptionKey      :: RSA.PrivateKey
+  , samlInstanceConfigSigningKey :: RSA.PublicKey
+  , samlInstanceConfigAudience   :: Text
+  , samlInstanceConfigInstance   :: InstanceID
+  , samlInstanceConfigIdPBaseUrl    :: Text
+  } deriving Show
+
 data SamlConfig =
   SamlConfig
-  { samlConfigEncryptionKey :: RSA.PrivateKey
-  , samlConfigSigningKey    :: RSA.PublicKey
-  , samlConfigAudience      :: Text
-  , samlConfigDefaultInstance :: InstanceID
-  , samlConfigIPBaseUrl     :: Text
-  }
+  { samlConfigInstances :: Map InstanceID SamlInstanceConfig
+  } deriving Show
 
 data Config = Config
   { configTimeout              :: Maybe Integer -- token timeout in seconds

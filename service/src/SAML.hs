@@ -56,10 +56,10 @@ keycloakConf2SamlConf cfg = do
    SAML.saml2Config (Keycloak.encryptionPrivate cfg)
                     (Keycloak.signingPublic cfg)
 
-config2SamlConf :: SamlConfig -> SAML.SAML2Config
+config2SamlConf :: SamlInstanceConfig -> SAML.SAML2Config
 config2SamlConf cfg =
-  SAML.saml2Config (samlConfigEncryptionKey cfg)
-    (samlConfigSigningKey cfg)
+  SAML.saml2Config (samlInstanceConfigEncryptionKey cfg)
+    (samlInstanceConfigSigningKey cfg)
 
 data SSOResult =
   SSOInvalid

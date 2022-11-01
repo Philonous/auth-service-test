@@ -37,14 +37,11 @@ services:
       - DEFAULT_INSTANCE=657b5108-7559-4b8e-a643-dd0cc29b9e34
       - SIGNED_HEADERS_PRIVATE_KEY_PATH=/run/secrets/header_signing_private_key
       - SERVICE_TOKEN=Ey3FGSjWe3KgjcNfo3sm
-      - SAML_ENCRYPTION_PRIVATE_KEY_PATH=/run/saml/privkey.pem
-      - SAML_SIGNING_CERTIFICATE_PATH=/run/saml/cert.pem
-      - SAML_AUDIENCE=authservice
-      - SAML_IP_BASE_URL=http://localhost:8070/realms/master/protocol/saml
+      - SAML_CONFIG_PATH=/run/saml
 
     volumes:
       - ./secrets:/run/secrets
-      - ./SAML/secrets:/run/saml:ro
+      - ./SAML/config:/run/saml:ro
     # logging:
     #   driver: gelf
     #   options:

@@ -17,6 +17,7 @@ type LoginAPI = "login"
 
 -- Should generate a redirect
 type SSOLoginAPI = "sso" :> "login"
+                 :> Header "X-Instance" InstanceID
                  :> Verb 'GET 303 '[ JSON ]
                  (Headers '[ Header "Location" Text
                            , Header "Cache-Control" Text
@@ -25,6 +26,7 @@ type SSOLoginAPI = "sso" :> "login"
                    NoContent)
 
 type SSOAssertAPI = "sso" :> "assert"
+            :> Header "X-Instance" InstanceID
             :> ReqBody '[FormUrlEncoded] SamlResponse
             :> Post '[JSON] (Headers '[Header "X-Token" B64Token] ReturnLogin)
 

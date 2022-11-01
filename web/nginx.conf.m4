@@ -107,10 +107,16 @@ http {
         }
 
         location /sso/ {
+                set $instance $http_x_instance;
+                if ($instance = '') {
+                  return 403;
+                }
+
                 ifdef(`NORATELIMIT', `', `
                 limit_req zone=login burst=10 nodelay;')
                 proxy_pass http://AUTH_SERVICE/sso/;
                 proxy_set_header X-Original-URI $request_uri;
+                proxy_set_header X-Instance $instance;
         }
 
         location = /logout {
