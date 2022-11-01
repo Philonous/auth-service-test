@@ -60,13 +60,25 @@ auth-service requires some attributes to function, you can set them up in keyclo
   * Make sure that all users have email and name set (keycloak admin by default does not)
 
 ## Configuring auth-service
-  The following configuration options are required
-  * SAML_ENCRYPTION_PRIVATE_KEY_PATH: Path to pem-encoded RSA encryption private key
-  * SAML_SIGNING_CERTIFICATE_PATH: Path to pem-encoded X509 certificate for IP
-    signature verification
-  * SAML_AUDIENCE: Client ID (has to be the same as configured in keycloak)
-  * SAML_IP_BASE_URL: URL of the IP request end point
-  See also docker-compose.yml for example
+The following configuration options are required
+  * `SAML_CONFIG_PATH`: Path to the configuration directory
+
+The directory should contain a number of sub-directories, one for each instance that should have SAML enabled.
+  * The names of the subdirectories are not relevant, you can choose them freely
+  * Each directory should contain the following three files
+  * `key.pem`: a PEM-encoded private RSA key, used for encrypted SAML assertions.
+  * `certificate.pem`: a PEM-encoded C509 certificate. Used to check signed assertions. (the IdP's "realm certificate")
+  * `config`: a simple "key=value" encoded configuration for the instance, with the following fields:
+    * `audience`: the audience for SAML assertions (has to match the client name in keycloak or other IdPs)
+    * `idp_request_url`: The IdP's URL for authentication requests
+    * `instance`: The auth-service instance this configuration applies to. Please note that each instance can only have **one** SAML configuration, multiple configurations will overwrite each other in an unspecified order.
+
+Example for the `config` file:
+```
+audience=authservice
+idp_request_url=http://localhost:8070/realms/master/protocol/saml
+instance=657b5108-7559-4b8e-a643-dd0cc29b9e34
+```
 
 ## Start auth-service
   * E.g. `make up && docker-compose logs --tail=50 --follow`
