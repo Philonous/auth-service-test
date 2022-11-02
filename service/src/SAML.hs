@@ -160,11 +160,8 @@ ssoAssertHandler audience defaultInstance cfg response = runExceptT $ do
 
   let getAttrs name =  do
         case Map.lookup name attrs of
-          Nothing -> do
-            Log.logInfo $ "Missing SAML attribute: " <> name
-            Log.logInfo $ "Available attributes: "
-              <> (Text.pack $ show $ Map.keys attrs)
-            throwError SSOInvalid
+          Nothing ->
+            return []
           Just val -> do
             Log.logDebug $ "SAML attribute found: " <> name <> " = "
               <> (Text.pack $ show val)
@@ -172,13 +169,12 @@ ssoAssertHandler audience defaultInstance cfg response = runExceptT $ do
       getAttr name = do
         getAttrs name >>= \case
           [] -> do
-            Log.logInfo $ [i|Missing SAML attribute: #{name}|]
+            Log.logInfo [i|Missing SAML attribute: #{name}|]
             throwError SSOInvalid
           [x] -> return x
           (x:y:_) -> do
-            Log.logInfo $ [i|Duplicate SAML attribute: #{name}|]
+            Log.logInfo [i|Duplicate SAML attribute: #{name}|]
             throwError SSOInvalid
-
 
   email <- getAttr "email"
   userName <- getAttr "name"
@@ -193,7 +189,7 @@ ssoAssertHandler audience defaultInstance cfg response = runExceptT $ do
                              <> instTxt
                          throwError SSOInvalid
       Just{} -> do
-        Log.logInfo $ "Multiple SAML instances are unsupported"
+        Log.logInfo "Multiple SAML instances are unsupported"
         throwError SSOInvalid
   Log.logDebug $ "instanceId "  <> (Text.pack $ show instanceId)
 
