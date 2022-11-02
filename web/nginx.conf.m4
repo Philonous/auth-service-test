@@ -106,6 +106,20 @@ http {
                 add_header Set-Cookie "token=$upstream_http_x_token; SameSite=Lax; Secure; Path=/expire";
         }
 
+        location /sso/assert {
+                set $instance $http_x_instance;
+                if ($instance = '') {
+                  return 403;
+                }
+
+                ifdef(`NORATELIMIT', `', `
+                limit_req zone=login burst=10 nodelay;')
+                proxy_pass http://AUTH_SERVICE/sso/assert;
+                proxy_set_header X-Original-URI $request_uri;
+                proxy_set_header X-Instance $instance;
+                add_header Set-Cookie "token=$upstream_http_x_token; SameSite=Lax; Secure; Path=/expire";
+        }
+
         location /sso/ {
                 set $instance $http_x_instance;
                 if ($instance = '') {

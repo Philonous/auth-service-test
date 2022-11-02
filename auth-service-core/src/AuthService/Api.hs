@@ -28,7 +28,12 @@ type SSOLoginAPI = "sso" :> "login"
 type SSOAssertAPI = "sso" :> "assert"
             :> Header "X-Instance" InstanceID
             :> ReqBody '[FormUrlEncoded] SamlResponse
-            :> Post '[JSON] (Headers '[Header "X-Token" B64Token] ReturnLogin)
+            :> Verb 'POST 303 '[JSON]
+                (Headers '[ Header "X-Token" B64Token
+                          , Header "Location" Text
+                          ]
+                 ReturnLogin
+                )
 
 type LogoutAPI = "logout"
                :> Capture "token" B64Token

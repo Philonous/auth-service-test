@@ -127,7 +127,12 @@ serveSSOAssertAPI pool st (Just inst) samlResponse = do
                    cfg samlResponse
       case res of
         Left e -> throwError err403
-        Right rl -> return (addHeader (returnLoginToken rl) rl)
+        Right rl ->
+          let loc = fromMaybe "/" $ samlInstanceConfigRedirectAfterLogin samlConfig
+          in return ( addHeader @"X-Token" (returnLoginToken rl)
+                    $ addHeader @"Location" loc
+                      rl
+                    )
 
 serveSSOLoginAPI :: ConnectionPool -> ApiState -> Server SSOLoginAPI
 serveSSOLoginAPI pool st Nothing = do

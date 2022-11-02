@@ -119,6 +119,7 @@ data SamlInstanceConfig =
   , samlInstanceConfigAudience   :: Text
   , samlInstanceConfigInstance   :: InstanceID
   , samlInstanceConfigIdPBaseUrl    :: Text
+  , samlInstanceConfigRedirectAfterLogin :: Maybe Text
   } deriving Show
 
 data SamlConfig =
