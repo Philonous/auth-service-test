@@ -28,7 +28,8 @@ import qualified Data.UUID                            as UUID
 import qualified Data.UUID.V4                         as UUID
 import qualified Database.Esqueleto                   as E
 import           Database.Esqueleto                   hiding ((^.), (<&>), from)
-import           Database.Esqueleto.PostgreSQL        (arrayAgg)
+import           Database.Esqueleto.PostgreSQL        ( arrayAgg, arrayRemoveNull
+                                                      , maybeArray)
 import qualified Database.Persist                     as P
 import qualified Database.Persist.Sql                 as P
 import           System.Random
@@ -659,9 +660,9 @@ getSsoToken tokenId = do
         E.<=. val expiresUnused
     ]
   tok <- runDB . select . E.from $ \((ssoToken :: SV DB.SsoToken)
-                                     `LeftOuterJoin` (ssoRole :: SV DB.SsoTokenRole)
+                                     `LeftOuterJoin` (ssoRole :: SVM DB.SsoTokenRole)
                                     ) -> do
-    onForeignKey ssoRole ssoToken
+    on (foreignKeyL ssoRole ssoToken)
     groupBy ( ssoToken E.^. DB.SsoTokenToken
             , ssoToken E.^. DB.SsoTokenUserId
             , ssoToken E.^. DB.SsoTokenEmail
@@ -674,12 +675,13 @@ getSsoToken tokenId = do
            , ssoToken E.^. DB.SsoTokenEmail
            , ssoToken E.^. DB.SsoTokenName
            , ssoToken E.^. DB.SsoTokenInstanceId
-           , arrayAgg (ssoRole E.^. DB.SsoTokenRoleRole)
+           , arrayRemoveNull
+             $ maybeArray (arrayAgg (ssoRole E.?. DB.SsoTokenRoleRole))
 
            )
   runDB $ P.updateWhere [DB.SsoTokenToken P.==. tokenId]
                         [DB.SsoTokenLastUse P.=. Just now]
-  return $ listToMaybe [ (uid, email, name, inst, fromMaybe [] roles) |
+  return $ listToMaybe [ (uid, email, name, inst, roles) |
                          ( Value uid, Value email, Value name, Value inst
                          , Value roles
                          ) <- tok]
