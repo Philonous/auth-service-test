@@ -49,7 +49,7 @@ auth-service requires some attributes to function, you can set them up in keyclo
   * name: email
     * Mapper type: User Property
     * Property: email
-    * SAMl Attribute name: email
+    * SAML Attribute name: email
   * name: User name
     * Mapper type: Javascript Mapper
     * Script: `user.getFirstName() + " " + user.getLastName()`
