@@ -1,3 +1,8 @@
+##############################################
+# NB: Changes to this file shold be reflected
+# in ../stack.dockerhub.yaml !
+##############################################
+
 resolver: lts-18.12
 
 extra-deps:
