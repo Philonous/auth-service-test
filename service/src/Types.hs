@@ -114,11 +114,12 @@ data AccountCreationConfig =
 
 data SamlInstanceConfig =
   SamlInstanceConfig
-  { samlInstanceConfigEncryptionKey      :: RSA.PrivateKey
+  { samlInstanceConfigEncryptionKey :: RSA.PrivateKey
+  , samlInstanceConfigAllowUnencrypted :: Bool
   , samlInstanceConfigSigningKey :: RSA.PublicKey
-  , samlInstanceConfigAudience   :: Text
-  , samlInstanceConfigInstance   :: InstanceID
-  , samlInstanceConfigIdPBaseUrl    :: Text
+  , samlInstanceConfigAudience :: Text
+  , samlInstanceConfigInstance :: InstanceID
+  , samlInstanceConfigIdPBaseUrl :: Text
   , samlInstanceConfigRedirectAfterLogin :: Maybe Text
   } deriving Show
 

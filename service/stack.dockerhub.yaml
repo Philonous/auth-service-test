@@ -8,7 +8,7 @@ extra-deps:
   - '../auth-service-core'
   - base64-bytestring-1.2.0.1
   - git: https://github.com/mbg/wai-saml2.git
-    commit: 5d0efb965dce1e6a6a2d446fa1b089465f00f0cf
+    commit: 51bee129a2f88770f079361aad0189b796b02abf
   - hspec-wai-json-0.11.0
 
 flags:

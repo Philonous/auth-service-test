@@ -58,8 +58,11 @@ keycloakConf2SamlConf cfg = do
 
 config2SamlConf :: SamlInstanceConfig -> SAML.SAML2Config
 config2SamlConf cfg =
-  SAML.saml2Config (samlInstanceConfigEncryptionKey cfg)
-    (samlInstanceConfigSigningKey cfg)
+  (SAML.saml2Config (samlInstanceConfigEncryptionKey cfg)
+                   (samlInstanceConfigSigningKey cfg))
+                   { SAML.saml2RequireEncryptedAssertion =
+                       not (samlInstanceConfigAllowUnencrypted cfg)
+                   }
 
 data SSOResult =
   SSOInvalid
@@ -178,7 +181,7 @@ ssoAssertHandler audience defaultInstance cfg response = runExceptT $ do
 
   email <- getAttr "email"
   userName <- getAttr "name"
-  let userId = SAML.nameIdValue . SAML.subjectNameId $ SAML.assertionSubject res
+  let userId = SAML.nameIDValue . SAML.subjectNameID $ SAML.assertionSubject res
   role <- getAttrs "role"
   instanceId <-
     case Map.lookup "instanceId" attrs of
