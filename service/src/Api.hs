@@ -122,7 +122,6 @@ serveSSOAssertAPI pool st (Just inst) samlResponse = do
       let cfg = SAML.config2SamlConf samlConfig
       res <- liftHandler . runAPI pool st
                $ SAML.ssoAssertHandler
-                   (samlInstanceConfigAudience samlConfig)
                    (samlInstanceConfigInstance samlConfig)
                    cfg samlResponse
       case res of

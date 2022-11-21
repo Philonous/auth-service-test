@@ -12,7 +12,6 @@ module SAML
 where
 
 import           Control.Monad.Except
-import           Control.Monad.Logger             (MonadLogger)
 import           Data.ByteString                  (ByteString)
 import qualified Data.ByteString.Base64           as B64
 import           Data.Functor
@@ -62,6 +61,7 @@ config2SamlConf cfg =
                    (samlInstanceConfigSigningKey cfg))
                    { SAML.saml2RequireEncryptedAssertion =
                        not (samlInstanceConfigAllowUnencrypted cfg)
+                   , SAML.saml2Audiences = [ samlInstanceConfigAudience cfg ]
                    }
 
 data SSOResult =
@@ -76,7 +76,7 @@ createSsoToken
   -> Text
   -> [Text]
   -> API ReturnLogin
-createSsoToken userId email userName instId instName roles = do
+createSsoToken userId email' userName instId instName roles' = do
   now <- liftIO getCurrentTime
   -- We set the absolute expiration time for the token here, but the
   -- expiration timeout for tokens that haven't been used in a while is
@@ -92,7 +92,7 @@ createSsoToken userId email userName instId instName roles = do
     DB.SsoToken
     { DB.ssoTokenToken = token'
     , DB.ssoTokenUserId = userId
-    , DB.ssoTokenEmail = email
+    , DB.ssoTokenEmail = email'
     , DB.ssoTokenName = userName
     , DB.ssoTokenInstanceId = instId
     , DB.ssoTokenCreated = now
@@ -106,7 +106,7 @@ createSsoToken userId email userName instId instName roles = do
       { DB.ssoTokenRoleToken = token'
       , DB.ssoTokenRoleRole = role
       }
-    | role <- roles ]
+    | role <- roles' ]
 
   audit AuditSsoTokenCreated
         { auditSsoUserID = userId
@@ -117,57 +117,38 @@ createSsoToken userId email userName instId instName roles = do
       {returnLoginToken = token', returnLoginInstances =
                                       [ReturnInstance instName instId]})
 
-checkCondition :: ( MonadLogger m, MonadError SSOResult m
-                  , Show a, Show b
-                  ) =>
-                  Text -> a -> b -> Bool -> m ()
-checkCondition _txt _a _b True = return ()
-checkCondition txt a b False = do
-  Log.logInfo $ [i|SAML condition not met: #{txt}; SAML condition prescribes: #{a} but we have #{b}|]
-  throwError SSOInvalid
-
-ssoAssertHandler :: Text
-  -> InstanceID
+ssoAssertHandler
+  :: InstanceID
   -> SAML.SAML2Config
   -> SamlResponse
   -> API (Either SSOResult ReturnLogin)
-ssoAssertHandler audience defaultInstance cfg response = runExceptT $ do
-  res <- liftIO (SAML.validateResponse cfg (Text.encodeUtf8 $ samlResponseBody response))
+ssoAssertHandler defaultInstance cfg response = runExceptT $ do
+  (assertion, inResponseTo) <- liftIO (SAML.validateResponse cfg (Text.encodeUtf8 $ samlResponseBody response))
          >>= \case
            Left e -> do
              lift . Log.logInfo $ "Failed validating SAML assertion: "
-                                    <> (Text.pack $ show e)
+                                    <> Text.pack (show e)
              lift . Log.logDebug $
                (either (const "could not decode Base64") Text.decodeUtf8 . B64.decode . Text.encodeUtf8 $ samlResponseBody response)
-             throwError $ SSOInvalid
+             throwError SSOInvalid
            Right r -> do
              liftIO $ print r
              return r
-  lift $ storeAssertionID (SAML.assertionId res) -- this can throw conflict
-  -- check conditions
-  now <- liftIO getCurrentTime
-
-  let cond = SAML.assertionConditions res
-  checkCondition "not before" (SAML.conditionsNotBefore cond) now
-    $ SAML.conditionsNotBefore cond <= now
-  checkCondition "not on or after" (SAML.conditionsNotOnOrAfter cond) now
-    $ SAML.conditionsNotOnOrAfter cond > now
-  checkCondition "audience" (SAML.conditionsAudience cond) audience
-    $ audience == SAML.conditionsAudience cond
+  lift $ storeAssertionID (SAML.assertionId assertion) -- this can throw conflict
 
   let attrs = Map.fromListWith (++)
                  [(SAML.attributeName attr, [SAML.attributeValue attr])
-                 | attr <- SAML.assertionAttributeStatement res
+                 | attr <- SAML.assertionAttributeStatement assertion
                  ]
-      -- attributes we care about
 
+  -- attributes we care about
   let getAttrs name =  do
         case Map.lookup name attrs of
           Nothing ->
             return []
           Just val -> do
             Log.logDebug $ "SAML attribute found: " <> name <> " = "
-              <> (Text.pack $ show val)
+              <> Text.pack (show val)
             return val
       getAttr name = do
         getAttrs name >>= \case
@@ -181,7 +162,7 @@ ssoAssertHandler audience defaultInstance cfg response = runExceptT $ do
 
   email <- getAttr "email"
   userName <- getAttr "name"
-  let userId = SAML.nameIDValue . SAML.subjectNameID $ SAML.assertionSubject res
+  let userId = SAML.nameIDValue . SAML.subjectNameID $ SAML.assertionSubject assertion
   role <- getAttrs "role"
   instanceId <-
     case Map.lookup "instanceId" attrs of
@@ -194,16 +175,16 @@ ssoAssertHandler audience defaultInstance cfg response = runExceptT $ do
       Just{} -> do
         Log.logInfo "Multiple SAML instances are unsupported"
         throwError SSOInvalid
-  Log.logDebug $ "instanceId "  <> (Text.pack $ show instanceId)
+  Log.logDebug $ "instanceId "  <> Text.pack (show instanceId)
 
   mbInstance <- lift $ getInstance instanceId
   case mbInstance of
     Nothing -> do
-      Log.logInfo $ "Unknown instance " <> (Text.pack $ show instanceId)
+      Log.logInfo $ "Unknown instance " <> Text.pack (show instanceId)
       throwError SSOInvalid
     Just inst -> do
       lift
-        $ createSsoToken (userId) (Email email) (Name userName) instanceId
+        $ createSsoToken userId (Email email) (Name userName) instanceId
             (DB.instanceName inst) role
 
 -- TODO: Should we check ID and issuer?
