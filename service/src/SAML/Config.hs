@@ -71,6 +71,7 @@ getSamlConfig base inst = do
   samlInstanceConfigIdPBaseUrl <- get "idp_request_url" conf
 
   samlInstanceConfigAllowUnencrypted <- getBool "allow_unencrypted_assertions" conf
+  samlInstanceConfigAllowUnsolicited <- getBool "allow_unsolicited_responses" conf
 
   -- Private key
   let privateKeyPath = path </> "key.pem"

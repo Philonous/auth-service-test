@@ -22,14 +22,16 @@ import qualified Data.Text                        as Text
 import qualified Data.Text.Encoding               as Text
 import           Data.Time.Clock                  (getCurrentTime, addUTCTime)
 import qualified Data.UUID                        as UUID
+import qualified Database.Esqueleto               as E
 import qualified Database.Persist                 as P
+import           NejlaCommon                      (SV)
 import qualified Network.Wai.SAML2                as SAML
 import qualified Network.Wai.SAML2.Validation     as SAML
 
+import qualified Network.Wai.SAML2.Request        as AuthnRequest
 import           SAML.Keycloak                    (readConfig)
 import qualified SAML.Keycloak                    as Keycloak
 import           SAML.Keys
-import           SAML.AuthRequest                 as AuthRequest
 
 import           AuthService.Types
 
@@ -63,6 +65,24 @@ config2SamlConf cfg =
                        not (samlInstanceConfigAllowUnencrypted cfg)
                    , SAML.saml2Audiences = [ samlInstanceConfigAudience cfg ]
                    }
+
+--------------------------------------------------------------------------------
+-- AuthnRequest ----------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+ssoLoginHandler :: Text -> API ByteString
+ssoLoginHandler issuer = do
+  request <- liftIO $ AuthnRequest.issueAuthnRequest issuer
+
+  now <- liftIO getCurrentTime
+  _ <- runDB $ P.insert DB.SamlRequestId
+    { DB.samlRequestIdRequestId = AuthnRequest.authnRequestID request
+    , DB.samlRequestIdCreated = now
+    }
+
+  return $ "SAMLRequest=" <> AuthnRequest.renderUrlEncodingDeflate request
+
+
 
 data SSOResult =
   SSOInvalid
@@ -117,13 +137,28 @@ createSsoToken userId email' userName instId instName roles' = do
       {returnLoginToken = token', returnLoginInstances =
                                       [ReturnInstance instName instId]})
 
+checkAssertionInResponseTo :: Text -> ExceptT SSOResult API ()
+checkAssertionInResponseTo requestId = do
+  now <- liftIO getCurrentTime
+  -- Delete IDs older than one hour
+  lift . runDB . E.delete . E.from $ \(srid :: SV DB.SamlRequestId) ->
+     E.where_ (srid E.^. DB.SamlRequestIdCreated E.<. E.val (addUTCTime (-3600) now))
+
+  -- Find and delete request ID
+  deleted <- lift . runDB $ E.deleteCount . E.from $ \(srid :: SV DB.SamlRequestId) ->
+     E.where_ (srid E.^. DB.SamlRequestIdRequestId E.==. E.val requestId)
+  unless (deleted > 0) $  do
+     Log.logError [i|Failed validating SAML assertion: InResponseTo with unknown request ID|]
+     throwError SSOInvalid
+
 ssoAssertHandler
-  :: InstanceID
-  -> SAML.SAML2Config
+  :: SamlInstanceConfig
   -> SamlResponse
   -> API (Either SSOResult ReturnLogin)
-ssoAssertHandler defaultInstance cfg response = runExceptT $ do
-  (assertion, inResponseTo) <- liftIO (SAML.validateResponse cfg (Text.encodeUtf8 $ samlResponseBody response))
+ssoAssertHandler cfg response = runExceptT $ do
+  (assertion, mbInResponseTo) <- liftIO (SAML.validateResponse
+                                      (SAML.config2SamlConf cfg)
+                                      (Text.encodeUtf8 $ samlResponseBody response))
          >>= \case
            Left e -> do
              lift . Log.logInfo $ "Failed validating SAML assertion: "
@@ -134,6 +169,15 @@ ssoAssertHandler defaultInstance cfg response = runExceptT $ do
            Right r -> do
              liftIO $ print r
              return r
+
+  -- Reference [InResponseTo]
+  --
+  case mbInResponseTo of
+    Nothing -> unless (samlInstanceConfigAllowUnsolicited cfg) $ do
+      Log.logError [i|Failed validating SAML assertion: InResponseTo missing but we don't allow unsolicited responses|]
+      throwError SSOInvalid
+    Just inResponseTo -> checkAssertionInResponseTo inResponseTo
+
   lift $ storeAssertionID (SAML.assertionId assertion) -- this can throw conflict
 
   let attrs = Map.fromListWith (++)
@@ -142,22 +186,22 @@ ssoAssertHandler defaultInstance cfg response = runExceptT $ do
                  ]
 
   -- attributes we care about
-  let getAttrs name =  do
-        case Map.lookup name attrs of
+  let getAttrs name' =  do
+        case Map.lookup name' attrs of
           Nothing ->
             return []
           Just val -> do
-            Log.logDebug $ "SAML attribute found: " <> name <> " = "
+            Log.logDebug $ "SAML attribute found: " <> name' <> " = "
               <> Text.pack (show val)
             return val
-      getAttr name = do
-        getAttrs name >>= \case
+      getAttr name' = do
+        getAttrs name' >>= \case
           [] -> do
-            Log.logInfo [i|Missing SAML attribute: #{name}|]
+            Log.logInfo [i|Missing SAML attribute: #{name'}|]
             throwError SSOInvalid
           [x] -> return x
-          (x:y:_) -> do
-            Log.logInfo [i|Duplicate SAML attribute: #{name}|]
+          (_:_:_) -> do
+            Log.logInfo [i|Duplicate SAML attribute: #{name'}|]
             throwError SSOInvalid
 
   email <- getAttr "email"
@@ -166,7 +210,7 @@ ssoAssertHandler defaultInstance cfg response = runExceptT $ do
   role <- getAttrs "role"
   instanceId <-
     case Map.lookup "instanceId" attrs of
-      Nothing -> return defaultInstance
+      Nothing -> return $ samlInstanceConfigInstance cfg
       Just [instTxt] | Just inst <- UUID.fromText instTxt -> return $ InstanceID inst
                      | otherwise -> do
                          Log.logInfo $ "Could not parse SAML instance id "
@@ -187,7 +231,13 @@ ssoAssertHandler defaultInstance cfg response = runExceptT $ do
         $ createSsoToken userId (Email email) (Name userName) instanceId
             (DB.instanceName inst) role
 
--- TODO: Should we check ID and issuer?
-ssoLoginHandler :: Text -> IO ByteString
-ssoLoginHandler = do
-  mkRequest
+-- Reference [InResponseTo]
+-- > If the response is not generated in response to a request, or if the ID
+-- > attribute value of a request cannot be determined (for example, the request
+-- > is malformed), then this attribute MUST NOT be present.  Otherwise, it MUST
+-- > be present and its value MUST match the value of the corresponding
+-- > request's ID attribute.
+-- Source:
+-- https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf#page=38
+-- Section:
+-- 3.2.2 Complex Type StatusResponseType

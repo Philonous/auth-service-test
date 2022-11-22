@@ -81,6 +81,8 @@ that should have SAML enabled.
     * `allow_unencrypted_assertions`: Accept unencrypted assertions from the IdP
       (encrypted assertions are always accepted). Note that the encryption key
       still needs to be set.
+    * `allow_unsolicited_responses`: Accept unsolicited auth responses,
+      e.g. IdP-initiated SSO.
 
 Example for the `config` file:
 ```

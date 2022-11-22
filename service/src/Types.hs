@@ -121,6 +121,7 @@ data SamlInstanceConfig =
   , samlInstanceConfigInstance :: InstanceID
   , samlInstanceConfigIdPBaseUrl :: Text
   , samlInstanceConfigRedirectAfterLogin :: Maybe Text
+  , samlInstanceConfigAllowUnsolicited :: Bool
   } deriving Show
 
 data SamlConfig =
