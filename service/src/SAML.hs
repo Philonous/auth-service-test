@@ -167,7 +167,6 @@ ssoAssertHandler cfg response = runExceptT $ do
                (either (const "could not decode Base64") Text.decodeUtf8 . B64.decode . Text.encodeUtf8 $ samlResponseBody response)
              throwError SSOInvalid
            Right r -> do
-             liftIO $ print r
              return r
 
   -- Reference [InResponseTo]
