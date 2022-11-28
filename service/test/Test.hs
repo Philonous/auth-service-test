@@ -532,37 +532,37 @@ adminTests pool = testGroup "admin"
 main :: IO ()
 main = withTestDB $ \pool -> do
   defaultMain . testGroup "main" $
-       [ testCase "create user"                       $ case_create_user                        pool
-       , testCase "user check password"               $ case_user_check_password                pool
-       , testCase "user check password wrong"         $ case_user_check_password_wrong          pool
-       , testCase "user email case insensitive"       $ case_user_email_case_insensitive        pool
-       , testCase "user change password"              $ case_user_change_password               pool
-       , testCase "user change password old password" $ case_user_change_password_old_password  pool
-       , testCase "changePassword otp"                $ case_changePassword_otp                 pool
-       , testCase "reset password"                    $ case_reset_password                     pool
-       , testCase "reset password wrong token"        $ case_reset_password_wrong_token         pool
-       , testCase "reset password OTP"                $ case_reset_password_OTP                 pool
-       , testCase "reset password double use"         $ case_reset_password_double_use          pool
-       , testCase "reset password expired"            $ case_reset_password_expired             pool
-       , testCase "password reset render email"       $ case_password_reset_render_email        pool
-       , testCase "password reset render error email" $ case_password_reset_render_error_email  pool
-       , testCase "password reset render email error" $ case_password_reset_render_email_errors pool
-       , testCase "password reset default template"   $ case_password_reset_default_template    pool
-       , testCase "add user instance"                 $ case_add_user_instance                  pool
-       , testCase "remove user instance"              $ case_remove_user_instance               pool
-       , testCase "login"                             $ case_login                              pool
-       , testCase "login otp"                         $ case_login_otp                          pool
-       , testCase "login otp wrong user"              $ case_login_otp_wrong_user               pool
-       , testCase "checkToken"                        $ case_checkToken                         pool
-       , testCase "checkToken bogus"                  $ case_checkToken_bogus                   pool
-       , testCase "checkToken token expires"          $ case_checkToken_expired                 pool
-       , testCase "checkToken unused token expires"   $ case_checkToken_unused_expired          pool
-       , testCase "checkTokenInstance"                $ case_checkTokenInstance                 pool
-       , testCase "checkTokenInstance not member"     $ case_checkTokenInstance_not_member      pool
-       , testCase "checkSsoTokenInstance"        $ case_checkSsoTokenInstance              pool
+       [ testCase "create user"                         $ case_create_user                          pool
+       , testCase "user check password"                 $ case_user_check_password                  pool
+       , testCase "user check password wrong"           $ case_user_check_password_wrong            pool
+       , testCase "user email case insensitive"         $ case_user_email_case_insensitive          pool
+       , testCase "user change password"                $ case_user_change_password                 pool
+       , testCase "user change password old password"   $ case_user_change_password_old_password    pool
+       , testCase "changePassword otp"                  $ case_changePassword_otp                   pool
+       , testCase "reset password"                      $ case_reset_password                       pool
+       , testCase "reset password wrong token"          $ case_reset_password_wrong_token           pool
+       , testCase "reset password OTP"                  $ case_reset_password_OTP                   pool
+       , testCase "reset password double use"           $ case_reset_password_double_use            pool
+       , testCase "reset password expired"              $ case_reset_password_expired               pool
+       , testCase "password reset render email"         $ case_password_reset_render_email          pool
+       , testCase "password reset render error email"   $ case_password_reset_render_error_email    pool
+       , testCase "password reset render email error"   $ case_password_reset_render_email_errors   pool
+       , testCase "password reset default template"     $ case_password_reset_default_template      pool
+       , testCase "add user instance"                   $ case_add_user_instance                    pool
+       , testCase "remove user instance"                $ case_remove_user_instance                 pool
+       , testCase "login"                               $ case_login                                pool
+       , testCase "login otp"                           $ case_login_otp                            pool
+       , testCase "login otp wrong user"                $ case_login_otp_wrong_user                 pool
+       , testCase "checkToken"                          $ case_checkToken                           pool
+       , testCase "checkToken bogus"                    $ case_checkToken_bogus                     pool
+       , testCase "checkToken token expires"            $ case_checkToken_expired                   pool
+       , testCase "checkToken unused token expires"     $ case_checkToken_unused_expired            pool
+       , testCase "checkTokenInstance"                  $ case_checkTokenInstance                   pool
+       , testCase "checkTokenInstance not member"       $ case_checkTokenInstance_not_member        pool
+       , testCase "checkSsoTokenInstance"               $ case_checkSsoTokenInstance                pool
        , testCase "checkSsoTokenInstance wronginstance" $ case_checkSsoTokenInstance_wrong_instance pool
-       , testCase "logout"                            $ case_logout                             pool
-       , testCase "closeOtherSesions"                 $ case_closeOtherSesions                  pool
-       , testCase "closeOtherSesions same session"    $ case_closeOtherSesions_same_session     pool
+       , testCase "logout"                              $ case_logout                               pool
+       , testCase "closeOtherSesions"                   $ case_closeOtherSesions                    pool
+       , testCase "closeOtherSesions same session"      $ case_closeOtherSesions_same_session       pool
        , adminTests pool
        ]
