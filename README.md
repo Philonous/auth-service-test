@@ -120,9 +120,6 @@ options are ignored
 * `EMAIL_TLS` (Bool) _optional_: Whether to use TLS to connect to the SMTP server (default: true)
 * `EMAIL_AUTH` (Bool) _optional_: Whether to authenticate to the SMTP server (default: true)
 
-* `RESET_LINK_EXPIRATION_TIME` (Int) _optional_: Time before password reset link expires, in hours (default: 24)
-
-
 ### Two Factor Authentication
 
 Twilio is a mobile messaging service, used in auth-service for Two-factor authentication
@@ -294,12 +291,40 @@ The request body should look like this:
 
 ### Changing user passwords
 
-Login passwords can be changed by calling `/api/change-password` :
+Login passwords can be changed by users by calling `/api/change-password` :
 
 ```
 POST /api/change-password
-  {"oldPasword":"myOldPassword","newPassword":"myNewPassword"}"
+  {"oldPassword":"myOldPassword","newPassword":"myNewPassword"}"
+```
 
+The user has to be logged in for the account
+
+## Resetting forgotten password
+
+Forgotten passwords can be reset by requesting a password reset token.
+
+### 1. Request a password reset link
+
+Users can request a password reset link for their email address. This request will always succeed, even if the email is not stored in the system to prevent oracle attacks.
+
+```
+curl -H "X-Token: $token" -H "Content-Type: application/json" -XPOST -d '{"email": "example@example.com"}' https://localhost/api/request-password-reset
+```
+
+### 2. check if a token is valid (for UI purposes)
+
+Your UI can check if a token is valid before using it to reset the password
+
+```
+curl "$server/api/reset-password-info?token=P535GDS2JW7XFFV5HKKG"
+```
+
+Returns the user email if the reset token is valid
+
+### 3. Use the token to set a new password
+```
+curl -H "X-Token: $token" -H "Content-Type: application/json" -XPOST -d '{"token": "ZCQ99YYH3QMK576HF2Q9", "newPassword": "my new password"}' https://localhost/api/reset-password
 ```
 
 ### Setting user roles
