@@ -313,7 +313,7 @@ them under `environment` in your `docker-compose.yml` files.
 
 ### Password Reset E-mails Options
 
-auth-service can offer password reset e-mails. By default, the e-mail functionality is disabled.
+auth-service can offer password reset e-mails containing a password reset link. By default, the e-mail functionality is disabled.
 
 If the `EMAIL_FROM` option is set, the e-mail functionality is enabled and a number of other options become required. If the `EMAIL_FROM` option is unset, the e-mail functionality is disabled and all other e-mail-related options are ignored.
 
@@ -332,6 +332,8 @@ If the `EMAIL_FROM` option is set, the e-mail functionality is enabled and a num
 | `RESET_LINK_EXPIRATION_TIME` | No                     | Integer                     | `24`                 | Time in hours before password reset links expire.                                                                                                   |
 | `SENDMAIL_PROGRAM`           | No                     | String                      | `/usr/sbin/sendmail` | Path to the `sendmail` executable to use, followed by the arguments, separated by spaces.                                                           |
 
+A password reset e-mail request will always succeed, even if the e-mail address does not belong to an auth-service user, in order to prevent oracle attacks.
+
 By default, the following two e-mail templates are used:
 
 - [`service/src/html/password-reset-email-template.html.mustache`](service/src/html/password-reset-email-template.html.mustache)
@@ -344,6 +346,12 @@ However, you can provide your own by voluming in Mustache files into the `/app` 
       - ./password-reset-email-template.html.mustache:/app/password-reset-email-template.html.mustache:ro
       - ./password-reset-unknown-email-template.html.mustache:/app/password-reset-unknown-email-template.html.mustache.mustache:ro
 ```
+
+There are three endpoints that can be used for password resets:
+
+- `POST` requests to `/api/request-password-reset` will request a password reset e-mails to be sent. The body should contain an `email` property, like so: `{ "email": "example@example.com" }`.
+- `GET` requests to `/api/reset-password-info` with a `token` query parameter (like `/api/reset-password-info?token=...`) can be used to check the validity of tokens (whether or not they exist, have not expired and have not been used).
+- `POST` requests to `/api/reset-password` will use a valid token to set a new password. The body should contain `token` and `newPassword` properties, like so: `{ "newPassword": "...", "token": "..." }`.
 
 ### Two-Factor Authentication Options
 

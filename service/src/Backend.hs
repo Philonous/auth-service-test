@@ -580,7 +580,7 @@ login timeframe remoteAddress maxAttempts
 changePassword :: B64Token
                -> ChangePassword
                -> API (Either ChangePasswordError ())
-changePassword tok ChangePassword { changePasswordOldPasword = oldPwd
+changePassword tok ChangePassword { changePasswordOldPassword = oldPwd
                                   , changePasswordNewPassword = newPwd
                                   , changePasswordOtp = otp
                                   } = runExceptT $ do

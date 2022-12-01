@@ -200,7 +200,7 @@ case_changePassword_otp =
       changePassword
         tok
         ChangePassword
-        { changePasswordOldPasword = testUserOtp ^. password
+        { changePasswordOldPassword = testUserOtp ^. password
         , changePasswordNewPassword = "pwd2"
         , changePasswordOtp = Nothing
         }
@@ -212,7 +212,7 @@ case_changePassword_otp =
       changePassword
         tok
         ChangePassword
-        { changePasswordOldPasword = testUserOtp ^. password
+        { changePasswordOldPassword = testUserOtp ^. password
         , changePasswordNewPassword = "pwd2"
         , changePasswordOtp = Just $ Password otp
         }
