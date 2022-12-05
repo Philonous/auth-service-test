@@ -253,7 +253,7 @@ $ curl \
 User can log out (deactivate the current token) by making a `POST` request to
 `/api/logout`.
 
-A user can deactivate all tokens belonging to the user **except** the current
+A user can deactivate all tokens belonging to the account **except** the current
 token by making a `POST` request to `/api/disable-sessions`.
 
 Finally, users can get information about their accounts (including ID, name,
@@ -567,6 +567,11 @@ encrypting assertions**.
 
 The SP will need a **request URL for authentication requests** and a **realm
 signing certificate**.
+
+Please note that when a local account and an SSO account will be considered
+distinct (even if the same e-mail address is used). That means that a
+`/api/disable-sessions` request using an SSO token will not expire tokens for
+local accounts, and vice versa.
 
 For more information, see [the SAML documentation](SAML.md).
 
