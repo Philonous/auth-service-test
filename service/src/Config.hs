@@ -185,9 +185,7 @@ getSecrets conf = do
     getConf "SIGNED_HEADERS_PRIVATE_KEY_PATH" "signed-headers.private-key-path"
       (Right "/run/secrets/header_signing_private_key") conf
   signedHeaderKey <- readSignedHeaderKey $ Text.unpack signedHeaderKeyPath
-  serviceToken <-
-    getConf "SERVICE_TOKEN" "service-token"
-      (Left "Secret token for between-service communication") conf
+  serviceToken <- getConfMaybe "SERVICE_TOKEN" "service-token" conf
   return Secrets { secretsHeaderPrivateKey = signedHeaderKey
                  , secretsServiceToken = serviceToken
                  }
