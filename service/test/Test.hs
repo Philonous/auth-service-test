@@ -509,7 +509,7 @@ case_closeOtherSesions_sso_sso :: Case ()
 case_closeOtherSesions_sso_sso = withSsoToken ssoTestUser $ \tok uid run -> do
   let usr = ssoTestUser
       iid = case usr ^. instances of
-              [] -> error "no instancs"
+              [] -> error "no instances"
               (iid:_) -> iid
   res <- run $ createSsoToken uid (usr ^. email) (usr ^. name) iid "" (usr ^. roles)
   let tok2 = res ^. token
@@ -524,7 +524,7 @@ case_closeOtherSesions_sso_regular = withUserToken testUser $ \tok uid run -> do
   let usr = ssoTestUser
       uidTxt = UUID.toText $ unUserID uid
       iid = case usr ^. instances of
-              [] -> error "no instancs"
+              [] -> error "no instances"
               (iid:_) -> iid
   run $ addInstance (Just iid) "default instance"
   res <- run $ createSsoToken uidTxt (usr ^. email) (usr ^. name) iid "" (usr ^. roles)
@@ -544,7 +544,7 @@ case_closeOtherSesions_regular_sso = withUserToken testUser $ \tok uid run -> do
   let usr = ssoTestUser
       uidTxt = UUID.toText $ unUserID uid
       iid = case usr ^. instances of
-              [] -> error "no instancs"
+              [] -> error "no instances"
               (iid:_) -> iid
   run $ addInstance (Just iid) "default instance"
   res <- run $ createSsoToken uidTxt (usr ^. email) (usr ^. name) iid "" (usr ^. roles)
