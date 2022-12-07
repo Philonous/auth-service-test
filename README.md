@@ -345,7 +345,8 @@ You must provide these files (if `EMAIL_FROM` is set) by voluming them into the 
       - ./password-reset-unknown-email.html.mustache:/app/password-reset-unknown-email.html.mustache:ro
 ```
 
-Here is an example of `password-reset-email.html.mustache.mustache`:
+Here is an example of `password-reset-email.html.mustache.mustache` (`%s` is
+replaced with the token):
 
 ```html
 <!DOCTYPE html>
