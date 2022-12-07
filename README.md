@@ -363,8 +363,8 @@ replaced with the token):
       reset please follow this link:
     </p>
     <p>
-      <a href="https://my-app.example.com/reset-password?token=%s">
-        https://my-app.example.com/reset-password?token=%s
+      <a href="https://my-app.example.com/reset-password?token={{token}}">
+        https://my-app.example.com/reset-password?token={{token}}
       </a>
     </p>
     <p>The link will be valid for {{expirationTime}} hours.</p>
