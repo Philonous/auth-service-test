@@ -215,7 +215,7 @@ tryReadMustacheFile path = liftIO $ do
     , Ex.Handler $ \case
         (Mustache.MustacheParserException parseError) -> do
           hPutStrLn stderr
-           [i|Could not parse template file #{path}: encountered error #{parseError}|]
+           [i|Could not parse template file #{path}: encountered error: #{parseError}|]
           exitFailure
         _ -> do
           hPutStrLn stderr [i|Could not parse template file #{path}|]
