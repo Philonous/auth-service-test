@@ -94,7 +94,7 @@ mkConfig pool = do
           , configSamlConfig = Nothing
           }
         secrets = Secrets { secretsHeaderPrivateKey = privateKey
-                          , secretsServiceToken = ""
+                          , secretsServiceToken = Nothing
                           }
     return (conf, secrets)
   where

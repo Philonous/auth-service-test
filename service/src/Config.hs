@@ -181,13 +181,18 @@ getAuthServiceConfig conf = do
 
 getSecrets :: (MonadIO m, MonadLogger m) => Conf.Config -> m Secrets
 getSecrets conf = do
-  signedHeaderKeyPath <-
-    getConf "SIGNED_HEADERS_PRIVATE_KEY_PATH" "signed-headers.private-key-path"
-      (Right "/run/secrets/header_signing_private_key") conf
-  signedHeaderKey <- readSignedHeaderKey $ Text.unpack signedHeaderKeyPath
-  serviceToken <-
-    getConf "SERVICE_TOKEN" "service-token"
-      (Left "Secret token for between-service communication") conf
+  mbSignedHeaderKeyPath <-
+    getConfMaybe "SIGNED_HEADERS_PRIVATE_KEY_PATH" "signed-headers.private-key-path"
+                 conf
+  signedHeaderKey <-
+    case mbSignedHeaderKeyPath of
+      Nothing -> do
+        (privateKey, _publicKey) <- liftIO SignedAuth.mkKeys
+        $logInfo "SIGNED_HEADERS_PRIVATE_KEY_PATH not set, generating random key"
+        return privateKey
+      Just signedHeaderKeyPath ->
+        readSignedHeaderKey $ Text.unpack signedHeaderKeyPath
+  serviceToken <- getConfMaybe "SERVICE_TOKEN" "service-token" conf
   return Secrets { secretsHeaderPrivateKey = signedHeaderKey
                  , secretsServiceToken = serviceToken
                  }

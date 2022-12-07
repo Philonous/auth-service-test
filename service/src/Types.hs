@@ -151,7 +151,7 @@ data Config = Config
 data Secrets =
   Secrets
     { secretsHeaderPrivateKey     :: SignedAuth.PrivateKey
-    , secretsServiceToken         :: Text
+    , secretsServiceToken         :: Maybe Text
     }
 
 -- | Necessary data to fill in a password reset email
