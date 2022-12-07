@@ -42,6 +42,8 @@ services:
     volumes:
       - ./secrets:/run/secrets
       - ./SAML/config:/run/saml:ro
+      - ./templates/password-reset-email.html.mustache:/app/password-reset-email.html.mustache:ro
+      - ./templates/password-reset-unknown-email.html.mustache:/app/password-reset-unknown-email.html.mustache:ro
     # logging:
     #   driver: gelf
     #   options:
