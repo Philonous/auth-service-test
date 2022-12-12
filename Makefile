@@ -4,12 +4,12 @@ build-env-file=$(env-file)
 endif
 include $(build-env-file)
 
-WEB_IMAGE=$(REGISTRY)/$(WEB_IMAGE_NAME)
+WEB_IMAGE=$(REGISTRY)/$(PROXY_IMAGE_NAME)
 
 COMPOSE=docker-compose -f devel/docker-compose.yaml --project-directory=$(PWD)
 
 .PHONY: all
-all: auth-web.image dist/doc
+all: auth-service-proxy.image dist/doc
 	$(MAKE) -C service all
 
 .PHONY: dist/doc
@@ -39,11 +39,11 @@ systemtests: up
 	tests/test dockertest
 	$(MAKE) down
 
-auth-web-deps := $(shell find web)
+auth-service-proxy-deps := $(shell find web)
 
-auth-web.image: $(auth-web-deps)
+auth-service-proxy.image: $(auth-service-proxy-deps)
 	docker build -t $(WEB_IMAGE):$(TAG) web
-	echo -n "$(TAG)" > auth-web.image
+	echo -n "$(TAG)" > auth-service-proxy.image
 
 .PHONY: run
 run: up
@@ -64,9 +64,9 @@ devel/ephemeral/secrets/header_signing_private_key: devel/ephemeral/ed25519.priv
 	mkfifo devel/ephemeral/secrets/header_signing_private_key
 
 .PHONY: up
-up: service/image auth-web.image devel/ephemeral/ed25519.priv.der devel/ephemeral/ed25519.pub.der devel/ephemeral/secrets/header_signing_private_key
+up: service/image auth-service-proxy.image devel/ephemeral/ed25519.priv.der devel/ephemeral/ed25519.pub.der devel/ephemeral/secrets/header_signing_private_key
 	cat devel/ephemeral/ed25519.priv.der > devel/ephemeral/secrets/header_signing_private_key &
-	env "AUTHWEBTAG=$$(cat auth-web.image)" $(COMPOSE) up -d
+	env "PROXY_TAG=$$(cat auth-service-proxy.image)" $(COMPOSE) up -d
 
 .PHONY: down
 down:
@@ -88,4 +88,4 @@ push-latest:
 clean:
 	$(MAKE) -C service clean
 	rm -rf devel/ephemeral
-	rm -f auth-web.image
+	rm -f auth-service-proxy.image
