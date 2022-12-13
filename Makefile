@@ -4,7 +4,7 @@ build-env-file=$(env-file)
 endif
 include $(build-env-file)
 
-WEB_IMAGE=$(REGISTRY)/$(PROXY_IMAGE_NAME)
+PROXY_IMAGE=$(REGISTRY)/$(PROXY_IMAGE_NAME)
 
 COMPOSE=docker-compose -f devel/docker-compose.yaml --project-directory=$(PWD)
 
@@ -39,10 +39,10 @@ systemtests: up
 	tests/test dockertest
 	$(MAKE) down
 
-auth-service-proxy-deps := $(shell find web)
+auth-service-proxy-deps := $(shell find proxy)
 
 auth-service-proxy.image: $(auth-service-proxy-deps)
-	docker build -t $(WEB_IMAGE):$(TAG) web
+	docker build -t $(PROXY_IMAGE):$(TAG) proxy
 	echo -n "$(TAG)" > auth-service-proxy.image
 
 .PHONY: run
@@ -76,13 +76,13 @@ down:
 .PHONY: push
 push:
 	$(MAKE) -C service push
-	docker push $(WEB_IMAGE):$(TAG)
+	docker push $(PROXY_IMAGE):$(TAG)
 
 .PHONY: push-latest
 push-latest:
 	$(MAKE) -C service push-latest
-	docker tag $(WEB_IMAGE):$(TAG) $(WEB_IMAGE):latest
-	docker push $(WEB_IMAGE):latest
+	docker tag $(PROXY_IMAGE):$(TAG) $(PROXY_IMAGE):latest
+	docker push $(PROXY_IMAGE):latest
 
 .PHONY: clean
 clean:

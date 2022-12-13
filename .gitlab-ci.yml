@@ -51,8 +51,8 @@ build-auth-service-proxy-image:
   script:
     - if [ $CI_COMMIT_BRANCH = "master" ]; then EXTRA_ARGS="--destination $EXTRA_DESTINATION"; fi
     - 'echo "Building with --destination $DESTINATION $EXTRA_ARGS"'
-    - /kaniko/executor --context $CI_PROJECT_DIR/web
-                       --dockerfile $CI_PROJECT_DIR/web/Dockerfile
+    - /kaniko/executor --context $CI_PROJECT_DIR/proxy
+                       --dockerfile $CI_PROJECT_DIR/proxy/Dockerfile
                        --cache=true
                        --destination "$DESTINATION"
                        $EXTRA_ARGS
