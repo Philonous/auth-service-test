@@ -18,10 +18,6 @@
    * wai-saml2 doesn't handle client requests
    * Not implemented in auth-service
    * Leads to error: "Invalid requester"
- * Encrypt Assertions: ON
-   * Required by wai-saml2
-   * See https://github.com/mbg/wai-saml2/issues/5
-   * See next section
 
 ### Generating and installing encryption key
   * This generates the RSA encryption key pair belonging to the client (auth-service)
