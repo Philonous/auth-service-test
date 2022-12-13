@@ -13,6 +13,7 @@
 
 ### Minimal changes from default settings
  * root url (e.g. `http://localhost:8000/` for the example)
+ * Master SAML processing URL  (e.g. `http://localhost:8000/api/sso/assert`)
  * Under Keys:
  * Client Signature required: OFF
    * wai-saml2 doesn't handle client requests
