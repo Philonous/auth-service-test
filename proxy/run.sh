@@ -25,7 +25,7 @@ m4 -DAUTH_SERVICE=auth-service-backend:80 \
    > /etc/nginx/nginx.conf
 
 until nc -z auth-service-backend 80; do
-    echo "Waiting for auth-service..."
+    echo "Waiting for auth-service-backend..."
     sleep 1
 done
 
