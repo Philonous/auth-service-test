@@ -645,7 +645,7 @@ API. For more information, see [the library documentation](Doc/Library.md).
 
 ## Legal
 
-Copyright © 2015-2022 Nejla AB. All rights reserved.
+Copyright © 2015-2023 Nejla AB. All rights reserved.
 
 Twilio and Twiml are registered trademarks of Twilio and/or its affiliates.
 Other names may be trademarks of their respective owners.
