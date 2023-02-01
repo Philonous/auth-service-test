@@ -465,9 +465,9 @@ request has indeed passed through auth-service. This could be useful in a
 situation where the proxy server become compromised, or if some other container
 manages to reach the container running your application server.
 
-| Option                   | Required | Type                        | Default | Description                                                                                                                                     |
-|--------------------------|----------|-----------------------------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------|
-| `SIGNED_HEADERS_ENABLED` | No       | Boolean (`true` or `false`) | `true`  | Whether or not the signed header functionality is enabled. If the functionality is enabled, an Ed25519 private key can be provided (see below). |
+| Option           | Required | Type                        | Default | Description                                                                                                                                     |
+|------------------|----------|-----------------------------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `SIGNED_HEADERS` | No       | Boolean (`true` or `false`) | `true`  | Whether or not the signed header functionality is enabled. If the functionality is enabled, an Ed25519 private key can be provided (see below). |
 
 A Ed25519 key pair has to be generated in order to sign and verify headers.
 
