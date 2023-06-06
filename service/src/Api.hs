@@ -139,7 +139,18 @@ serveSSOLoginAPI pool st (Just inst) = do
     Just samlConf -> do
       let audience = samlInstanceConfigAudience samlConf
           baseUrl = samlInstanceConfigIdPBaseUrl samlConf
-      param <- liftHandler . runAPI pool st $ SAML.ssoLoginHandler audience
+          -- SAML request "destination" is required when the request is signed
+          destination = Just baseUrl
+          digest = samlInstanceConfigRequestSigningDigest samlConf
+      param <- case samlInstanceConfigRequestSigningKey samlConf of
+        -- Request signing disabled
+        Nothing ->
+          liftHandler . runAPI pool st $ SAML.ssoLoginHandler
+                                                     audience destination
+        Just key ->
+          liftHandler . runAPI pool st
+                     $ SAML.ssoLoginSignedHandler audience destination digest
+                     key
       return $
         addHeader @"Location" ([i|#{baseUrl}?#{param}|] :: Text)
         $ addHeader @"Cache-Control" ("no-cache, no-store" :: Text)
