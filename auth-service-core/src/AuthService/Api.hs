@@ -25,6 +25,8 @@ type SSOLoginAPI = "sso" :> "login"
                            ]
                    SamlLoginRequest)
 
+type SSOEnabledAPI = "sso" :> "enabled" :> Get '[ JSON ] SsoEnabled
+
 type SSOAssertAPI = "sso" :> "assert"
             :> Header "X-Instance" InstanceID
             :> ReqBody '[FormUrlEncoded] SamlResponse
@@ -140,7 +142,8 @@ type ServiceAPI = "service"
 -- Interface
 --------------------------------------------------------------------------------
 
-type Api = LoginAPI
+type Api = SSOEnabledAPI
+           :<|> LoginAPI
            :<|> SSOLoginAPI
            :<|> SSOAssertAPI
            :<|> CheckTokenAPI

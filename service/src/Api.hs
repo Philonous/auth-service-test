@@ -100,6 +100,13 @@ serveLogin pool st loginReq = loginHandler
                          , errHeaders      = []
                          }
 
+serveSSOEnabledAPI :: ConnectionPool -> ApiState -> Server SSOEnabledAPI
+serveSSOEnabledAPI _pool st =
+  case configSamlConfig (apiStateConfig st) of
+    Nothing -> return $ SsoEnabled False
+    Just{} -> return $ SsoEnabled True
+
+
 serveSSOAssertAPI :: ConnectionPool -> ApiState -> Server SSOAssertAPI
 serveSSOAssertAPI pool st Nothing _ = do
   liftHandler $ runAPI pool st $
@@ -457,6 +464,7 @@ serveAPI pool noncePool conf secrets =
                        , apiStateNoncePool = noncePool
                        }
     in serve apiPrx $ serveStatus
+                               :<|> serveSSOEnabledAPI pool ctx
                                :<|> serveLogin pool ctx
                                :<|> serveSSOLoginAPI pool ctx
                                :<|> serveSSOAssertAPI pool ctx

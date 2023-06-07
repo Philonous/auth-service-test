@@ -342,6 +342,13 @@ deriveJSON
   defaultOptions {fieldLabelModifier = camelTo2 '_' . dropPrefix "samlLoginRequest"}
   ''SamlLoginRequest
 
+newtype SsoEnabled = SsoEnabled { ssoEnabledEnabled :: Bool}
+
+makeLensesWith camelCaseFields ''SsoEnabled
+deriveJSON
+  defaultOptions {fieldLabelModifier = camelTo2 '_' . dropPrefix "ssoEnabled"}
+  ''SsoEnabled
+
 
 data SamlResponse =
   SamlResponse
