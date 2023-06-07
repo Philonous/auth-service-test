@@ -100,6 +100,13 @@ serveLogin pool st loginReq = loginHandler
                          , errHeaders      = []
                          }
 
+serveSSOEnabledAPI :: ConnectionPool -> ApiState -> Server SSOEnabledAPI
+serveSSOEnabledAPI _pool st =
+  case configSamlConfig (apiStateConfig st) of
+    Nothing -> return $ SsoEnabled False
+    Just{} -> return $ SsoEnabled True
+
+
 serveSSOAssertAPI :: ConnectionPool -> ApiState -> Server SSOAssertAPI
 serveSSOAssertAPI pool st Nothing _ = do
   liftHandler $ runAPI pool st $
@@ -151,11 +158,12 @@ serveSSOLoginAPI pool st (Just inst) = do
           liftHandler . runAPI pool st
                      $ SAML.ssoLoginSignedHandler audience destination digest
                      key
+      let location = [i|#{baseUrl}?#{param}|] :: Text
       return $
-        addHeader @"Location" ([i|#{baseUrl}?#{param}|] :: Text)
+        addHeader @"Location" location
         $ addHeader @"Cache-Control" ("no-cache, no-store" :: Text)
         $ addHeader @"Pragma" ("no-cache" :: Text)
-          NoContent
+          SamlLoginRequest {samlLoginRequestLocation = location}
 
 
 serveLogout :: ConnectionPool -> ApiState -> Server LogoutAPI
@@ -456,6 +464,7 @@ serveAPI pool noncePool conf secrets =
                        , apiStateNoncePool = noncePool
                        }
     in serve apiPrx $ serveStatus
+                               :<|> serveSSOEnabledAPI pool ctx
                                :<|> serveLogin pool ctx
                                :<|> serveSSOLoginAPI pool ctx
                                :<|> serveSSOAssertAPI pool ctx
