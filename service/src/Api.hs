@@ -151,11 +151,12 @@ serveSSOLoginAPI pool st (Just inst) = do
           liftHandler . runAPI pool st
                      $ SAML.ssoLoginSignedHandler audience destination digest
                      key
+      let location = [i|#{baseUrl}?#{param}|] :: Text
       return $
-        addHeader @"Location" ([i|#{baseUrl}?#{param}|] :: Text)
+        addHeader @"Location" location
         $ addHeader @"Cache-Control" ("no-cache, no-store" :: Text)
         $ addHeader @"Pragma" ("no-cache" :: Text)
-          NoContent
+          SamlLoginRequest {samlLoginRequestLocation = location}
 
 
 serveLogout :: ConnectionPool -> ApiState -> Server LogoutAPI

@@ -24,6 +24,7 @@ import           Data.Text                        (Text)
 import qualified Data.Text                        as Text
 import qualified Data.Text.Encoding               as Text
 import           Data.Time.Clock                  (getCurrentTime, addUTCTime)
+import           Data.Time.Clock                  (UTCTime)
 import qualified Data.UUID                        as UUID
 import qualified Database.Esqueleto               as E
 import qualified Database.Persist                 as P
@@ -76,11 +77,20 @@ config2SamlConf cfg =
 -- AuthnRequest ----------------------------------------------------------------
 --------------------------------------------------------------------------------
 
+pruneSsoRequestTokens :: UTCTime -> API ()
+pruneSsoRequestTokens now = do
+    -- Delete IDs older than one hour
+  runDB . E.delete . E.from $ \(srid :: SV DB.SamlRequestId) ->
+     E.where_ (srid E.^. DB.SamlRequestIdCreated E.<. E.val (addUTCTime (-3600) now))
+
+
 ssoLoginHandler :: Text -> Maybe Text -> API ByteString
 ssoLoginHandler issuer destination = do
   request' <- liftIO $ AuthnRequest.issueAuthnRequest issuer
   let request = request' { SAML.authnRequestDestination = destination }
   now <- liftIO getCurrentTime
+  -- Don't let tokens accumulate in the absence of successful logins
+  pruneSsoRequestTokens now
   _ <- runDB $ P.insert DB.SamlRequestId
     { DB.samlRequestIdRequestId = AuthnRequest.authnRequestID request
     , DB.samlRequestIdCreated = now
@@ -173,10 +183,7 @@ createSsoToken userId email' userName instId instName roles' = do
 checkAssertionInResponseTo :: Text -> ExceptT SSOResult API ()
 checkAssertionInResponseTo requestId = do
   now <- liftIO getCurrentTime
-  -- Delete IDs older than one hour
-  lift . runDB . E.delete . E.from $ \(srid :: SV DB.SamlRequestId) ->
-     E.where_ (srid E.^. DB.SamlRequestIdCreated E.<. E.val (addUTCTime (-3600) now))
-
+  lift $ pruneSsoRequestTokens now
   -- Find and delete request ID
   deleted <- lift . runDB $ E.deleteCount . E.from $ \(srid :: SV DB.SamlRequestId) ->
      E.where_ (srid E.^. DB.SamlRequestIdRequestId E.==. E.val requestId)

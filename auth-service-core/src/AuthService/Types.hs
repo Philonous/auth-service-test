@@ -335,6 +335,14 @@ deriveJSON
 -- SAML sso --------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
+newtype SamlLoginRequest = SamlLoginRequest { samlLoginRequestLocation :: Text}
+
+makeLensesWith camelCaseFields ''SamlLoginRequest
+deriveJSON
+  defaultOptions {fieldLabelModifier = camelTo2 '_' . dropPrefix "samlLoginRequest"}
+  ''SamlLoginRequest
+
+
 data SamlResponse =
   SamlResponse
   { samlResponseBody :: Text

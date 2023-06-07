@@ -23,7 +23,7 @@ type SSOLoginAPI = "sso" :> "login"
                            , Header "Cache-Control" Text
                            , Header "Pragma" Text
                            ]
-                   NoContent)
+                   SamlLoginRequest)
 
 type SSOAssertAPI = "sso" :> "assert"
             :> Header "X-Instance" InstanceID
