@@ -102,7 +102,6 @@ ssoLoginSignedHandler issuer destination digest privateKey = do
           "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"
       sigAlgParam :: Text
       sigAlgParam = [i|SigAlg=#{urlEncode True sigAlg}|]
-                -- "SigAlg=RSAwithSHA1"
   let sigString :: ByteString
       sigString = [i|#{query}&#{sigAlgParam}|]
   mbSig <- liftIO $
