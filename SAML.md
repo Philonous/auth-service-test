@@ -68,7 +68,7 @@ that should have SAML enabled.
   * `config`: a simple "key=value" encoded configuration for the instance, with
     the following fields:
   * `request-signing.key.pem` (optional): RSA private key file for signing authn
-    requests. If this file is missing, requests signing is disabled
+    requests. If this file is missing, requests signing is disabled.
 
 |Option|Required|Type|Default|Description|
 |------|--------|----|-------|-----------|
@@ -94,4 +94,4 @@ redirect_after_login=/index.html
 ## Testing SAML SSO:
 
 If the example server is running, you can navigate your browser to
-`http://localhost:8000/api/sso/login` to test the SSO login
+`http://localhost:8000/api/sso/login` to test the SSO login.
