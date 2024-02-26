@@ -11,7 +11,6 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
       libicu-dev \
       libpq-dev \
       locales \
-      netcat \
       msmtp-mta \
       ssh-client && \
     locale-gen en_US.UTF-8
