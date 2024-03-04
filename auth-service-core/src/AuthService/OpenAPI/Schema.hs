@@ -20,6 +20,7 @@ import qualified Data.OpenApi.Internal.Schema as OpenApi
 import qualified Data.OpenApi.ParamSchema     as OpenApi
 
 import           Helpers                      (dropPrefix)
+import Data.Aeson (camelTo2)
 
 -- Wrapper for `deriving via`
 newtype JSONStruct a = JSONStruct a deriving Show
@@ -31,7 +32,7 @@ fieldLabelModifier =
   let (n, ns) = case datatypeName @m undefined of
         (c : cs) -> (c, cs)
         _ -> error "Empty datatypeName"
-  in dropPrefix (Char.toLower n : ns)
+  in camelTo2 '_' . dropPrefix (Char.toLower n : ns)
 
 -- This *requires* TypeApplications to be called, the `a` type parameter needs
 -- to be passed explicitly

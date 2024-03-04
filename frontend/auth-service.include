@@ -15,7 +15,6 @@
             proxy_set_header X-Original-URI $request_uri;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-instance 657b5108-7559-4b8e-a643-dd0cc29b9e34;
             proxy_pass http://auth-service-proxy/;
 
         }

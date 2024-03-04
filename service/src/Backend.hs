@@ -762,7 +762,7 @@ checkTokenInstance request tok inst
                                                 , Log.instanceId = inst
                                                 }
             return Nothing
-
+-- Not an SSO token
 checkTokenInstance request tok inst = do
     mbUsr <- getUserByToken tok
     case mbUsr of

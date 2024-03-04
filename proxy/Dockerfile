@@ -8,6 +8,7 @@ RUN apt-get update &&\
         dnsmasq \
         gettext-base \
         m4 \
+        netcat-openbsd \
         && \
     rm -rf /var/lib/apt/lists/*
 
