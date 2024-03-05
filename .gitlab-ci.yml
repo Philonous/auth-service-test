@@ -23,10 +23,12 @@ build:
     - scripts/registry-login
   script:
     - make -C service dist/auth-service tests
+    - make dist/openapi.json
   artifacts:
     paths:
       - service/dist
       - dist/doc
+      - dist/openapi.json
   cache:
     paths:
       - '.stack-cache'

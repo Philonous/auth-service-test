@@ -26,10 +26,4 @@ flags:
     new-singletons: false
 
 nix:
-  # shell-file: stack.nix
-  packages:
-    - zlib
-    - postgresql
-    - pkg-config
-    - libxml2
-    - openssl
+  shell-file: ../shell.nix
