@@ -12,6 +12,8 @@ module SAML
 where
 
 import           Control.Monad.Except
+import           Control.Monad                    (unless)
+import           Control.Monad.Trans              (MonadIO, lift, liftIO)
 import           Crypto.Hash.Algorithms           (SHA1(..), SHA256(..))
 import qualified Crypto.PubKey.RSA                as RSA (PrivateKey)
 import qualified Crypto.PubKey.RSA.PKCS15         as RSA

@@ -95,6 +95,7 @@ test-suite tests
     , bytestring
     , containers
     , hedgehog
+    , hspec
     , hspec-hedgehog
     , lens
     , lens-aeson
